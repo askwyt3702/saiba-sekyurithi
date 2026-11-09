@@ -1,0 +1,16 @@
+# Node.js (Frontend)
+node_modules/
+dist/
+
+# Python (Backend)
+__pycache__/
+*.pyc
+.venv/
+
+# Database & Environment
+postgres_data/
+.env
+
+# OS & Editor
+.DS_Store
+Thumbs.db
