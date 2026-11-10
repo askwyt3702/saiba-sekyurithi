@@ -66,6 +66,18 @@ export function toApiNode(node: NetworkNode): ApiNetworkNode {
   };
 }
 
+// ===== 確定: POST /api/scan が実際に受け取る/返す形 (backend/main.py: scan_node) =====
+// 現状は資源10固定・即時実行で、下の ActionRequest/ActionResult (未実装の提案) とは
+// コスト・レスポンス形式が食い違っている。docs/api-contract.md 7節を参照。
+
+export interface ScanApiRequest {
+  node_id: string;
+}
+
+export type ScanApiResponse =
+  | { message: string; status: NodeStatus; remaining_resource: number }
+  | { error: string };
+
 // ===== 未確定・提案中: プレイヤー状態・操作コマンド・リアルタイム更新 =====
 // backendにまだ対応エンドポイントが無い部分。実装され次第この節を実態に合わせて更新すること。
 
