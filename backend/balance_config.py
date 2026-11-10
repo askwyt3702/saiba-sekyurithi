@@ -12,11 +12,17 @@ ACTION_COSTS = {
 ALERT_DECAY_PER_SECOND = 0.05
 
 # 新規ゲーム開始時の値
-INITIAL_ANALYSIS_RESOURCE = 10
+INITIAL_ANALYSIS_RESOURCE = 25
 INITIAL_PRIVILEGE = "GUEST"
 
 # 警戒度がこの値に達したらゲームオーバー（api-contract.md 7節で未確定。暫定で即敗北）
 ALERT_GAME_OVER_THRESHOLD = 100.0
+
+# 警戒度がこの値を超えたら警告ログを出す
+ALERT_WARNING_THRESHOLD = 70.0
+
+# ゲーム内1秒を進める実時間の間隔（秒）。テスト時に小さくすると早送りできる
+TICK_INTERVAL_SECONDS = 1.0
 
 # 権限の序列（暫定）。layer の並びと対応させ、侵入したノードの layer に応じて昇格する。
 PRIVILEGE_LADDER = ["GUEST", "USER", "ADMIN", "ROOT"]
