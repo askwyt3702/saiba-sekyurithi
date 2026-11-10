@@ -9,7 +9,7 @@ class PlayerStatus(Base):
     id = Column(Integer, primary_key=True, index=True)
     game_time = Column(Integer, default=0)              # 経過時間（秒）
     alert_level = Column(Float, default=0.0)            # 警戒度（%）
-    analysis_resource = Column(Integer, default=25)     # 解析資源
+    analysis_resource = Column(Integer, default=100)    # 解析資源
     current_privilege = Column(String, default="GUEST") # 所持権限
     game_status = Column(String, default="playing")     # playing / paused / won / lost
 
@@ -47,14 +47,3 @@ class GameLog(Base):
     timestamp = Column(Integer, default=0)              # 記録時点の game_time
     message = Column(String)
     severity = Column(String, default="info")           # info / success / warning / danger
-
-# 5. 実行中（時間のかかる）アクション。ゲーム内時間が complete_at に達したら結果が確定する
-class PendingAction(Base):
-    __tablename__ = "pending_action"
-
-    id = Column(Integer, primary_key=True, index=True)
-    player_id = Column(Integer, ForeignKey("player_status.id"), index=True)
-    node_id = Column(String, ForeignKey("node_master.id"))
-    action_type = Column(String)                        # scan / breach / dataExtract
-    started_at = Column(Integer)                        # 開始時の game_time
-    complete_at = Column(Integer)                       # 完了する game_time

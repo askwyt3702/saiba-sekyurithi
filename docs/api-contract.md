@@ -194,41 +194,29 @@ interface GameClient {
 - 認証（ユーザー識別が必要か）
 
 
-## 8. backend 実装済み API（リアルタイム版）
+## 8. backend 実装済み API（REST版・リアルタイム化前）
 
-3節・4節の提案をもとに実装した（`backend/main.py` / `backend/game_logic.py` / `backend/realtime.py`）。
-操作は REST で「開始」し、ゲーム内時間が経過すると結果が確定して WebSocket で届く。
+3節の提案をもとに、まず REST だけでゲームが最後まで遊べる形で実装した（`backend/main.py` / `backend/game_logic.py`）。
+WebSocket（4節）は未実装のため、現状は **アクションの結果が即時に確定** し、レスポンスに操作後の `GameState` がそのまま入る。
 
 | メソッド | パス | 内容 |
 |---|---|---|
 | POST | `/api/games` | 新しいゲームを作成し、初期 `GameState` を返す |
 | GET | `/api/games/{gameId}` | 現在の `GameState` を返す（存在しなければ 404） |
-| POST | `/api/games/{gameId}/actions` | `ActionRequest` を受け付ける。`{ accepted, reason?, state: GameState }` を返す（state は受付直後の状態） |
-| WS | `/ws/games/{gameId}` | 4節の `ServerEvent` を受信。接続直後に `state_snapshot`。存在しないゲームは code 4404 で切断 |
+| POST | `/api/games/{gameId}/actions` | `ActionRequest` を実行。`{ accepted, reason?, state: GameState }` を返す |
 | GET | `/api/network` | 旧API（互換用）。既定ゲームのノード・エッジ |
-| POST | `/api/scan` | 旧API（互換用）。既定ゲームでスキャンを開始 |
+| POST | `/api/scan` | 旧API（互換用）。既定ゲームでスキャン |
 
 - `gameId` は `player_status.id`（文字列で返す）。
-- `GameState.nodes` は 2.1 の `ApiNetworkNode` 形式。`data.vulnerability` を追加（未スキャン時は `null`）。`node_update.node` も同じ形式。
-- `GameState` に **`pendingActions: { nodeId, type, startedAt, completeAt }[]`** を追加（実行中の操作。進捗バー表示用。時刻は `elapsedSeconds` 基準）。
+- `GameState.nodes` は 2.1 の `ApiNetworkNode` 形式。`data.vulnerability` を追加（未スキャン時は `null`）。
 - 却下理由に **`node_unreachable`** を追加（隣接ノードを侵入済みにしていないのに breach しようとした）。フロントの `ActionRejectReason` にも追加が必要。
-
-### イベントの送られ方
-
-- 毎ゲーム内秒：`tick`（＋その秒に出たログがあれば `log`）
-- 操作の受付時：`log`（開始メッセージ）→ `state_snapshot`
-- 操作の完了時：`log` → `tick` → `node_update` → `state_snapshot`（資源・権限・pendingActions の更新用）
-- 決着時：上記に続けて `game_over`
-- **WebSocket が1本以上つながっているゲームだけ時間が進む**（放置されたゲームが裏で進んで負けるのを防ぐため）。
 
 ### ゲームルール（暫定・`balance_config.py` で調整）
 
 - **scan**：`unscanned` のノードのみ。完了で `scanned`、`info` と `vulnerability` が開示される。
 - **breach**：`scanned` であること／External 以外は隣接ノードのどれかが `hacked` であること／権限が layer の要求以上であること（External=GUEST, DMZ=USER, Internal=ADMIN, Core=ROOT）。成功で `hacked`、権限が「侵入した layer の1段上」まで昇格。
 - **dataExtract**：`hacked` 状態の Core ノードのみ。成功で `status = 'won'`。
-- 同じノードに実行中の操作がある間は、そのノードへの操作は `invalid_state`。別ノードへの操作は並行して進められる。
-- 資源は開始時に消費、警戒度（`alertDelta`）は完了時に加算。警戒度は毎秒 `alertDecayPerSecond` ずつ自然減衰。
-- **pause / resume**：`playing` ⇔ `paused`。一時停止中はゲーム内時間も実行中の操作も止まる。`playing` 以外では操作は `invalid_state`。
-- 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。決着時、実行中の操作は破棄。
+- **pause / resume**：`playing` ⇔ `paused`。`playing` 以外ではアクションは `invalid_state` で却下。
+- 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（リアルタイム化後は tick 側に移す）。
+- 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
-
