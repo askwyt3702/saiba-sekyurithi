@@ -1,0 +1,38 @@
+from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy.orm import relationship
+from database import Base
+
+# 1. プレイヤーの現在の状態
+class PlayerStatus(Base):
+    __tablename__ = "player_status"
+
+    id = Column(Integer, primary_key=True, index=True)
+    game_time = Column(Integer, default=0)              # 経過時間（秒）
+    alert_level = Column(Float, default=0.0)            # 警戒度（%）
+    analysis_resource = Column(Integer, default=100)    # 解析資源
+    current_privilege = Column(String, default="GUEST") # 所持権限
+
+# 2. ノードの基本設計図（マスターデータ）
+class NodeMaster(Base):
+    __tablename__ = "node_master"
+
+    id = Column(String, primary_key=True, index=True)   # 例: "external-1"
+    name = Column(String, index=True)                   # 例: "DMZ (Webサーバー)"
+    layer = Column(String)                              # 例: "DMZ"
+    pos_x = Column(Float)                               # マップX座標
+    pos_y = Column(Float)                               # マップY座標
+    vulnerability = Column(String, nullable=True)       # 例: "SQLインジェクション"
+    info = Column(String, nullable=True)                # 説明文
+
+# 3. 現在のノード攻略状況
+class NodeState(Base):
+    __tablename__ = "node_state"
+
+    id = Column(Integer, primary_key=True, index=True)
+    player_id = Column(Integer, ForeignKey("player_status.id"))
+    node_id = Column(String, ForeignKey("node_master.id"))
+    status = Column(String, default="unscanned")        # unscanned / scanned / hacked
+
+    # 他のテーブルとの紐づけ（リレーション）
+    player = relationship("PlayerStatus")
+    node = relationship("NodeMaster")
