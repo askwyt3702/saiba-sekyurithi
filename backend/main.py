@@ -1,10 +1,15 @@
-from fastapi import FastAPI, Depends
+from typing import Literal, Optional
+
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 import models
+import game_logic
 from database import engine, SessionLocal
+from game_data import NODES
 
 app = FastAPI(title="NULL ROUTE API")
 
@@ -23,102 +28,97 @@ def get_db():
     finally:
         db.close()
 
+def migrate_db():
+    """create_all は既存テーブルへの列追加をしないため、足りない列だけ追加する簡易マイグレーション。"""
+    columns = {c["name"] for c in inspect(engine).get_columns("player_status")}
+    if "game_status" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN game_status VARCHAR DEFAULT 'playing'"))
+            conn.execute(text("UPDATE player_status SET game_status = 'playing' WHERE game_status IS NULL"))
+
 def init_db():
     db = SessionLocal()
-    # ノード情報の初期化
-    if db.query(models.NodeMaster).count() == 0:
-        initial_nodes = [
-            models.NodeMaster(id="external-1", name="External (公開サーバー)", layer="External", pos_x=250, pos_y=50, info="最初の侵入口。SSHポート(22)が開いている。"),
-            models.NodeMaster(id="dmz-1", name="DMZ (Webサーバー)", layer="DMZ", pos_x=150, pos_y=150, info="古いバージョンのApacheが稼働中。"),
-            models.NodeMaster(id="dmz-2", name="DMZ (メールサーバー)", layer="DMZ", pos_x=350, pos_y=150, info="SMTPサーバー。社員のメールアドレスが漏洩している。"),
-            models.NodeMaster(id="internal-1", name="Internal (社内網)", layer="Internal", pos_x=250, pos_y=250, info="Active Directoryサーバー。アクセス権が厳重。"),
-            models.NodeMaster(id="core-1", name="Core (機密DB)", layer="Core", pos_x=250, pos_y=350, info="目標データが存在。SQLインジェクションの痕跡あり。")
-        ]
-        db.add_all(initial_nodes)
+    try:
+        # ノード情報を game_data.py の内容に同期（既存行は上書き、無ければ追加）
+        for node in NODES:
+            db.merge(models.NodeMaster(**node))
         db.commit()
-    
-    # テスト用プレイヤーデータの初期化
-    if db.query(models.PlayerStatus).count() == 0:
-        player = models.PlayerStatus(analysis_resource=100)
-        db.add(player)
-        db.commit()
-    db.close()
+
+        # テスト用プレイヤーデータの初期化（/api/network・/api/scan が使う既定のゲーム）
+        if db.query(models.PlayerStatus).count() == 0:
+            game_logic.create_game(db)
+    finally:
+        db.close()
 
 models.Base.metadata.create_all(bind=engine)
+migrate_db()
 init_db()
 
-# ======= 1. ネットワーク全体を取得するAPI（更新） =======
+
+# ======= スキーマ =======
+class ActionRequest(BaseModel):
+    type: Literal["scan", "breach", "dataExtract", "pause", "resume"]
+    nodeId: Optional[str] = None
+
+
+def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
+    player = game_logic.get_game(db, game_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail="指定されたゲームが存在しません")
+    return player
+
+
+# ======= 1. ゲームの作成・取得 =======
+@app.post("/api/games")
+def create_game(db: Session = Depends(get_db)):
+    """新しいゲームを開始し、初期状態(GameState)を返す。"""
+    player = game_logic.create_game(db)
+    return game_logic.build_game_state(db, player)
+
+
+@app.get("/api/games/{game_id}")
+def get_game_state(game_id: int, db: Session = Depends(get_db)):
+    """現在のゲーム状態(GameState)を返す。"""
+    player = _get_game_or_404(db, game_id)
+    return game_logic.build_game_state(db, player)
+
+
+# ======= 2. プレイヤー操作 =======
+@app.post("/api/games/{game_id}/actions")
+def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_db)):
+    """scan / breach / dataExtract / pause / resume を実行する。
+    受理可否(accepted, reason)に加えて、操作後の GameState を state として返す。
+    """
+    player = _get_game_or_404(db, game_id)
+    try:
+        game_logic.apply_action(db, player, action.type, action.nodeId)
+    except game_logic.ActionRejected as e:
+        db.rollback()
+        return {"accepted": False, "reason": e.reason, "state": game_logic.build_game_state(db, player)}
+    return {"accepted": True, "state": game_logic.build_game_state(db, player)}
+
+
+# ======= 3. 旧API（互換用：既定のゲーム = 最初のプレイヤー を対象にする） =======
 @app.get("/api/network")
 def get_network_map(db: Session = Depends(get_db)):
-    player = db.query(models.PlayerStatus).first()
-    db_nodes = db.query(models.NodeMaster).all()
-    
-    nodes_data = []
-    for node in db_nodes:
-        # そのノードの現在のステータスをNodeStateテーブルから探す
-        state = db.query(models.NodeState).filter(
-            models.NodeState.node_id == node.id,
-            models.NodeState.player_id == player.id
-        ).first()
-        
-        current_status = state.status if state else "unscanned"
-        
-        nodes_data.append({
-            "id": node.id,
-            "position": {"x": node.pos_x, "y": node.pos_y},
-            "data": {
-                "label": node.name,
-                "layer": node.layer,
-                # 未スキャンなら情報を隠し、スキャン済みなら情報を開示する
-                "info": node.info if current_status == "scanned" else "不明（スキャンが必要です）",
-                "status": current_status
-            }
-        })
-
-    edges_data = [
-        {"id": "e1", "source": "external-1", "target": "dmz-1", "animated": True},
-        {"id": "e2", "source": "external-1", "target": "dmz-2", "animated": True},
-        {"id": "e3", "source": "dmz-1", "target": "internal-1"},
-        {"id": "e4", "source": "dmz-2", "target": "internal-1"},
-        {"id": "e5", "source": "internal-1", "target": "core-1"}
-    ]
-    
-    return {"nodes": nodes_data, "edges": edges_data}
+    player = db.query(models.PlayerStatus).order_by(models.PlayerStatus.id).first()
+    state = game_logic.build_game_state(db, player)
+    return {"nodes": state["nodes"], "edges": state["edges"]}
 
 
-# ======= 2. スキャンを実行するAPI（新規追加） =======
 class ScanRequest(BaseModel):
     node_id: str
 
 @app.post("/api/scan")
 def scan_node(req: ScanRequest, db: Session = Depends(get_db)):
-    target_node = db.query(models.NodeMaster).filter(models.NodeMaster.id == req.node_id).first()
-    if not target_node:
-        return {"error": "指定されたノードが存在しません"}
-    player = db.query(models.PlayerStatus).first()
-    
-    # リソースが足りない場合はエラーを返す
-    if player.analysis_resource < 10:
-        return {"error": "解析資源が足りません"}
-
-    # ノードの状態を取得（無ければ作る）
-    node_state = db.query(models.NodeState).filter(
-        models.NodeState.node_id == req.node_id,
-        models.NodeState.player_id == player.id
-    ).first()
-
-    if not node_state:
-        node_state = models.NodeState(player_id=player.id, node_id=req.node_id, status="scanned")
-        db.add(node_state)
-    else:
-        node_state.status = "scanned"
-    
-    # スキャン実行で資源を10消費
-    player.analysis_resource -= 10
-    
-    db.commit()
+    player = db.query(models.PlayerStatus).order_by(models.PlayerStatus.id).first()
+    try:
+        game_logic.apply_action(db, player, "scan", req.node_id)
+    except game_logic.ActionRejected as e:
+        db.rollback()
+        return {"error": e.reason}
     return {
-        "message": f"ノード {req.node_id} のスキャン完了", 
-        "status": "scanned", 
-        "remaining_resource": player.analysis_resource
+        "message": f"ノード {req.node_id} のスキャン完了",
+        "status": "scanned",
+        "remaining_resource": player.analysis_resource,
     }
