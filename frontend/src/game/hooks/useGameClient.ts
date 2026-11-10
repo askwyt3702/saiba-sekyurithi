@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ActionRequest, ActionResult, GameState, ServerEvent } from '../model/types';
+import type { ActionRequest, ActionResult, GameClient, GameState, ServerEvent } from '../model/types';
 import { MockGameClient } from '../client/mockGameClient';
+import { WebSocketGameClient } from '../client/webSocketGameClient';
 
 function applyEvent(prev: GameState | null, event: ServerEvent): GameState | null {
   if (event.type === 'state_snapshot') return event.state;
@@ -21,18 +22,41 @@ function applyEvent(prev: GameState | null, event: ServerEvent): GameState | nul
 }
 
 export function useGameClient(gameId: string) {
-  const clientRef = useRef<MockGameClient | null>(null);
+  const clientRef = useRef<GameClient | null>(null);
   const [state, setState] = useState<GameState | null>(null);
 
   useEffect(() => {
-    // 今はMockGameClient固定。backend接続後はここをWebSocketGameClientに差し替える。
-    const client = new MockGameClient(gameId);
-    clientRef.current = client;
+    let cancelled = false;
+    const handleEvent = (event: ServerEvent) => {
+      if (!cancelled) {
+        setState((prev) => applyEvent(prev, event));
+      }
+    };
 
-    client.connect((event) => setState((prev) => applyEvent(prev, event))).then(setState);
+    // まず実バックエンド(WebSocketGameClient)へ接続を試み、
+    // バックエンド未起動の場合は MockGameClient にフォールバックする。
+    const wsClient = new WebSocketGameClient(gameId);
+    clientRef.current = wsClient;
+
+    wsClient
+      .connect(handleEvent)
+      .then((initial) => {
+        if (!cancelled) setState(initial);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
+        wsClient.disconnect();
+        const mockClient = new MockGameClient(gameId);
+        clientRef.current = mockClient;
+        void mockClient.connect(handleEvent).then((initial) => {
+          if (!cancelled) setState(initial);
+        });
+      });
 
     return () => {
-      client.disconnect();
+      cancelled = true;
+      clientRef.current?.disconnect();
       clientRef.current = null;
     };
   }, [gameId]);

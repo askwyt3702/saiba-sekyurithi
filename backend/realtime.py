@@ -76,6 +76,15 @@ async def publish_after_action(db: Session, player: models.PlayerStatus) -> None
     await manager.broadcast(player.id, {"type": "state_snapshot", "state": game_logic.build_game_state(db, player)})
 
 
+async def publish_after_reset(db: Session, player: models.PlayerStatus) -> None:
+    """ゲームをリセットした後、接続中のクライアントへ初期状態を通知する。"""
+    manager.last_log_id.pop(player.id, None)
+    state = game_logic.build_game_state(db, player)
+    if state["log"]:
+        manager.last_log_id[player.id] = int(state["log"][-1]["id"])
+    await manager.broadcast(player.id, {"type": "state_snapshot", "state": state})
+
+
 async def _tick_game(game_id: int) -> None:
     db = SessionLocal()
     try:

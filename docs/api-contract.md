@@ -203,6 +203,7 @@ interface GameClient {
 |---|---|---|
 | POST | `/api/games` | 新しいゲームを作成し、初期 `GameState` を返す |
 | GET | `/api/games/{gameId}` | 現在の `GameState` を返す（存在しなければ 404） |
+| POST | `/api/games/{gameId}/reset` | 指定ゲームを初期状態にリセットし、初期 `GameState` を返す |
 | POST | `/api/games/{gameId}/actions` | `ActionRequest` を受け付ける。`{ accepted, reason?, state: GameState }` を返す（state は受付直後の状態） |
 | WS | `/ws/games/{gameId}` | 4節の `ServerEvent` を受信。接続直後に `state_snapshot`。存在しないゲームは code 4404 で切断 |
 | GET | `/api/network` | 旧API（互換用）。既定ゲームのノード・エッジ |

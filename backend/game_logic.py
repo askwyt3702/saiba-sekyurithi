@@ -143,6 +143,24 @@ def create_game(db: Session) -> models.PlayerStatus:
     return player
 
 
+def reset_game(db: Session, player: models.PlayerStatus) -> models.PlayerStatus:
+    """指定されたゲームを初期状態にリセットする。"""
+    db.query(models.NodeState).filter(models.NodeState.player_id == player.id).delete()
+    db.query(models.PendingAction).filter(models.PendingAction.player_id == player.id).delete()
+    db.query(models.GameLog).filter(models.GameLog.player_id == player.id).delete()
+
+    player.game_time = 0
+    player.alert_level = 0.0
+    player.analysis_resource = INITIAL_ANALYSIS_RESOURCE
+    player.current_privilege = INITIAL_PRIVILEGE
+    player.game_status = "playing"
+
+    add_log(db, player, "info", "侵入作戦を開始しました。まずは公開サーバーをスキャンしてください。")
+    db.commit()
+    db.refresh(player)
+    return player
+
+
 def get_game(db: Session, game_id: int) -> Optional[models.PlayerStatus]:
     return db.query(models.PlayerStatus).filter(models.PlayerStatus.id == game_id).first()
 

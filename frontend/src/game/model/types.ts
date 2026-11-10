@@ -13,6 +13,7 @@ export interface ApiNetworkNode {
     label: string;
     layer: NetworkLayer;
     info: string | null;
+    vulnerability?: string | null;
     status: NodeStatus;
   };
 }
@@ -38,7 +39,7 @@ export interface NetworkNode {
   position: { x: number; y: number };
   status: NodeStatus;
   info: string | null;
-  vulnerability: string | null; // 現状の /api/network にはまだ含まれていない
+  vulnerability: string | null;
 }
 
 export function fromApiNode(node: ApiNetworkNode): NetworkNode {
@@ -49,7 +50,7 @@ export function fromApiNode(node: ApiNetworkNode): NetworkNode {
     position: node.position,
     status: node.data.status,
     info: node.data.info,
-    vulnerability: null,
+    vulnerability: node.data.vulnerability ?? null,
   };
 }
 
@@ -61,14 +62,13 @@ export function toApiNode(node: NetworkNode): ApiNetworkNode {
       label: node.name,
       layer: node.layer,
       info: node.info,
+      vulnerability: node.vulnerability,
       status: node.status,
     },
   };
 }
 
 // ===== 確定: POST /api/scan が実際に受け取る/返す形 (backend/main.py: scan_node) =====
-// 現状は資源10固定・即時実行で、下の ActionRequest/ActionResult (未実装の提案) とは
-// コスト・レスポンス形式が食い違っている。docs/api-contract.md 7節を参照。
 
 export interface ScanApiRequest {
   node_id: string;
@@ -78,8 +78,7 @@ export type ScanApiResponse =
   | { message: string; status: NodeStatus; remaining_resource: number }
   | { error: string };
 
-// ===== 未確定・提案中: プレイヤー状態・操作コマンド・リアルタイム更新 =====
-// backendにまだ対応エンドポイントが無い部分。実装され次第この節を実態に合わせて更新すること。
+// ===== プレイヤー状態・操作コマンド・リアルタイム更新 =====
 
 export type GameStatus = 'playing' | 'paused' | 'won' | 'lost';
 export type LogSeverity = 'info' | 'success' | 'warning' | 'danger';
@@ -91,15 +90,23 @@ export interface LogEntry {
   severity: LogSeverity;
 }
 
+export interface PendingAction {
+  nodeId: string;
+  type: ActionType;
+  startedAt: number;
+  completeAt: number;
+}
+
 export interface GameState {
   gameId: string;
   status: GameStatus;
   elapsedSeconds: number;    // backend DBでは player_status.game_time
   alertLevel: number;        // backend DBでは player_status.alert_level
   analysisResource: number;  // backend DBでは player_status.analysis_resource
-  privilege: string;         // backend DBでは player_status.current_privilege (値の一覧は未定義、現状確認できる値は "GUEST" のみ)
+  privilege: string;         // backend DBでは player_status.current_privilege (GUEST / USER / ADMIN / ROOT)
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
+  pendingActions?: PendingAction[];
   log: LogEntry[];
 }
 
@@ -114,6 +121,7 @@ export type ActionRejectReason =
   | 'insufficient_resource'
   | 'insufficient_privilege'
   | 'node_not_scanned'
+  | 'node_unreachable'
   | 'invalid_state';
 
 export interface ActionResult {

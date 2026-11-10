@@ -1,4 +1,5 @@
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from typing import Literal, Optional
 
@@ -66,9 +67,21 @@ def init_db():
     finally:
         db.close()
 
-models.Base.metadata.create_all(bind=engine)
-migrate_db()
-init_db()
+def setup_database(retries: int = 30, delay: float = 1.0) -> None:
+    """Docker 起動直後に PostgreSQL の準備が整うまでリトライしてから初期化する。"""
+    for attempt in range(1, retries + 1):
+        try:
+            models.Base.metadata.create_all(bind=engine)
+            migrate_db()
+            init_db()
+            return
+        except Exception as e:
+            if attempt == retries:
+                raise
+            print(f"[startup] waiting for database ({attempt}/{retries}): {e}")
+            time.sleep(delay)
+
+setup_database()
 
 
 # ======= スキーマ =======
@@ -121,6 +134,20 @@ def get_game_state(game_id: int, db: Session = Depends(get_db)):
     """現在のゲーム状態(GameState)を返す。"""
     player = _get_game_or_404(db, game_id)
     return game_logic.build_game_state(db, player)
+
+
+@app.post("/api/games/{game_id}/reset")
+async def reset_game(game_id: int):
+    """指定されたゲームを初期状態にリセットし、初期 GameState を返す。"""
+    async with realtime.lock:
+        db = SessionLocal()
+        try:
+            player = _get_game_or_404(db, game_id)
+            game_logic.reset_game(db, player)
+            await realtime.publish_after_reset(db, player)
+            return game_logic.build_game_state(db, player)
+        finally:
+            db.close()
 
 
 # ======= 2. プレイヤー操作 =======
