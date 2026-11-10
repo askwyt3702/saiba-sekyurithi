@@ -5,10 +5,11 @@ type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
 
 interface NodeDetailPanelProps {
   node: NetworkNode | null;
+  notice: string | null;
   onAction: (type: TimedActionType) => void;
 }
 
-export function NodeDetailPanel({ node, onAction }: NodeDetailPanelProps) {
+export function NodeDetailPanel({ node, notice, onAction }: NodeDetailPanelProps) {
   if (!node) {
     return (
       <aside className="node-detail node-detail--empty">
@@ -46,6 +47,11 @@ export function NodeDetailPanel({ node, onAction }: NodeDetailPanelProps) {
           データ回収
         </button>
       </div>
+      {notice && (
+        <p className="node-detail__notice" role="alert">
+          {notice}
+        </p>
+      )}
     </aside>
   );
 }

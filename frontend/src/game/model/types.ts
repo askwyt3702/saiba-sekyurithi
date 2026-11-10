@@ -90,13 +90,6 @@ export interface LogEntry {
   severity: LogSeverity;
 }
 
-export interface PendingAction {
-  nodeId: string;
-  type: ActionType;
-  startedAt: number;
-  completeAt: number;
-}
-
 export interface GameState {
   gameId: string;
   status: GameStatus;
@@ -106,7 +99,6 @@ export interface GameState {
   privilege: string;         // backend DBでは player_status.current_privilege (GUEST / USER / ADMIN / ROOT)
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
-  pendingActions?: PendingAction[];
   log: LogEntry[];
 }
 
@@ -152,5 +144,6 @@ export interface BalanceConfig {
 export interface GameClient {
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState>;
   sendAction(action: ActionRequest): Promise<ActionResult>;
+  reset(): Promise<void>;
   disconnect(): void;
 }

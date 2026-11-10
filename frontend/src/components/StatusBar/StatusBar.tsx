@@ -5,6 +5,7 @@ interface StatusBarProps {
   alertLevel: number;
   analysisResource: number;
   privilege: string;
+  onReset: () => void;
 }
 
 function formatTime(totalSeconds: number): string {
@@ -13,7 +14,7 @@ function formatTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
-export function StatusBar({ elapsedSeconds, alertLevel, analysisResource, privilege }: StatusBarProps) {
+export function StatusBar({ elapsedSeconds, alertLevel, analysisResource, privilege, onReset }: StatusBarProps) {
   return (
     <header className="status-bar">
       <div className="status-bar__title">NULL ROUTE</div>
@@ -36,6 +37,9 @@ export function StatusBar({ elapsedSeconds, alertLevel, analysisResource, privil
         <span className="status-bar__label">PRIVILEGE</span>
         <span className="status-bar__value">{privilege}</span>
       </div>
+      <button type="button" className="status-bar__reset" onClick={onReset}>
+        RESET
+      </button>
     </header>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ActionRequest, ActionResult, GameClient, GameState, ServerEvent } from '../model/types';
 import { MockGameClient } from '../client/mockGameClient';
-import { WebSocketGameClient } from '../client/webSocketGameClient';
+import { HttpGameClient } from '../client/httpGameClient';
 
 function applyEvent(prev: GameState | null, event: ServerEvent): GameState | null {
   if (event.type === 'state_snapshot') return event.state;
@@ -21,7 +21,7 @@ function applyEvent(prev: GameState | null, event: ServerEvent): GameState | nul
   }
 }
 
-export function useGameClient(gameId: string) {
+export function useGameClient() {
   const clientRef = useRef<GameClient | null>(null);
   const [state, setState] = useState<GameState | null>(null);
 
@@ -33,12 +33,12 @@ export function useGameClient(gameId: string) {
       }
     };
 
-    // まず実バックエンド(WebSocketGameClient)へ接続を試み、
+    // まず実バックエンド(HttpGameClient)へ接続を試み、
     // バックエンド未起動の場合は MockGameClient にフォールバックする。
-    const wsClient = new WebSocketGameClient(gameId);
-    clientRef.current = wsClient;
+    const httpClient = new HttpGameClient();
+    clientRef.current = httpClient;
 
-    wsClient
+    httpClient
       .connect(handleEvent)
       .then((initial) => {
         if (!cancelled) setState(initial);
@@ -46,8 +46,8 @@ export function useGameClient(gameId: string) {
       .catch((err) => {
         if (cancelled) return;
         console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
-        wsClient.disconnect();
-        const mockClient = new MockGameClient(gameId);
+        httpClient.disconnect();
+        const mockClient = new MockGameClient('mock');
         clientRef.current = mockClient;
         void mockClient.connect(handleEvent).then((initial) => {
           if (!cancelled) setState(initial);
@@ -59,12 +59,14 @@ export function useGameClient(gameId: string) {
       clientRef.current?.disconnect();
       clientRef.current = null;
     };
-  }, [gameId]);
+  }, []);
 
   const sendAction = (action: ActionRequest): Promise<ActionResult> => {
     if (!clientRef.current) return Promise.resolve({ accepted: false, reason: 'invalid_state' });
     return clientRef.current.sendAction(action);
   };
 
-  return { state, sendAction };
+  const reset = (): Promise<void> => clientRef.current?.reset() ?? Promise.resolve();
+
+  return { state, sendAction, reset };
 }

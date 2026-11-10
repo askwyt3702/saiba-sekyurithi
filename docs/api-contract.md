@@ -169,12 +169,13 @@ interface BalanceConfig {
 interface GameClient {
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState>;
   sendAction(action: ActionRequest): Promise<ActionResult>;
+  reset(): Promise<void>;
   disconnect(): void;
 }
 ```
 
-- 開発初期：`MockGameClient`（ブラウザ内でタイマーと状態をシミュレートするダミー実装）を使う。
-- バックエンド接続後：同じインターフェースを満たす `WebSocketGameClient` に差し替える（UIコンポーネント側のコードは変更不要）。
+- `HttpGameClient`（`frontend/src/game/client/httpGameClient.ts`）：REST(8節のAPI)でバックエンドと通信する本番用の実装。作成したゲームの `gameId` を `localStorage` に保存し、リロード後も同じゲームを続ける（保存済みのゲームが404なら新規作成）。
+- `MockGameClient`：バックエンドに接続できないときに `useGameClient` が自動で切り替えるブラウザ内のダミー実装。ルールは `backend/game_logic.py` に合わせてあるので、ルールを変えたら両方を更新すること。
 
 ## 7. まだ決まっていないこと
 

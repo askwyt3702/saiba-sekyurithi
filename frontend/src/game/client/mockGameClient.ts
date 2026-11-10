@@ -38,10 +38,10 @@ function layerRequirement(layer: NetworkLayer): number {
 type TimedActionType = 'scan' | 'breach' | 'dataExtract';
 
 // ターン制なので各アクションはリアルタイムの遅延なしに即座に確定する。
-// 「time」コストはゲーム内時間を進める量として扱うだけで、実際の待ち時間ではない
-// (backend/game_logic.py の apply_action / _advance_time と同じ考え方)。
-// バックエンド未完成の間、UIをそのまま開発・動作確認できるようにするための
-// GameClient のダミー実装。WebSocketGameClient と同じインターフェースを満たす。
+// 「time」コストはゲーム内時間を進める量として扱うだけで、実際の待ち時間ではない。
+// ルールは backend/game_logic.py の apply_action に合わせてある(変更時は両方を更新すること)。
+// バックエンド未起動時でもUIを開発・動作確認できるようにするための
+// GameClient のダミー実装。HttpGameClient と同じインターフェースを満たす。
 export class MockGameClient implements GameClient {
   private state: GameState;
   private onEvent: ((event: ServerEvent) => void) | null = null;
@@ -54,6 +54,12 @@ export class MockGameClient implements GameClient {
     this.onEvent = onEvent;
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
     return Promise.resolve(this.cloneState());
+  }
+
+  reset(): Promise<void> {
+    this.state = createMockGameState(this.state.gameId);
+    this.emit({ type: 'state_snapshot', state: this.cloneState() });
+    return Promise.resolve();
   }
 
   disconnect(): void {
@@ -112,7 +118,10 @@ export class MockGameClient implements GameClient {
     if (type === 'scan') {
       if (node.status !== 'unscanned') return 'invalid_state';
     } else if (type === 'breach') {
+      if (node.status === 'hacked') return 'invalid_state';
       if (node.status !== 'scanned') return 'node_not_scanned';
+      // 入口(External)以外は、隣接ノードのどれかを侵入済みにしていないと届かない
+      if (node.layer !== 'External' && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
       if (privilegeIndex(this.state.privilege) < layerRequirement(node.layer)) {
         return 'insufficient_privilege';
       }
@@ -138,9 +147,10 @@ export class MockGameClient implements GameClient {
       this.log('success', `${node.name} のスキャンが完了しました。`);
     } else if (type === 'breach') {
       node.status = 'hacked';
-      const nextIndex = Math.min(privilegeIndex(this.state.privilege) + 1, PRIVILEGE_LADDER.length - 1);
-      if (nextIndex > privilegeIndex(this.state.privilege)) {
-        this.state.privilege = PRIVILEGE_LADDER[nextIndex];
+      // 侵入したlayerの1段上まで権限を昇格(下がることはない)
+      const granted = Math.min(layerRequirement(node.layer) + 1, PRIVILEGE_LADDER.length - 1);
+      if (granted > privilegeIndex(this.state.privilege)) {
+        this.state.privilege = PRIVILEGE_LADDER[granted];
         this.log('success', `${node.name} への侵入に成功。権限が ${this.state.privilege} に昇格しました。`);
       } else {
         this.log('success', `${node.name} への侵入に成功しました。`);
@@ -150,6 +160,14 @@ export class MockGameClient implements GameClient {
       this.log('success', `${node.name} からデータを回収しました。目的達成。`);
       this.emit({ type: 'game_over', result: 'won' });
     }
+  }
+
+  private hasHackedNeighbor(nodeId: string): boolean {
+    return this.state.edges.some((edge) => {
+      const neighborId =
+        edge.source === nodeId ? edge.target : edge.target === nodeId ? edge.source : null;
+      return neighborId !== null && this.state.nodes.some((n) => n.id === neighborId && n.status === 'hacked');
+    });
   }
 
   private checkGameOver(): void {

@@ -66,3 +66,13 @@
 .node-detail__actions button:not(:disabled):hover {
   border-color: #c084fc;
 }
+
+.node-detail__notice {
+  margin: 12px 0 0;
+  padding: 8px;
+  font-size: 12px;
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  border-radius: 4px;
+  background: rgba(234, 179, 8, 0.08);
+}

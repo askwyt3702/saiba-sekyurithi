@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGameClient } from './game/hooks/useGameClient';
-import type { ActionType } from './game/model/types';
+import type { ActionRejectReason, ActionType } from './game/model/types';
 import { MapView } from './components/MapView/MapView';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { NodeDetailPanel } from './components/NodeDetailPanel/NodeDetailPanel';
@@ -9,9 +9,23 @@ import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
 
+const REJECT_MESSAGES: Record<ActionRejectReason, string> = {
+  insufficient_resource: '解析資源が足りません。',
+  insufficient_privilege: '権限が足りません。より手前の階層のノードに侵入して権限を上げてください。',
+  node_not_scanned: '先にスキャンが必要です。',
+  node_unreachable: '隣接するノードを先に侵入済みにする必要があります。',
+  invalid_state: '現在この操作は実行できません。',
+};
+
+interface Notice {
+  nodeId: string;
+  message: string;
+}
+
 function App() {
-  const { state, sendAction } = useGameClient('prototype-1');
+  const { state, sendAction, reset } = useGameClient();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   if (!state) {
     return <div className="app-loading">接続中...</div>;
@@ -19,10 +33,32 @@ function App() {
 
   const selectedNode = state.nodes.find((n) => n.id === selectedNodeId) ?? null;
 
-  // ターン制: アクションは即座に確定するので、結果は次のstate_snapshotで反映されるのを待つだけでよい。
-  const handleAction = (type: TimedActionType) => {
+  const handleSelectNode = (nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    setNotice(null);
+  };
+
+  // ターン制: アクションは即座に確定し、結果は state_snapshot で反映される。却下時だけ理由を表示する。
+  const handleAction = async (type: TimedActionType) => {
     if (!selectedNode) return;
-    void sendAction({ type, nodeId: selectedNode.id });
+    const nodeId = selectedNode.id;
+    setNotice(null);
+    try {
+      const result = await sendAction({ type, nodeId });
+      if (!result.accepted) {
+        setNotice({ nodeId, message: REJECT_MESSAGES[result.reason ?? 'invalid_state'] });
+      }
+    } catch (err) {
+      console.error('[App] アクション送信に失敗しました:', err);
+      setNotice({ nodeId, message: 'サーバーと通信できませんでした。' });
+    }
+  };
+
+  const handleReset = () => {
+    if (!window.confirm('作戦をリセットして最初からやり直しますか？')) return;
+    setSelectedNodeId(null);
+    setNotice(null);
+    reset().catch((err) => console.error('[App] リセットに失敗しました:', err));
   };
 
   return (
@@ -32,6 +68,7 @@ function App() {
         alertLevel={state.alertLevel}
         analysisResource={state.analysisResource}
         privilege={state.privilege}
+        onReset={handleReset}
       />
       {state.status === 'won' && <div className="app-banner app-banner--won">目的達成：データ回収に成功しました。</div>}
       {state.status === 'lost' && <div className="app-banner app-banner--lost">作戦失敗：警戒度が限界に達しました。</div>}
@@ -40,9 +77,13 @@ function App() {
           nodes={state.nodes}
           edges={state.edges}
           selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
+          onSelectNode={handleSelectNode}
         />
-        <NodeDetailPanel node={selectedNode} onAction={handleAction} />
+        <NodeDetailPanel
+          node={selectedNode}
+          notice={notice && notice.nodeId === selectedNodeId ? notice.message : null}
+          onAction={handleAction}
+        />
       </div>
       <EventLog entries={state.log} />
     </div>
