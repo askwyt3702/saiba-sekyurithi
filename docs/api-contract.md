@@ -1,17 +1,18 @@
-# NULL ROUTE フロント/バック データ契約 v0.3
+# NULL ROUTE フロント/バック データ契約 v0.4
 
 フロントエンド担当・バックエンド担当・シナリオ/データ担当が、互いの実装を待たずに並行して作業できるようにするための取り決めです。
 ここで決めた形を変える場合は、必ずこのファイルを更新してからチームに共有してください（型定義はこの契約から自動的に導かれるものではなく、`frontend/src/game/model/types.ts` に手で同期させています）。
 
 > **v0.2での変更点**：v0.1はこのファイルが共有される前にバックエンド実装(`GET /api/network`)が先行して進んでいたため、ネットワーク構造(ノード・エッジ)の形を実装済みの内容に合わせて書き換えました。プレイヤー状態・操作コマンド・リアルタイム更新はまだ未実装のため、v0.1の提案をそのまま残しつつ「未確定」と明記しています。
 >
-> **v0.3での変更点**：`POST /api/scan` が実装され、`GET /api/network` も `node_state`/`player_status` と連携して実際の攻略状況を返すようになりました。3節を実装済みの形に合わせて書き換え、3節の提案(タイムラグのある操作・`ActionResult`形式)との食い違いを「7. まだ決まっていないこと」に明記しました。**この食い違いはゲームの中核(時間経過・警戒度のリスク管理)に関わるため、まだどちらかに寄せず両方を併記しています。**
+> **v0.3での変更点**：`POST /api/scan` が実装され、`GET /api/network` も `node_state`/`player_status` と連携して実際の攻略状況を返すようになりました。3節を実装済みの形に合わせて書き換え、3節の提案(タイムラグのある操作・`ActionResult`形式)との食い違いを「7. まだ決まっていないこと」に明記しました。
+>
+> **v0.4での変更点・重要**：チームで認識合わせした結果、**「操作が時間をかけて進行するか、即時実行のままか」は『ターン制(=アクションは即座に確定し、実時間の待ち時間は発生しない)』に決定**しました。この決定の前に、WebSocket・ゲーム内時間のtickループ・操作の「開始→実時間経過後に完了」という実時間方式の実装(コミット`959cc42`)が一度mainに入りましたが、決定と矛盾するため`0517d45`で revert 済みです。バックエンドは`POST /api/scan`・`/api/games/{gameId}/actions`で即座に結果が確定する形(コミット`74986ad`時点の実装)に戻っています。4節(WebSocket)は当面使わない想定に変わりました。
 
 ## 1. 基本方針
 
 - バックエンドは「権威サーバー」。ゲーム内時間・警戒度・各ノードの状態はすべてバックエンドが保持し、唯一の正とする。
-- プレイヤーの操作（スキャン・侵入など）は **REST** でコマンドとして送る。即時に結果が確定するとは限らない（時間がかかる操作のため）。
-- 時間経過・警戒度変化・ノード状態の更新など「サーバー側で勝手に進む/変化する」情報は **WebSocket** でクライアントにプッシュする。REST ポーリングだと常時変化するゲーム内時計と相性が悪いため。
+- **ターン制**：プレイヤーの操作（スキャン・侵入など）は **REST** でコマンドとして送り、**即座に結果が確定する**。実時間の待ち時間は発生しない(v0.4で決定。4節のWebSocket案は当面使わない)。
 - バランス数値（コスト・警戒度増減量など）はロジックコードに埋め込まず、`balanceConfig` のような設定データとして分離する（企画書の「拡張性」要件）。
 
 ## 2. データモデル
@@ -124,7 +125,7 @@ interface ActionResult {
 
 却下理由の例：`insufficient_resource` / `insufficient_privilege` / `node_not_scanned` / `invalid_state`
 
-## 4. サーバー → クライアント push（WebSocket）※未実装・提案中
+## 4. サーバー → クライアント push（WebSocket）※未実装・v0.4でターン制に決定したため当面使わない想定
 
 ```
 GET /ws/games/{gameId}
@@ -177,9 +178,9 @@ interface GameClient {
 
 ## 7. まだ決まっていないこと
 
-以下は未確定（チームで決め次第 v0.4 として更新）。**上3つは`/api/scan`の実装で新たに判明した、既存の提案(3.2節)との食い違い。**
+以下は未確定（チームで決め次第 v0.5 として更新）。
 
-- **操作が時間をかけて進行するか、即時実行のままか**：企画書の「時間・警戒度のトレードオフ」というゲームの中核に関わる設計判断。即時のままなら時間経過は別の仕組み(定期的なtickなど)で管理する必要がある
+- ~~操作が時間をかけて進行するか、即時実行のままか~~ → **v0.4で「ターン制(即時確定)」に決定済み**
 - **コスト数値**：`/api/scan`は資源10固定、フロントの`balanceConfig.scan.resource`は1。どちらかに揃える、またはバランス設定を共有の1箇所にまとめる
 - **成功/失敗のレスポンス形式**：`/api/scan`は`{error: string}` + HTTP200、3.2節の提案は`{accepted: boolean, reason?: string}`。どちらかに統一する
 - リクエストのプロパティ命名規則（`node_id`のスネークケース vs `nodeId`のキャメルケース）をどちらかに揃える
@@ -194,42 +195,30 @@ interface GameClient {
 - 認証（ユーザー識別が必要か）
 
 
-## 8. backend 実装済み API（リアルタイム版）
+## 8. backend 実装済み API（REST版・リアルタイム化前）
 
-3節・4節の提案をもとに実装した（`backend/main.py` / `backend/game_logic.py` / `backend/realtime.py`）。
-操作は REST で「開始」し、ゲーム内時間が経過すると結果が確定して WebSocket で届く。
+3節の提案をもとに、まず REST だけでゲームが最後まで遊べる形で実装した（`backend/main.py` / `backend/game_logic.py`）。
+WebSocket（4節）は未実装のため、現状は **アクションの結果が即時に確定** し、レスポンスに操作後の `GameState` がそのまま入る。
 
 | メソッド | パス | 内容 |
 |---|---|---|
 | POST | `/api/games` | 新しいゲームを作成し、初期 `GameState` を返す |
 | GET | `/api/games/{gameId}` | 現在の `GameState` を返す（存在しなければ 404） |
 | POST | `/api/games/{gameId}/reset` | 指定ゲームを初期状態にリセットし、初期 `GameState` を返す |
-| POST | `/api/games/{gameId}/actions` | `ActionRequest` を受け付ける。`{ accepted, reason?, state: GameState }` を返す（state は受付直後の状態） |
-| WS | `/ws/games/{gameId}` | 4節の `ServerEvent` を受信。接続直後に `state_snapshot`。存在しないゲームは code 4404 で切断 |
+| POST | `/api/games/{gameId}/actions` | `ActionRequest` を実行。`{ accepted, reason?, state: GameState }` を返す |
 | GET | `/api/network` | 旧API（互換用）。既定ゲームのノード・エッジ |
-| POST | `/api/scan` | 旧API（互換用）。既定ゲームでスキャンを開始 |
+| POST | `/api/scan` | 旧API（互換用）。既定ゲームでスキャン |
 
 - `gameId` は `player_status.id`（文字列で返す）。
-- `GameState.nodes` は 2.1 の `ApiNetworkNode` 形式。`data.vulnerability` を追加（未スキャン時は `null`）。`node_update.node` も同じ形式。
-- `GameState` に **`pendingActions: { nodeId, type, startedAt, completeAt }[]`** を追加（実行中の操作。進捗バー表示用。時刻は `elapsedSeconds` 基準）。
+- `GameState.nodes` は 2.1 の `ApiNetworkNode` 形式。`data.vulnerability` を追加（未スキャン時は `null`）。
 - 却下理由に **`node_unreachable`** を追加（隣接ノードを侵入済みにしていないのに breach しようとした）。フロントの `ActionRejectReason` にも追加が必要。
-
-### イベントの送られ方
-
-- 毎ゲーム内秒：`tick`（＋その秒に出たログがあれば `log`）
-- 操作の受付時：`log`（開始メッセージ）→ `state_snapshot`
-- 操作の完了時：`log` → `tick` → `node_update` → `state_snapshot`（資源・権限・pendingActions の更新用）
-- 決着時：上記に続けて `game_over`
-- **WebSocket が1本以上つながっているゲームだけ時間が進む**（放置されたゲームが裏で進んで負けるのを防ぐため）。
 
 ### ゲームルール（暫定・`balance_config.py` で調整）
 
 - **scan**：`unscanned` のノードのみ。完了で `scanned`、`info` と `vulnerability` が開示される。
 - **breach**：`scanned` であること／External 以外は隣接ノードのどれかが `hacked` であること／権限が layer の要求以上であること（External=GUEST, DMZ=USER, Internal=ADMIN, Core=ROOT）。成功で `hacked`、権限が「侵入した layer の1段上」まで昇格。
 - **dataExtract**：`hacked` 状態の Core ノードのみ。成功で `status = 'won'`。
-- 同じノードに実行中の操作がある間は、そのノードへの操作は `invalid_state`。別ノードへの操作は並行して進められる。
-- 資源は開始時に消費、警戒度（`alertDelta`）は完了時に加算。警戒度は毎秒 `alertDecayPerSecond` ずつ自然減衰。
-- **pause / resume**：`playing` ⇔ `paused`。一時停止中はゲーム内時間も実行中の操作も止まる。`playing` 以外では操作は `invalid_state`。
-- 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。決着時、実行中の操作は破棄。
+- **pause / resume**：`playing` ⇔ `paused`。`playing` 以外ではアクションは `invalid_state` で却下。
+- 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（リアルタイム化後は tick 側に移す）。
+- 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
-

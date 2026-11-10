@@ -1,9 +1,7 @@
-import asyncio
 import time
-from contextlib import asynccontextmanager
 from typing import Literal, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import inspect, text
@@ -11,24 +9,10 @@ from sqlalchemy.orm import Session
 
 import models
 import game_logic
-import realtime
 from database import engine, SessionLocal
 from game_data import NODES
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 起動時にティックループ（ゲーム内時間を進める処理）を開始し、終了時に止める
-    stop = asyncio.Event()
-    task = asyncio.create_task(realtime.tick_loop(stop))
-    try:
-        yield
-    finally:
-        stop.set()
-        task.cancel()
-
-
-app = FastAPI(title="NULL ROUTE API", lifespan=lifespan)
+app = FastAPI(title="NULL ROUTE API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -97,36 +81,12 @@ def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
     return player
 
 
-async def _run_action(game_id: int, action_type: str, node_id: Optional[str]):
-    """操作を受け付けて (player, db, reason) を返す。reason が None なら受理。
-    ティックループと同時に状態を書き換えないよう、realtime.lock の中で実行する。
-    """
-    db = SessionLocal()
-    try:
-        player = _get_game_or_404(db, game_id)
-    except HTTPException:
-        db.close()
-        raise
-    try:
-        game_logic.apply_action(db, player, action_type, node_id)
-    except game_logic.ActionRejected as e:
-        db.rollback()
-        return player, db, e.reason
-    await realtime.publish_after_action(db, player)
-    return player, db, None
-
-
-# ======= 1. ゲームの作成・取得 =======
+# ======= 1. ゲームの作成・取得・リセット =======
 @app.post("/api/games")
-async def create_game():
+def create_game(db: Session = Depends(get_db)):
     """新しいゲームを開始し、初期状態(GameState)を返す。"""
-    async with realtime.lock:
-        db = SessionLocal()
-        try:
-            player = game_logic.create_game(db)
-            return game_logic.build_game_state(db, player)
-        finally:
-            db.close()
+    player = game_logic.create_game(db)
+    return game_logic.build_game_state(db, player)
 
 
 @app.get("/api/games/{game_id}")
@@ -137,61 +97,29 @@ def get_game_state(game_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/games/{game_id}/reset")
-async def reset_game(game_id: int):
+def reset_game(game_id: int, db: Session = Depends(get_db)):
     """指定されたゲームを初期状態にリセットし、初期 GameState を返す。"""
-    async with realtime.lock:
-        db = SessionLocal()
-        try:
-            player = _get_game_or_404(db, game_id)
-            game_logic.reset_game(db, player)
-            await realtime.publish_after_reset(db, player)
-            return game_logic.build_game_state(db, player)
-        finally:
-            db.close()
+    player = _get_game_or_404(db, game_id)
+    game_logic.reset_game(db, player)
+    return game_logic.build_game_state(db, player)
 
 
 # ======= 2. プレイヤー操作 =======
 @app.post("/api/games/{game_id}/actions")
-async def post_action(game_id: int, action: ActionRequest):
-    """scan / breach / dataExtract / pause / resume を受け付ける。
-    受理可否(accepted, reason)と、受付直後の GameState を state として返す。
-    scan / breach / dataExtract の結果は、ゲーム内時間が経過した後に WebSocket で届く。
+def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_db)):
+    """scan / breach / dataExtract / pause / resume を実行する。
+    受理可否(accepted, reason)に加えて、操作後の GameState を state として返す。
     """
-    async with realtime.lock:
-        player, db, reason = await _run_action(game_id, action.type, action.nodeId)
-        try:
-            body = {"accepted": reason is None, "state": game_logic.build_game_state(db, player)}
-            if reason is not None:
-                body["reason"] = reason
-            return body
-        finally:
-            db.close()
-
-
-# ======= 3. リアルタイム更新（WebSocket） =======
-@app.websocket("/ws/games/{game_id}")
-async def game_socket(ws: WebSocket, game_id: int):
-    async with realtime.lock:
-        db = SessionLocal()
-        try:
-            player = game_logic.get_game(db, game_id)
-            if player is None:
-                await ws.close(code=4404)
-                return
-            await realtime.manager.connect(game_id, ws, db, player)
-        finally:
-            db.close()
+    player = _get_game_or_404(db, game_id)
     try:
-        while True:
-            # クライアントからのメッセージは今は使わない（操作は REST で送る）。切断検知のために待つ
-            await ws.receive_text()
-    except WebSocketDisconnect:
-        pass
-    finally:
-        realtime.manager.disconnect(game_id, ws)
+        game_logic.apply_action(db, player, action.type, action.nodeId)
+    except game_logic.ActionRejected as e:
+        db.rollback()
+        return {"accepted": False, "reason": e.reason, "state": game_logic.build_game_state(db, player)}
+    return {"accepted": True, "state": game_logic.build_game_state(db, player)}
 
 
-# ======= 4. 旧API（互換用：既定のゲーム = 最初のプレイヤー を対象にする） =======
+# ======= 3. 旧API（互換用：既定のゲーム = 最初のプレイヤー を対象にする） =======
 @app.get("/api/network")
 def get_network_map(db: Session = Depends(get_db)):
     player = db.query(models.PlayerStatus).order_by(models.PlayerStatus.id).first()
@@ -203,22 +131,15 @@ class ScanRequest(BaseModel):
     node_id: str
 
 @app.post("/api/scan")
-async def scan_node(req: ScanRequest):
-    """旧API。スキャンを「開始」する（完了はゲーム内時間の経過後）。"""
-    async with realtime.lock:
-        db = SessionLocal()
-        try:
-            player = db.query(models.PlayerStatus).order_by(models.PlayerStatus.id).first()
-        finally:
-            db.close()
-        player, db, reason = await _run_action(player.id, "scan", req.node_id)
-        try:
-            if reason is not None:
-                return {"error": reason}
-            return {
-                "message": f"ノード {req.node_id} のスキャンを開始しました",
-                "status": "unscanned",
-                "remaining_resource": player.analysis_resource,
-            }
-        finally:
-            db.close()
+def scan_node(req: ScanRequest, db: Session = Depends(get_db)):
+    player = db.query(models.PlayerStatus).order_by(models.PlayerStatus.id).first()
+    try:
+        game_logic.apply_action(db, player, "scan", req.node_id)
+    except game_logic.ActionRejected as e:
+        db.rollback()
+        return {"error": e.reason}
+    return {
+        "message": f"ノード {req.node_id} のスキャン完了",
+        "status": "scanned",
+        "remaining_resource": player.analysis_resource,
+    }

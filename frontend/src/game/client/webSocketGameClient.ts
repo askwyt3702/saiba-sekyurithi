@@ -9,7 +9,6 @@ import {
   type GameState,
   type GameStatus,
   type LogEntry,
-  type PendingAction,
   type ServerEvent,
 } from '../model/types';
 
@@ -23,16 +22,8 @@ interface ApiGameState {
   privilege: string;
   nodes: ApiNetworkNode[];
   edges: ApiNetworkEdge[];
-  pendingActions?: PendingAction[];
   log: LogEntry[];
 }
-
-type RawServerEvent =
-  | { type: 'state_snapshot'; state: ApiGameState }
-  | { type: 'tick'; elapsedSeconds: number; alertLevel: number }
-  | { type: 'node_update'; node: ApiNetworkNode }
-  | { type: 'log'; entry: LogEntry }
-  | { type: 'game_over'; result: 'won' | 'lost' };
 
 function toGameState(raw: ApiGameState): GameState {
   return {
@@ -41,45 +32,24 @@ function toGameState(raw: ApiGameState): GameState {
   };
 }
 
-function toServerEvent(raw: RawServerEvent): ServerEvent {
-  if (raw.type === 'state_snapshot') {
-    return { type: 'state_snapshot', state: toGameState(raw.state) };
-  }
-  if (raw.type === 'node_update') {
-    return { type: 'node_update', node: fromApiNode(raw.node) };
-  }
-  return raw;
-}
-
+// ターン制（v0.4決定）に合わせて REST API のみでバックエンドと通信するクライアント。
+// 既存のインターフェース名に合わせてクラス名は WebSocketGameClient のままにしてある。
 export class WebSocketGameClient implements GameClient {
   private readonly apiBase: string;
-  private readonly wsBase: string;
   private requestedGameId: string;
   private resolvedGameId: string | null = null;
-  private ws: WebSocket | null = null;
+  private onEvent: ((event: ServerEvent) => void) | null = null;
 
   constructor(gameId: string, apiBase = 'http://localhost:8000') {
     this.requestedGameId = gameId;
     this.apiBase = apiBase.replace(/\/$/, '');
-    this.wsBase = this.apiBase.replace(/^http/, 'ws');
   }
 
   async connect(onEvent: (event: ServerEvent) => void): Promise<GameState> {
+    this.onEvent = onEvent;
     const initialState = await this.ensureGame();
     this.resolvedGameId = initialState.gameId;
-
-    const ws = new WebSocket(`${this.wsBase}/ws/games/${this.resolvedGameId}`);
-    this.ws = ws;
-
-    ws.onmessage = (msg) => {
-      try {
-        const raw = JSON.parse(msg.data as string) as RawServerEvent;
-        onEvent(toServerEvent(raw));
-      } catch (err) {
-        console.error('[WebSocketGameClient] failed to parse event:', err);
-      }
-    };
-
+    this.onEvent?.({ type: 'state_snapshot', state: initialState });
     return initialState;
   }
 
@@ -98,7 +68,12 @@ export class WebSocketGameClient implements GameClient {
     const data = (await res.json()) as {
       accepted: boolean;
       reason?: ActionRejectReason;
+      state: ApiGameState;
     };
+    if (data.state) {
+      const nextState = toGameState(data.state);
+      this.onEvent?.({ type: 'state_snapshot', state: nextState });
+    }
     return { accepted: data.accepted, reason: data.reason };
   }
 
@@ -109,15 +84,13 @@ export class WebSocketGameClient implements GameClient {
     });
     if (!res.ok) return null;
     const raw = (await res.json()) as ApiGameState;
-    return toGameState(raw);
+    const nextState = toGameState(raw);
+    this.onEvent?.({ type: 'state_snapshot', state: nextState });
+    return nextState;
   }
 
   disconnect(): void {
-    if (this.ws) {
-      this.ws.onmessage = null;
-      this.ws.close();
-      this.ws = null;
-    }
+    this.onEvent = null;
   }
 
   private async ensureGame(): Promise<GameState> {
