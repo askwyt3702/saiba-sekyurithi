@@ -44,6 +44,7 @@ export class MockGameClient implements GameClient {
   private onEvent: ((event: ServerEvent) => void) | null = null;
   private tickHandle: ReturnType<typeof setInterval> | null = null;
   private pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
+  private pendingNodeIds = new Set<string>();
 
   constructor(gameId: string) {
     this.state = createMockGameState(gameId);
@@ -102,7 +103,9 @@ export class MockGameClient implements GameClient {
 
     const cost = balanceConfig[type];
     this.state.analysisResource -= cost.resource;
+    this.pendingNodeIds.add(node.id);
     this.log('info', `${node.name} に対して ${type} を開始しました。`);
+    this.emit({ type: 'state_snapshot', state: this.cloneState() });
 
     const handle = setTimeout(() => {
       this.resolveAction(type, node, cost.alertDelta);
@@ -116,6 +119,8 @@ export class MockGameClient implements GameClient {
     type: TimedActionType,
     node: NetworkNode,
   ): ActionRejectReason | undefined {
+    if (this.pendingNodeIds.has(node.id)) return 'invalid_state';
+
     const cost = balanceConfig[type];
     if (this.state.analysisResource < cost.resource) return 'insufficient_resource';
 
@@ -133,6 +138,7 @@ export class MockGameClient implements GameClient {
   }
 
   private resolveAction(type: TimedActionType, node: NetworkNode, alertDelta: number): void {
+    this.pendingNodeIds.delete(node.id);
     this.state.alertLevel = clampAlert(this.state.alertLevel + alertDelta);
 
     if (type === 'scan') {
@@ -150,7 +156,7 @@ export class MockGameClient implements GameClient {
       this.emit({ type: 'game_over', result: 'won' });
     }
 
-    this.emit({ type: 'node_update', node: { ...node } });
+    this.emit({ type: 'state_snapshot', state: this.cloneState() });
   }
 
   private log(severity: 'info' | 'success' | 'warning' | 'danger', message: string): void {

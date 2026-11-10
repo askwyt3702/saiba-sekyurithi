@@ -1,0 +1,53 @@
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 20px;
+  background: #15171d;
+  border-bottom: 1px solid #2a2e38;
+  font-family: ui-monospace, Consolas, monospace;
+  color: #c7ccd6;
+}
+
+.status-bar__title {
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #c084fc;
+  margin-right: 8px;
+}
+
+.status-bar__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.status-bar__item--grow {
+  flex: 1;
+  max-width: 320px;
+}
+
+.status-bar__label {
+  opacity: 0.55;
+  letter-spacing: 1px;
+  font-size: 11px;
+}
+
+.status-bar__value {
+  color: #f3f4f6;
+}
+
+.status-bar__alert-track {
+  flex: 1;
+  height: 8px;
+  background: #23262f;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.status-bar__alert-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+  transition: width 0.3s ease;
+}

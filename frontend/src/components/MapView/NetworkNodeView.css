@@ -1,0 +1,49 @@
+.network-node {
+  min-width: 140px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #3a3f4b;
+  background: #1a1d24;
+  color: #c7ccd6;
+  font-family: ui-monospace, Consolas, monospace;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.network-node__layer {
+  font-size: 10px;
+  letter-spacing: 1px;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+
+.network-node__name {
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.network-node--unscanned {
+  border-style: dashed;
+  color: #6b7280;
+}
+
+.network-node--scanned {
+  border-color: #3b82f6;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+
+.network-node--hacked {
+  border-color: #22c55e;
+  background: #132017;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+.network-node--core {
+  border-width: 2px;
+}
+
+.network-node--selected {
+  outline: 2px solid #c084fc;
+  outline-offset: 2px;
+}

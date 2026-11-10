@@ -1,0 +1,11 @@
+.map-view {
+  flex: 1;
+  min-width: 0;
+  background: #101218;
+}
+
+.map-view .react-flow__controls button {
+  background: #1a1d24;
+  border-bottom: 1px solid #2a2e38;
+  fill: #c7ccd6;
+}
