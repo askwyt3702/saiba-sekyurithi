@@ -1,4 +1,4 @@
-services:
+﻿services:
   db:
     image: postgres:16-alpine
     container_name: mystery_db
@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: secretpassword
       POSTGRES_DB: cyber_mystery
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
 

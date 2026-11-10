@@ -1,27 +1,342 @@
-# ステージのマスターデータ（ノード・エッジ）。
-# 起動時に node_master テーブルへ同期される（ここを編集すれば既存DBの内容も更新される）。
-# シナリオ/データ担当がステージを追加するときは、このファイルを編集すればよい。
+
+# ステージ1：OPERATION SILENT TRACE
+# ノード・エッジのマスターデータ
+# 起動時に node_master テーブルへ同期される
 
 NODES = [
-    {"id": "external-1", "name": "External (公開サーバー)", "layer": "External", "pos_x": 250, "pos_y": 50,
-     "vulnerability": "弱いSSHパスワード", "info": "最初の侵入口。SSHポート(22)が開いている。"},
-    {"id": "dmz-1", "name": "DMZ (Webサーバー)", "layer": "DMZ", "pos_x": 150, "pos_y": 150,
-     "vulnerability": "古いApacheの既知の脆弱性", "info": "古いバージョンのApacheが稼働中。"},
-    {"id": "dmz-2", "name": "DMZ (メールサーバー)", "layer": "DMZ", "pos_x": 350, "pos_y": 150,
-     "vulnerability": "漏洩した社員アドレスへのフィッシング", "info": "SMTPサーバー。社員のメールアドレスが漏洩している。"},
-    {"id": "internal-1", "name": "Internal (社内網)", "layer": "Internal", "pos_x": 250, "pos_y": 250,
-     "vulnerability": "Active Directoryの権限設定ミス", "info": "Active Directoryサーバー。アクセス権が厳重。"},
-    {"id": "core-1", "name": "Core (機密DB)", "layer": "Core", "pos_x": 250, "pos_y": 350,
-     "vulnerability": "SQLインジェクション", "info": "目標データが存在。SQLインジェクションの痕跡あり。"},
+    # ==========================
+    # External：外部ネットワーク
+    # ==========================
+    {
+        "id": "E01",
+        "name": "公開ゲートウェイ",
+        "layer": "External",
+        "pos_x": 650,
+        "pos_y": 60,
+        "vulnerability": "弱いSSHパスワード",
+        "info": "ステージの初期侵入口。外部ネットワークへの接続点。",
+    },
+    {
+        "id": "E02",
+        "name": "DNS情報サーバー",
+        "layer": "External",
+        "pos_x": 350,
+        "pos_y": 60,
+        "vulnerability": "DNS設定情報の漏洩",
+        "info": "内部の接続先に関する手がかりが残っている。",
+    },
+    {
+        "id": "E03",
+        "name": "公開情報アーカイブ",
+        "layer": "External",
+        "pos_x": 950,
+        "pos_y": 60,
+        "vulnerability": "古い公開ファイルのアクセス制御不備",
+        "info": "過去の公開情報が保管されている。解析資源の補給候補。",
+    },
+
+    # ==========================
+    # DMZ：公開サービス領域
+    # ==========================
+    {
+        "id": "D01",
+        "name": "Webサーバー",
+        "layer": "DMZ",
+        "pos_x": 150,
+        "pos_y": 230,
+        "vulnerability": "古いWebサーバーの設定不備",
+        "info": "高速侵入ルートの入口。",
+    },
+    {
+        "id": "D02",
+        "name": "メールサーバー",
+        "layer": "DMZ",
+        "pos_x": 400,
+        "pos_y": 230,
+        "vulnerability": "メール認証設定の不備",
+        "info": "認証情報を収集するための入口。",
+    },
+    {
+        "id": "D03",
+        "name": "VPNゲートウェイ",
+        "layer": "DMZ",
+        "pos_x": 650,
+        "pos_y": 230,
+        "vulnerability": "古いVPN認証方式",
+        "info": "隠密ルートへの接続点。",
+    },
+    {
+        "id": "D04",
+        "name": "Web管理サーバー",
+        "layer": "DMZ",
+        "pos_x": 100,
+        "pos_y": 390,
+        "vulnerability": "管理画面のアクセス制御不備",
+        "info": "開発環境への侵入に役立つ管理情報がある。",
+    },
+    {
+        "id": "D05",
+        "name": "認証キャッシュ",
+        "layer": "DMZ",
+        "pos_x": 350,
+        "pos_y": 390,
+        "vulnerability": "認証情報の不適切な保存",
+        "info": "VPN認証情報が残されている。",
+    },
+    {
+        "id": "D06",
+        "name": "プロキシサーバー",
+        "layer": "DMZ",
+        "pos_x": 850,
+        "pos_y": 390,
+        "vulnerability": "プロキシ設定の不備",
+        "info": "通信の追跡を妨害できる可能性がある。",
+    },
+    {
+        "id": "D07",
+        "name": "DMZ監視装置",
+        "layer": "DMZ",
+        "pos_x": 1100,
+        "pos_y": 390,
+        "vulnerability": "監視システムの設定不備",
+        "info": "ARGUSの監視条件を調査できる。",
+    },
+
+    # ==========================
+    # Internal：内部ネットワーク
+    # ==========================
+    {
+        "id": "I01",
+        "name": "社内認証サーバー",
+        "layer": "Internal",
+        "pos_x": 150,
+        "pos_y": 580,
+        "vulnerability": "認証権限の設定ミス",
+        "info": "管理者トークンの取得候補。",
+    },
+    {
+        "id": "I02",
+        "name": "開発環境サーバー",
+        "layer": "Internal",
+        "pos_x": 400,
+        "pos_y": 580,
+        "vulnerability": "開発用サービスの保護不足",
+        "info": "内部ルーターへの侵入経路。",
+    },
+    {
+        "id": "I03",
+        "name": "ログ管理サーバー",
+        "layer": "Internal",
+        "pos_x": 650,
+        "pos_y": 580,
+        "vulnerability": "ログ管理権限の不備",
+        "info": "侵入の痕跡を削減できる可能性がある。",
+    },
+    {
+        "id": "I04",
+        "name": "ARGUS監視制御",
+        "layer": "Internal",
+        "pos_x": 900,
+        "pos_y": 580,
+        "vulnerability": "監視制御APIの認証不備",
+        "info": "監視AIの防衛機能を妨害するための重要ノード。",
+    },
+    {
+        "id": "I05",
+        "name": "バックアップサーバー",
+        "layer": "Internal",
+        "pos_x": 1150,
+        "pos_y": 580,
+        "vulnerability": "バックアップ領域の権限不備",
+        "info": "解析資源を補給できる候補。",
+    },
+    {
+        "id": "I06",
+        "name": "社内ファイルサーバー",
+        "layer": "Internal",
+        "pos_x": 150,
+        "pos_y": 780,
+        "vulnerability": "共有フォルダの権限不備",
+        "info": "暗号鍵の断片Aが保管されている。",
+    },
+    {
+        "id": "I07",
+        "name": "管理端末",
+        "layer": "Internal",
+        "pos_x": 400,
+        "pos_y": 780,
+        "vulnerability": "管理用資格情報の保存不備",
+        "info": "暗号鍵の断片Bが保管されている。",
+    },
+    {
+        "id": "I08",
+        "name": "内部ルーター",
+        "layer": "Internal",
+        "pos_x": 650,
+        "pos_y": 780,
+        "vulnerability": "ルーティング設定の不備",
+        "info": "Coreネットワークへの主要接続点。",
+    },
+    {
+        "id": "I09",
+        "name": "セキュリティ管理サーバー",
+        "layer": "Internal",
+        "pos_x": 900,
+        "pos_y": 780,
+        "vulnerability": "防衛設定のアクセス制御不備",
+        "info": "Coreファイアウォールの防御を弱められる。",
+    },
+    {
+        "id": "I10",
+        "name": "研究部門サーバー",
+        "layer": "Internal",
+        "pos_x": 1150,
+        "pos_y": 780,
+        "vulnerability": "研究用APIの認証不備",
+        "info": "研究データの位置情報が残っている。",
+    },
+
+    # ==========================
+    # Core：機密領域
+    # ==========================
+    {
+        "id": "C01",
+        "name": "Coreファイアウォール",
+        "layer": "Core",
+        "pos_x": 300,
+        "pos_y": 1020,
+        "vulnerability": "ファイアウォール管理設定の不備",
+        "info": "機密領域を守る主要防衛装置。",
+    },
+    {
+        "id": "C02",
+        "name": "暗号認証サーバー",
+        "layer": "Core",
+        "pos_x": 550,
+        "pos_y": 1020,
+        "vulnerability": "古い暗号認証設定",
+        "info": "研究データの回収に必要な認証を管理する。",
+    },
+    {
+        "id": "C03",
+        "name": "研究データベース",
+        "layer": "Core",
+        "pos_x": 800,
+        "pos_y": 1020,
+        "vulnerability": "データベース権限設定の不備",
+        "info": "ステージの最終目標。極秘研究データが存在する。",
+    },
+    {
+        "id": "C04",
+        "name": "緊急防衛システム",
+        "layer": "Core",
+        "pos_x": 1050,
+        "pos_y": 1020,
+        "vulnerability": "緊急制御機能の設定不備",
+        "info": "高警戒時に起動するARGUSの防衛装置。",
+    },
+]
+
+# 接続関係。現行ゲームロジックでは双方向に扱われる。
+EDGE_PAIRS = [
+    ("E01", "E02"),
+    ("E01", "E03"),
+    ("E01", "D01"),
+    ("E01", "D02"),
+    ("E02", "D03"),
+    ("E03", "D06"),
+
+    ("D01", "D04"),
+    ("D01", "D07"),
+    ("D02", "D05"),
+    ("D02", "D07"),
+    ("D03", "D06"),
+    ("D03", "I03"),
+    ("D04", "I02"),
+    ("D04", "I04"),
+    ("D05", "I01"),
+    ("D05", "I06"),
+    ("D06", "I03"),
+    ("D06", "I05"),
+    ("D07", "I04"),
+
+    ("I01", "I07"),
+    ("I01", "I08"),
+    ("I02", "I08"),
+    ("I02", "I10"),
+    ("I03", "I04"),
+    ("I03", "I05"),
+    ("I04", "I09"),
+    ("I05", "I06"),
+    ("I06", "I07"),
+    ("I06", "I10"),
+    ("I07", "I09"),
+    ("I08", "I09"),
+    ("I08", "C01"),
+    ("I09", "C01"),
+    ("I09", "C04"),
+    ("I10", "C02"),
+
+    ("C01", "C02"),
+    ("C01", "C04"),
+    ("C02", "C03"),
+    ("C04", "C03"),
 ]
 
 EDGES = [
-    {"id": "e1", "source": "external-1", "target": "dmz-1", "animated": True},
-    {"id": "e2", "source": "external-1", "target": "dmz-2", "animated": True},
-    {"id": "e3", "source": "dmz-1", "target": "internal-1"},
-    {"id": "e4", "source": "dmz-2", "target": "internal-1"},
-    {"id": "e5", "source": "internal-1", "target": "core-1"},
+    {
+        "id": f"e{i}",
+        "source": source,
+        "target": target,
+        "animated": True,
+    }
+    for i, (source, target) in enumerate(EDGE_PAIRS, start=1)
 ]
 
-# 最初から侵入対象にできる（隣接する侵入済みノードが不要な）layer
+# 現行ロジックではExternal階層が初期侵入可能
 ENTRY_LAYERS = {"External"}
+
+
+# ==========================================
+# ステージ1：縦スクロール用マップ配置
+# ==========================================
+
+MAP_POSITIONS = {
+    # External
+    "E01": (550, 80),
+    "E02": (300, 270),
+    "E03": (800, 270),
+
+    # DMZ
+    "D01": (180, 550),
+    "D02": (450, 550),
+    "D03": (720, 550),
+    "D04": (180, 820),
+    "D05": (450, 820),
+    "D06": (720, 820),
+    "D07": (990, 820),
+
+    # Internal
+    "I01": (180, 1150),
+    "I02": (450, 1150),
+    "I03": (720, 1150),
+    "I04": (990, 1150),
+    "I05": (990, 1450),
+    "I06": (180, 1450),
+    "I07": (450, 1450),
+    "I08": (720, 1450),
+    "I09": (720, 1750),
+    "I10": (990, 1750),
+
+    # Core
+    "C01": (300, 2100),
+    "C02": (550, 2350),
+    "C03": (550, 2650),
+    "C04": (850, 2100),
+}
+
+# 既存のNODESに新しい座標を反映
+for node in NODES:
+    x, y = MAP_POSITIONS[node["id"]]
+    node["pos_x"] = x
+    node["pos_y"] = y
