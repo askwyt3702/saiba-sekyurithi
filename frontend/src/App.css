@@ -33,3 +33,9 @@
   color: #22c55e;
   border-bottom: 1px solid #22c55e;
 }
+
+.app-banner--lost {
+  background: #210d0d;
+  color: #ef4444;
+  border-bottom: 1px solid #ef4444;
+}

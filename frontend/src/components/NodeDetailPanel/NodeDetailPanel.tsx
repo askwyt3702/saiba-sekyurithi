@@ -5,11 +5,10 @@ type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
 
 interface NodeDetailPanelProps {
   node: NetworkNode | null;
-  pending: boolean;
   onAction: (type: TimedActionType) => void;
 }
 
-export function NodeDetailPanel({ node, pending, onAction }: NodeDetailPanelProps) {
+export function NodeDetailPanel({ node, onAction }: NodeDetailPanelProps) {
   if (!node) {
     return (
       <aside className="node-detail node-detail--empty">
@@ -19,9 +18,9 @@ export function NodeDetailPanel({ node, pending, onAction }: NodeDetailPanelProp
   }
 
   const isUnscanned = node.status === 'unscanned';
-  const canScan = !pending && isUnscanned;
-  const canBreach = !pending && node.status === 'scanned';
-  const canExtract = !pending && node.layer === 'Core' && node.status === 'hacked';
+  const canScan = isUnscanned;
+  const canBreach = node.status === 'scanned';
+  const canExtract = node.layer === 'Core' && node.status === 'hacked';
 
   return (
     <aside className="node-detail">
@@ -47,7 +46,6 @@ export function NodeDetailPanel({ node, pending, onAction }: NodeDetailPanelProp
           データ回収
         </button>
       </div>
-      {pending && <p className="node-detail__pending">処理中...</p>}
     </aside>
   );
 }

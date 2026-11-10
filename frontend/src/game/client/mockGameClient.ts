@@ -37,14 +37,14 @@ function layerRequirement(layer: NetworkLayer): number {
 
 type TimedActionType = 'scan' | 'breach' | 'dataExtract';
 
-// バックエンド未完成の間、UIをそのまま開発・動作確認できるようにする
+// ターン制なので各アクションはリアルタイムの遅延なしに即座に確定する。
+// 「time」コストはゲーム内時間を進める量として扱うだけで、実際の待ち時間ではない
+// (backend/game_logic.py の apply_action / _advance_time と同じ考え方)。
+// バックエンド未完成の間、UIをそのまま開発・動作確認できるようにするための
 // GameClient のダミー実装。WebSocketGameClient と同じインターフェースを満たす。
 export class MockGameClient implements GameClient {
   private state: GameState;
   private onEvent: ((event: ServerEvent) => void) | null = null;
-  private tickHandle: ReturnType<typeof setInterval> | null = null;
-  private pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
-  private pendingNodeIds = new Set<string>();
 
   constructor(gameId: string) {
     this.state = createMockGameState(gameId);
@@ -53,48 +53,39 @@ export class MockGameClient implements GameClient {
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState> {
     this.onEvent = onEvent;
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
-    this.tickHandle = setInterval(() => this.tick(), 1000);
     return Promise.resolve(this.cloneState());
   }
 
   disconnect(): void {
-    if (this.tickHandle !== null) clearInterval(this.tickHandle);
-    for (const handle of this.pendingTimeouts) clearTimeout(handle);
-    this.pendingTimeouts = [];
     this.onEvent = null;
   }
 
   sendAction(action: ActionRequest): Promise<ActionResult> {
     switch (action.type) {
       case 'pause':
+        if (this.state.status !== 'playing') return Promise.resolve({ accepted: false, reason: 'invalid_state' });
         this.state.status = 'paused';
+        this.log('info', '作戦を一時停止しました。');
+        this.emit({ type: 'state_snapshot', state: this.cloneState() });
         return Promise.resolve({ accepted: true });
       case 'resume':
-        if (this.state.status === 'paused') this.state.status = 'playing';
+        if (this.state.status !== 'paused') return Promise.resolve({ accepted: false, reason: 'invalid_state' });
+        this.state.status = 'playing';
+        this.log('info', '作戦を再開しました。');
+        this.emit({ type: 'state_snapshot', state: this.cloneState() });
         return Promise.resolve({ accepted: true });
       case 'scan':
       case 'breach':
       case 'dataExtract':
-        return Promise.resolve(this.startTimedAction(action, action.type));
+        return Promise.resolve(this.applyTimedAction(action, action.type));
       default:
         return Promise.resolve({ accepted: false, reason: 'invalid_state' });
     }
   }
 
-  private tick(): void {
-    if (this.state.status !== 'playing') return;
-    this.state.elapsedSeconds += 1;
-    this.state.alertLevel = clampAlert(
-      this.state.alertLevel - balanceConfig.alertDecayPerSecond,
-    );
-    this.emit({
-      type: 'tick',
-      elapsedSeconds: this.state.elapsedSeconds,
-      alertLevel: this.state.alertLevel,
-    });
-  }
+  private applyTimedAction(action: ActionRequest, type: TimedActionType): ActionResult {
+    if (this.state.status !== 'playing') return { accepted: false, reason: 'invalid_state' };
 
-  private startTimedAction(action: ActionRequest, type: TimedActionType): ActionResult {
     const node = this.state.nodes.find((n) => n.id === action.nodeId);
     if (!node) return { accepted: false, reason: 'invalid_state' };
 
@@ -103,15 +94,11 @@ export class MockGameClient implements GameClient {
 
     const cost = balanceConfig[type];
     this.state.analysisResource -= cost.resource;
-    this.pendingNodeIds.add(node.id);
-    this.log('info', `${node.name} に対して ${type} を開始しました。`);
+    this.advanceTime(cost.time, cost.alertDelta);
+    this.resolveAction(type, node);
+    this.checkGameOver();
+
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
-
-    const handle = setTimeout(() => {
-      this.resolveAction(type, node, cost.alertDelta);
-    }, cost.time * 1000);
-    this.pendingTimeouts.push(handle);
-
     return { accepted: true };
   }
 
@@ -119,8 +106,6 @@ export class MockGameClient implements GameClient {
     type: TimedActionType,
     node: NetworkNode,
   ): ActionRejectReason | undefined {
-    if (this.pendingNodeIds.has(node.id)) return 'invalid_state';
-
     const cost = balanceConfig[type];
     if (this.state.analysisResource < cost.resource) return 'insufficient_resource';
 
@@ -137,10 +122,16 @@ export class MockGameClient implements GameClient {
     return undefined;
   }
 
-  private resolveAction(type: TimedActionType, node: NetworkNode, alertDelta: number): void {
-    this.pendingNodeIds.delete(node.id);
-    this.state.alertLevel = clampAlert(this.state.alertLevel + alertDelta);
+  // backend/game_logic.py の _advance_time と同じ式: 消費した時間ぶんの自然減衰を
+  // 差し引いてからアクション分のalertDeltaを足す。
+  private advanceTime(seconds: number, alertDelta: number): void {
+    this.state.elapsedSeconds += seconds;
+    this.state.alertLevel = clampAlert(
+      this.state.alertLevel - balanceConfig.alertDecayPerSecond * seconds + alertDelta,
+    );
+  }
 
+  private resolveAction(type: TimedActionType, node: NetworkNode): void {
     if (type === 'scan') {
       node.status = 'scanned';
       node.vulnerability = '未パッチの脆弱性(詳細診断で判明予定)';
@@ -148,15 +139,25 @@ export class MockGameClient implements GameClient {
     } else if (type === 'breach') {
       node.status = 'hacked';
       const nextIndex = Math.min(privilegeIndex(this.state.privilege) + 1, PRIVILEGE_LADDER.length - 1);
-      this.state.privilege = PRIVILEGE_LADDER[nextIndex];
-      this.log('success', `${node.name} への侵入に成功しました。`);
+      if (nextIndex > privilegeIndex(this.state.privilege)) {
+        this.state.privilege = PRIVILEGE_LADDER[nextIndex];
+        this.log('success', `${node.name} への侵入に成功。権限が ${this.state.privilege} に昇格しました。`);
+      } else {
+        this.log('success', `${node.name} への侵入に成功しました。`);
+      }
     } else {
       this.state.status = 'won';
       this.log('success', `${node.name} からデータを回収しました。目的達成。`);
       this.emit({ type: 'game_over', result: 'won' });
     }
+  }
 
-    this.emit({ type: 'state_snapshot', state: this.cloneState() });
+  private checkGameOver(): void {
+    if (this.state.status === 'playing' && this.state.alertLevel >= 100) {
+      this.state.status = 'lost';
+      this.log('danger', '警戒度が限界に達しました。侵入が検知され、作戦は失敗です。');
+      this.emit({ type: 'game_over', result: 'lost' });
+    }
   }
 
   private log(severity: 'info' | 'success' | 'warning' | 'danger', message: string): void {
