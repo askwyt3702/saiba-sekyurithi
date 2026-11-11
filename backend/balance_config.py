@@ -12,7 +12,7 @@ ACTION_COSTS = {
 ALERT_DECAY_PER_SECOND = 0.05
 
 # 新規ゲーム開始時の値
-INITIAL_ANALYSIS_RESOURCE = 25
+INITIAL_ANALYSIS_RESOURCE = 40
 INITIAL_PRIVILEGE = "GUEST"
 
 # 警戒度がこの値に達したらゲームオーバー（api-contract.md 7節で未確定。暫定で即敗北）
