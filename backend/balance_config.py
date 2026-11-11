@@ -25,3 +25,15 @@ LAYER_ORDER = ["External", "DMZ", "Internal", "Core"]
 # この日数だれもAPIを触らなかったゲームは自動で削除する（画面を開くたびに新規ゲームが作られて
 # DBが膨らみ続けるのを防ぐ）。ただし /api/network 等の旧APIが使う「最初のゲーム」は消さない。
 STALE_GAME_DAYS = 7
+
+# ノードごとのセキュリティルール
+SECURITY_RULES = {
+    "E01": {
+        "vulnerability": "弱いSSHパスワード",
+        "risk_level": "MEDIUM",
+        "required_scan": True,
+        "failure_alert": 5,
+        "success_resource": 3,
+        "required_privilege": "GUEST",
+    }
+}
