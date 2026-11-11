@@ -449,3 +449,24 @@ def test_spending_last_resource_on_supply_node_survives(game, act, set_player):
     state = act(game, "breach", "E03")["state"]
     assert state["analysisResource"] == 5
     assert state["status"] == "playing"
+
+
+def test_all_nodes_scanned_with_only_1_resource_left_loses_the_game(client, act, set_player):
+    # ステージ0（全5ノード）で、全ノードをスキャンした後に解析資源が 1 だけ残る状態を作る
+    state = client.post("/api/games", json={"stageId": 0}).json()
+    gid = state["gameId"]
+    nodes = [n["id"] for n in state["nodes"]]
+    # 5ノードのスキャン(1×5=5) + 残り1 = 6 資源を持たせる
+    set_player(gid, analysis_resource=len(nodes) * SCAN_COST["resource"] + 1)
+
+    for nid in nodes[:-1]:
+        res = act(gid, "scan", nid)
+        assert res["accepted"] is True
+        assert res["state"]["status"] == "playing"
+
+    # 最後の未スキャンノードをスキャンした瞬間、残り資源は 1 だが
+    # 未スキャンノードがもう無く、breach(コスト2)もできないため手詰まりで lost になる
+    final_res = act(gid, "scan", nodes[-1])
+    assert final_res["accepted"] is True
+    assert final_res["state"]["analysisResource"] == 1
+    assert final_res["state"]["status"] == "lost"

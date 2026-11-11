@@ -209,13 +209,22 @@ export class MockGameClient implements GameClient {
     });
   }
 
+  private hasAnyAffordableAction(): boolean {
+    for (const node of this.state.nodes) {
+      for (const type of ['scan', 'breach', 'dataExtract'] as const) {
+        if (this.validate(type, node) === undefined) return true;
+      }
+    }
+    return false;
+  }
+
   private checkGameOver(): void {
     if (this.state.status !== 'playing') return;
     if (this.state.alertLevel >= 100) {
       this.state.status = 'lost';
       this.log('danger', '警戒度が限界に達しました。侵入が検知され、作戦は失敗です。');
       this.emit({ type: 'game_over', result: 'lost' });
-    } else if (this.state.analysisResource <= 0) {
+    } else if (this.state.analysisResource <= 0 || !this.hasAnyAffordableAction()) {
       this.state.status = 'lost';
       this.log('danger', '解析資源が枯渇しました。これ以上の作戦継続は不可能です。');
       this.emit({ type: 'game_over', result: 'lost' });

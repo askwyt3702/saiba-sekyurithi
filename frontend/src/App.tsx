@@ -108,8 +108,8 @@ function App() {
       {state.status === 'won' && <div className="app-banner app-banner--won">目的達成：データ回収に成功しました。</div>}
       {state.status === 'lost' && (
         <div className="app-banner app-banner--lost">
-          {state.analysisResource <= 0 && state.alertLevel < 100
-            ? '作戦失敗：解析資源が枯渇しました。'
+          {state.alertLevel < 100
+            ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
             : '作戦失敗：警戒度が限界に達しました。'}
         </div>
       )}

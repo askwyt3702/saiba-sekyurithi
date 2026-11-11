@@ -80,6 +80,7 @@ def _set_node_status(db: Session, player: models.PlayerStatus, node_id: str, sta
         db.add(models.NodeState(player_id=player.id, node_id=node_id, status=status))
     else:
         row.status = status
+    db.flush()
 
 
 def add_log(db: Session, player: models.PlayerStatus, severity: str, message: str) -> None:
@@ -337,13 +338,46 @@ def _advance_time(player: models.PlayerStatus, seconds: int, alert_delta: float)
     )
 
 
+def _has_any_affordable_action(db: Session, player: models.PlayerStatus) -> bool:
+    """現在の解析資源・状態で、実行可能な操作(scan / breach / dataExtract)が1つでもあるか判定する。"""
+    stage = _player_stage(player)
+    statuses = _node_statuses(db, player)
+    res = player.analysis_resource
+    priv_idx = _privilege_index(player.current_privilege)
+    target_ids = stage["target_node_ids"]
+
+    for n in stage["nodes"]:
+        nid = n["id"]
+        layer = n["layer"]
+        status = statuses.get(nid, "unscanned")
+
+        # 1. スキャン可能か
+        if status == "unscanned" and res >= ACTION_COSTS["scan"]["resource"]:
+            return True
+
+        # 2. 侵入(breach)可能か
+        if status == "scanned" and res >= ACTION_COSTS["breach"]["resource"]:
+            reachable = layer in stage["entry_layers"] or any(
+                statuses.get(nb) == "hacked" for nb in _neighbors(nid, stage["edges"])
+            )
+            if reachable and priv_idx >= _layer_index(layer):
+                return True
+
+        # 3. データ回収(dataExtract)可能か
+        if status == "hacked" and layer == "Core" and res >= ACTION_COSTS["dataExtract"]["resource"]:
+            if not target_ids or nid in target_ids:
+                return True
+
+    return False
+
+
 def _check_game_over(db: Session, player: models.PlayerStatus) -> None:
     if player.game_status != "playing":
         return
     if player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
         player.game_status = "lost"
         add_log(db, player, "danger", "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。")
-    elif player.analysis_resource <= 0:
+    elif player.analysis_resource <= 0 or not _has_any_affordable_action(db, player):
         player.game_status = "lost"
         add_log(db, player, "danger", "解析資源が枯渇しました。これ以上の作戦継続は不可能です。")
 
