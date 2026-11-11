@@ -105,7 +105,7 @@ export function createMockGameState(gameId: string): GameState {
     status: 'playing',
     elapsedSeconds: 0,
     alertLevel: 0,
-    analysisResource: 25, // backend/balance_config.py の INITIAL_ANALYSIS_RESOURCE と揃える
+    analysisResource: 40, // backend/balance_config.py の INITIAL_ANALYSIS_RESOURCE と揃える
     privilege: 'GUEST',
     nodes: nodes.map((node) => ({ ...node, position: { ...node.position } })),
     edges: edges.map((edge) => ({ ...edge })),
