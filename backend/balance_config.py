@@ -31,7 +31,7 @@ ACTION_COSTS = {
         "alert_delta": 10,
     },
 
-    # RESOURCE回復（新しく追加）
+    # RESOURCE回復
     "recover": {
         "time": 30,
         "resource": 0,
@@ -53,6 +53,10 @@ ALERT_GAME_OVER_THRESHOLD = 100.0
 PRIVILEGE_LADDER = ["GUEST", "USER", "ADMIN", "ROOT"]
 LAYER_ORDER = ["External", "DMZ", "Internal", "Core"]
 
-# RESOURCE回復システム（新しく追加）
+# RESOURCE回復システム
 RESOURCE_RECOVERY_AMOUNT = 5
 MAX_ANALYSIS_RESOURCE = 30
+
+# 一定期間操作されていないゲームを自動削除する日数
+# 旧APIが使用する最初のゲームは削除対象外
+STALE_GAME_DAYS = 7

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameClient } from './game/hooks/useGameClient';
 import type {
   ActionRejectReason,
@@ -9,6 +9,8 @@ import { MapView } from './components/MapView/MapView';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { NodeDetailPanel } from './components/NodeDetailPanel/NodeDetailPanel';
 import { EventLog } from './components/EventLog/EventLog';
+import { TitleScreen } from './components/TitleScreen/TitleScreen';
+import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -28,22 +30,41 @@ interface Notice {
   message: string;
 }
 
+type Screen = 'title' | 'mission' | 'game';
+
+// game.htmlからの遷移に対応
+function hasAutostartParam(): boolean {
+  return (
+    new URLSearchParams(window.location.search).get('autostart') === '1'
+  );
+}
+
 function App() {
-  const { state, sendAction, reset } = useGameClient();
+  // タイトル画面・ミッション選択画面
+  const [screen, setScreen] = useState<Screen>(() =>
+    hasAutostartParam() ? 'mission' : 'title'
+  );
+
+  // ゲーム画面のときだけゲームデータを取得
+  const { state, sendAction, reset } = useGameClient(screen === 'game');
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
 
-  if (!state) {
-    return <div className="app-loading">接続中...</div>;
-  }
+  useEffect(() => {
+    if (hasAutostartParam()) {
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
 
+  // 選択中のノード
   const selectedNode =
-    state.nodes.find((n) => n.id === selectedNodeId) ?? null;
+    state?.nodes.find((node) => node.id === selectedNodeId) ?? null;
 
+  // RESOURCE回復可能か
   const canRecover =
-    state.status === 'playing' &&
+    state?.status === 'playing' &&
     state.analysisResource < 30 &&
     state.nodes.some((node) => node.status === 'hacked') &&
     !isRecovering;
@@ -66,8 +87,7 @@ function App() {
       if (!result.accepted) {
         setNotice({
           nodeId,
-          message:
-            REJECT_MESSAGES[result.reason ?? 'invalid_state'],
+          message: REJECT_MESSAGES[result.reason ?? 'invalid_state'],
         });
       }
     } catch (err) {
@@ -91,11 +111,6 @@ function App() {
       const result = await sendAction({ type: 'recover' });
 
       if (!result.accepted) {
-        console.warn(
-          '[App] RESOURCE回復が拒否されました:',
-          result.reason
-        );
-
         window.alert(
           REJECT_MESSAGES[result.reason ?? 'invalid_state']
         );
@@ -108,12 +123,9 @@ function App() {
     }
   };
 
+  // ゲームのリセット
   const handleReset = () => {
-    if (
-      !window.confirm(
-        '作戦をリセットして最初からやり直しますか？'
-      )
-    ) {
+    if (!window.confirm('作戦をリセットして最初からやり直しますか？')) {
       return;
     }
 
@@ -125,6 +137,35 @@ function App() {
     );
   };
 
+  // タイトル画面
+  if (screen === 'title') {
+    return (
+      <TitleScreen
+        onStart={() => setScreen('mission')}
+      />
+    );
+  }
+
+  // ミッション選択画面
+  if (screen === 'mission') {
+    return (
+      <MissionScreen
+        onSelectMission={(id) => {
+          if (id === 1) {
+            setScreen('game');
+          }
+        }}
+        onBack={() => setScreen('title')}
+      />
+    );
+  }
+
+  // ゲームデータ読み込み中
+  if (!state) {
+    return <div className="app-loading">接続中...</div>;
+  }
+
+  // ゲーム画面
   return (
     <div className="app-shell">
       <StatusBar

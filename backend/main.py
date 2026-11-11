@@ -32,10 +32,17 @@ def get_db():
 def migrate_db():
     """create_all は既存テーブルへの列追加をしないため、足りない列だけ追加する簡易マイグレーション。"""
     columns = {c["name"] for c in inspect(engine).get_columns("player_status")}
-    if "game_status" not in columns:
-        with engine.begin() as conn:
+    with engine.begin() as conn:
+        if "game_status" not in columns:
             conn.execute(text("ALTER TABLE player_status ADD COLUMN game_status VARCHAR DEFAULT 'playing'"))
             conn.execute(text("UPDATE player_status SET game_status = 'playing' WHERE game_status IS NULL"))
+        if "last_accessed_at" not in columns:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN last_accessed_at TIMESTAMP"))
+        # 既存のゲームには「今触った」扱いで猶予期間を与える（いきなり全部消えないように）
+        conn.execute(
+            text("UPDATE player_status SET last_accessed_at = :now WHERE last_accessed_at IS NULL"),
+            {"now": models.utcnow()},
+        )
 
 def init_db():
     db = SessionLocal()
@@ -44,10 +51,19 @@ def init_db():
         for node in NODES:
             db.merge(models.NodeMaster(**node))
         db.commit()
+        # game_data.py から消えたノード（ステージ差し替え前の古いノード）も DB から取り除く
+        removed_nodes = game_logic.remove_obsolete_nodes(db)
+        if removed_nodes:
+            print(f"[startup] removed {removed_nodes} obsolete node(s)")
 
         # テスト用プレイヤーデータの初期化（/api/network・/api/scan が使う既定のゲーム）
         if db.query(models.PlayerStatus).count() == 0:
             game_logic.create_game(db)
+
+        # 長期間使われていないゲームを掃除する
+        removed = game_logic.cleanup_stale_games(db)
+        if removed:
+            print(f"[startup] removed {removed} stale game(s)")
     finally:
         db.close()
 
@@ -89,6 +105,7 @@ def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
     player = game_logic.get_game(db, game_id)
     if player is None:
         raise HTTPException(status_code=404, detail="指定されたゲームが存在しません")
+    game_logic.touch_game(db, player)  # 使われたことを記録（古いゲームの掃除用）
     return player
 
 
@@ -96,6 +113,7 @@ def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
 @app.post("/api/games")
 def create_game(db: Session = Depends(get_db)):
     """新しいゲームを開始し、初期状態(GameState)を返す。"""
+    game_logic.cleanup_stale_games(db)  # 作るついでに、長期間使われていないゲームを掃除する
     player = game_logic.create_game(db)
     return game_logic.build_game_state(db, player)
 

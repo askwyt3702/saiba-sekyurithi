@@ -223,3 +223,24 @@ WebSocket（4節）は未実装のため、現状は **アクションの結果�
 - 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（リアルタイム化後は tick 側に移す）。
 - 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
+
+### 古いゲームの自動削除（backend）
+
+- `player_status.last_accessed_at` に最終アクセス時刻を記録する（`GET/POST /api/games/{gameId}...` を呼ぶたびに更新）。
+- **7日間（`balance_config.STALE_GAME_DAYS`）だれも触らなかったゲームは削除**する。実行タイミングは、サーバー起動時と `POST /api/games` で新規作成するとき。
+- 旧API（`/api/network`・`/api/scan`）が使う「最初のゲーム」（最小の `gameId`）は、古くても消さない。
+- 削除されたゲームの `gameId` にアクセスすると 404 になる。フロントは 404 のとき新規作成に進む（`HttpGameClient` で実装済み）。
+- 起動時に、`game_data.py` に存在しないノード（ステージ差し替え前の古いノード）も DB から削除する。
+
+### バックエンドのテスト
+
+```
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+- テストは使い捨てのSQLiteで動くため、PostgreSQL や `docker compose` は不要。
+- ノードIDは直書きせず `game_data.py` から計算しているので、ステージのデータを差し替えてもテストは壊れない。
+- 「初期の解析資源だけで最短経路をクリアできる」ことも検査している（バランス調整で資源やコストを変えて、クリア不能になるとここで失敗する）。
+- GitHub Actions の `backend` ジョブでも `pytest` を実行する。

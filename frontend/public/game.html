@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NULL ROUTE</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <main class="title-screen">
+
+        <div class="corner-decoration top-left"></div>
+        <div class="corner-decoration bottom-right"></div>
+
+        <div class="title-content">
+
+            <p class="game-label">CYBER MYSTERY PROJECT</p>
+
+            <h1 class="game-title">
+                NULL <span>ROUTE</span>
+            </h1>
+
+            <div class="title-line"></div>
+
+            <p class="game-subtitle">
+                CYBER MYSTERY GAME
+            </p>
+
+            <div class="menu">
+
+                <button id="startButton" class="start-button">
+                    START GAME
+                    <span>▶</span>
+                </button>
+
+                <button id="settingButton" class="setting-button">
+                    SETTING
+                </button>
+
+            </div>
+
+            <p class="version">VERSION 1.0.0</p>
+
+        </div>
+
+    </main>
+<!-- ミッション選択画面 -->
+<main class="mission-screen" id="missionScreen" style="display: none;">
+
+    <header class="mission-header">
+        <div class="header-logo">NULL ROUTE</div>
+        <div class="header-label">ミッション選択</div>
+    </header>
+
+    <section class="mission-content">
+
+        <p class="section-label">作戦管理 / 001</p>
+
+        <h1>ミッション選択</h1>
+
+        <p class="mission-description">
+            調査するミッションを選択してください。
+        </p>
+
+        <div class="mission-list">
+
+            <div class="mission-card" onclick="selectMission(1)">
+                <div class="mission-number">ミッション 01</div>
+                <h2>消えた機密データ</h2>
+                <p>不正アクセスの侵入経路を特定せよ。</p>
+                <div class="mission-bottom">
+                    <span>初級</span>
+                    <span>選択可能 →</span>
+                </div>
+            </div>
+
+            <div class="mission-card locked">
+                <div class="mission-number">ミッション 02</div>
+                <h2>偽装された通信記録</h2>
+                <p>通信ログに隠された異常を発見せよ。</p>
+                <div class="mission-bottom">
+                    <span>中級</span>
+                    <span>未解放</span>
+                </div>
+            </div>
+
+            <div class="mission-card locked">
+                <div class="mission-number">ミッション 03</div>
+                <h2>封鎖されたセキュリティコア</h2>
+                <p>システムの最深部に隠された真実を暴け。</p>
+                <div class="mission-bottom">
+                    <span>上級</span>
+                    <span>未解放</span>
+                </div>
+            </div>
+
+        </div>
+
+        <button class="back-button" onclick="backToTitle()">
+            ← タイトルに戻る
+        </button>
+
+    </section>
+</main>
+
+<!-- ミッション01 調査画面 -->
+<main class="investigation-screen" id="investigationScreen" style="display: none;">
+
+    <header class="investigation-header">
+        <div class="header-logo">NULL ROUTE</div>
+        <div>ミッション 01 / 調査中</div>
+    </header>
+
+    <section class="investigation-content">
+
+        <p class="section-label">MISSION 01 / INVESTIGATION</p>
+
+        <h1>消えた機密データ</h1>
+
+        <p class="investigation-description">
+            ネットワーク内を調査し、不正アクセスの侵入経路を特定してください。
+        </p>
+
+        <!-- 調査エリア -->
+        <div class="investigation-panel">
+
+            <h2>ネットワーク構成</h2>
+
+<button class="scan-button" onclick="scanNetwork()">
+    ネットワークスキャンを開始
+    <span>▶</span>
+</button>
+
+
+            <div class="network-area">
+
+                <button class="network-node" onclick="selectNode('gateway')">
+                    GATEWAY
+                </button>
+
+                <div class="network-connection">│</div>
+
+                <div class="network-branches">
+                    <button class="network-node" onclick="selectNode('mail')">
+                        MAIL SERVER
+                    </button>
+
+                    <button class="network-node" onclick="selectNode('database')">
+                        DATABASE
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- 選択した対象の情報 -->
+            <div class="node-information">
+                <h3 id="nodeName">調査対象を選択してください</h3>
+                <p id="nodeInfo">ネットワーク内の機器をクリックすると情報が表示されます。</p>
+            </div>
+
+        </div>
+
+        <!-- 調査ログ -->
+        <div class="investigation-panel">
+            <h2>調査ログ</h2>
+            <div id="log" class="investigation-log">
+                > 調査システムを起動しました。
+            </div>
+        </div>
+
+        <button class="back-button" onclick="backToMissions()">
+            ← ミッション選択に戻る
+        </button>
+
+    </section>
+</main>
+
+    <script src="script.js"></script>
+</body>
+</html>

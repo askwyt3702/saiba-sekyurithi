@@ -28,12 +28,11 @@ const nodeTypes = {
   networkNode: NetworkNodeView,
 };
 
-/* マップ移動範囲の制限 */
+// マップ移動範囲
 const MAP_BOUNDS: [[number, number], [number, number]] = [
   [-200, -100],
   [1600, 3650],
 ];
-
 
 interface MapViewProps {
   nodes: NetworkNode[];
@@ -53,13 +52,13 @@ function MapContent({
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // ノード状態の一覧
+  // ノードの状態
   const nodeStatusMap = useMemo(
     () => new Map(nodes.map((node) => [node.id, node.status])),
     [nodes],
   );
 
-  // 侵入済みノードと隣接するノードを取得
+  // 侵入済みノードと隣接するノード
   const reachableNodeIds = useMemo(() => {
     const reachable = new Set<string>();
 
@@ -82,7 +81,7 @@ function MapContent({
     return reachable;
   }, [edges, nodeStatusMap]);
 
-  // React Flow用のノード
+  // React Flow用ノード
   const flowNodes: NetworkFlowNode[] = useMemo(
     () =>
       nodes.map((node) => ({
@@ -103,7 +102,7 @@ function MapContent({
     [nodes, selectedNodeId, reachableNodeIds],
   );
 
-  // 接続線の表示制御
+  // 接続線
   const flowEdges: Edge[] = useMemo(
     () =>
       edges.map((edge) => {
@@ -141,13 +140,11 @@ function MapContent({
           style: {
             stroke,
             strokeWidth,
-            
-opacity: connectedToSelected
-  ? 1
-  : bothHacked
-    ? 0.9
-    : 0.55,
-
+            opacity: connectedToSelected
+              ? 1
+              : bothHacked
+                ? 0.9
+                : 0.55,
           },
           zIndex: connectedToSelected ? 10 : 0,
         };
@@ -155,7 +152,7 @@ opacity: connectedToSelected
     [edges, nodeStatusMap, selectedNodeId],
   );
 
-  // 最初のノードを中央上部に表示
+  // 初期表示をE01付近に設定
   useEffect(() => {
     if (initialized.current || nodes.length === 0) return;
 
@@ -187,12 +184,11 @@ opacity: connectedToSelected
 
   return (
     <div className="map-view" ref={containerRef}>
-      
-<ReactFlow
-  nodes={flowNodes}
-  edges={flowEdges}
-  nodeTypes={nodeTypes}
-  translateExtent={MAP_BOUNDS}
+      <ReactFlow
+        nodes={flowNodes}
+        edges={flowEdges}
+        nodeTypes={nodeTypes}
+        translateExtent={MAP_BOUNDS}
         onNodeClick={(_, node) => onSelectNode(node.id)}
         fitView={false}
         minZoom={0.45}
@@ -225,4 +221,3 @@ export function MapView(props: MapViewProps) {
     </ReactFlowProvider>
   );
 }
-

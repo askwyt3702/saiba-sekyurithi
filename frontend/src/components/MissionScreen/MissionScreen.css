@@ -1,0 +1,150 @@
+/* ミッション選択画面 */
+.mission-screen {
+    min-height: 100vh;
+    background: #080808;
+    color: #fff;
+    padding: 32px 6%;
+    animation: ms-fadeIn 0.4s ease;
+}
+
+@keyframes ms-fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.mission-header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #333;
+    padding-bottom: 20px;
+}
+
+.mission-header-logo {
+    font-size: 18px;
+    letter-spacing: 4px;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+.mission-header-label {
+    color: #888;
+    letter-spacing: 3px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+}
+
+.mission-section-label {
+    color: #888;
+    letter-spacing: 3px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+}
+
+.mission-content {
+    max-width: 1100px;
+    margin: 80px auto;
+}
+
+.mission-content h1 {
+    font-size: 42px;
+    font-weight: 300;
+    letter-spacing: 5px;
+    margin: 12px 0;
+    color: #fff;
+}
+
+.mission-description {
+    color: #888;
+    margin-bottom: 40px;
+    font-size: 14px;
+}
+
+.mission-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+}
+
+.mission-card {
+    background: #111;
+    border: 1px solid #444;
+    padding: 25px;
+    cursor: pointer;
+    transition: 0.25s;
+    min-height: 230px;
+    display: flex;
+    flex-direction: column;
+}
+
+.mission-card:hover:not(.locked) {
+    border-color: #fff;
+    transform: translateY(-4px);
+    background: #171717;
+}
+
+.mission-card.locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.mission-number {
+    color: #888;
+    font-size: 12px;
+    letter-spacing: 3px;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+.mission-card h2 {
+    font-size: 21px;
+    font-weight: 400;
+    margin: 28px 0 12px;
+    color: #fff;
+}
+
+.mission-card p {
+    color: #999;
+    font-size: 13px;
+    line-height: 1.8;
+}
+
+.mission-bottom {
+    margin-top: auto;
+    padding-top: 25px;
+    display: flex;
+    justify-content: space-between;
+    color: #ddd;
+    font-size: 12px;
+    letter-spacing: 2px;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+.mission-back-button {
+    margin-top: 45px;
+    background: transparent;
+    border: 0;
+    color: #888;
+    cursor: pointer;
+    letter-spacing: 2px;
+    padding: 10px 0;
+    font-size: 13px;
+    font-family: ui-monospace, Consolas, monospace;
+    transition: 0.2s;
+}
+
+.mission-back-button:hover {
+    color: white;
+}
+
+/* スマートフォン対応 */
+@media (max-width: 800px) {
+    .mission-list {
+        grid-template-columns: 1fr;
+    }
+
+    .mission-content {
+        margin: 45px auto;
+    }
+
+    .mission-content h1 {
+        font-size: 30px;
+    }
+}

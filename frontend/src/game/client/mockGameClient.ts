@@ -9,7 +9,7 @@ import type {
   ServerEvent,
 } from '../model/types';
 import { balanceConfig } from '../data/balanceConfig';
-import { createMockGameState } from '../data/mockGameState';
+import { createMockGameState, MOCK_VULNERABILITIES } from '../data/mockGameState';
 
 function nextId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -143,8 +143,8 @@ export class MockGameClient implements GameClient {
   private resolveAction(type: TimedActionType, node: NetworkNode): void {
     if (type === 'scan') {
       node.status = 'scanned';
-      node.vulnerability = '未パッチの脆弱性(詳細診断で判明予定)';
-      this.log('success', `${node.name} のスキャンが完了しました。`);
+      node.vulnerability = MOCK_VULNERABILITIES[node.id] ?? null;
+      this.log('success', `${node.name} のスキャンが完了しました。脆弱性: ${node.vulnerability ?? '不明'}`);
     } else if (type === 'breach') {
       node.status = 'hacked';
       // 侵入したlayerの1段上まで権限を昇格(下がることはない)

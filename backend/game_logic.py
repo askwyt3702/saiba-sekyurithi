@@ -3,8 +3,10 @@
 API層(main.py)からは「状態の取得」と「アクションの適用」だけを呼び出す。
 バランス数値は balance_config.py、ステージ構造は game_data.py に分離してある。
 """
+from datetime import datetime, timedelta
 from typing import Optional
 
+from sqlalchemy import bindparam, func, inspect, text
 from sqlalchemy.orm import Session
 
 import models
@@ -17,12 +19,21 @@ from balance_config import (
     INITIAL_PRIVILEGE,
     LAYER_ORDER,
     PRIVILEGE_LADDER,
-    RESOURCE_RECOVERY_AMOUNT,
     MAX_ANALYSIS_RESOURCE,
+    RESOURCE_RECOVERY_AMOUNT,
+    STALE_GAME_DAYS,
+)
+from game_data import (
+    EDGES,
+    ENTRY_LAYERS,
+    KEY_FRAGMENT_NODE_IDS,
+    NODES,
+    NODE_EFFECTS,
+    RESOURCE_REWARDS,
+    TARGET_NODE_IDS,
 )
 
 
-from game_data import EDGES, ENTRY_LAYERS, NODES, RESOURCE_REWARDS
 
 
 
@@ -176,10 +187,61 @@ def get_game(
     ).first()
 
 
-def build_game_state(
-    db: Session,
-    player: models.PlayerStatus,
-) -> dict:
+def touch_game(db: Session, player: models.PlayerStatus) -> None:
+    """「このゲームは今使われている」と記録する（古いゲームの掃除の判断材料）。"""
+    player.last_accessed_at = models.utcnow()
+    db.commit()
+
+
+def _delete_legacy_pending_actions(db: Session, column: str, ids: list) -> None:
+    """過去の pending_action テーブルが残っていれば関連行を掃除する。"""
+    if ids and inspect(db.get_bind()).has_table("pending_action"):
+        db.execute(
+            text(f"DELETE FROM pending_action WHERE {column} IN :ids").bindparams(
+                bindparam("ids", value=ids, expanding=True)
+            )
+        )
+
+
+def remove_obsolete_nodes(db: Session) -> int:
+    """game_data.py に無いノードを DB から削除する。"""
+    valid_ids = {n["id"] for n in NODES}
+    obsolete_ids = [
+        row[0] for row in db.query(models.NodeMaster.id).filter(models.NodeMaster.id.notin_(valid_ids))
+    ]
+    if not obsolete_ids:
+        return 0
+    db.query(models.NodeState).filter(models.NodeState.node_id.in_(obsolete_ids)).delete(synchronize_session=False)
+    _delete_legacy_pending_actions(db, "node_id", obsolete_ids)
+    db.query(models.NodeMaster).filter(models.NodeMaster.id.in_(obsolete_ids)).delete(synchronize_session=False)
+    db.commit()
+    return len(obsolete_ids)
+
+
+def cleanup_stale_games(
+    db: Session, now: Optional[datetime] = None, max_age_days: int = STALE_GAME_DAYS
+) -> int:
+    """一定期間使われていないゲームを削除する（旧APIの最初のゲームは除外）。"""
+    cutoff = (now or models.utcnow()) - timedelta(days=max_age_days)
+    keep_id = db.query(func.min(models.PlayerStatus.id)).scalar()
+    stale_ids = [
+        row[0]
+        for row in db.query(models.PlayerStatus.id).filter(
+            models.PlayerStatus.last_accessed_at < cutoff,
+            models.PlayerStatus.id != keep_id,
+        )
+    ]
+    if not stale_ids:
+        return 0
+    db.query(models.NodeState).filter(models.NodeState.player_id.in_(stale_ids)).delete(synchronize_session=False)
+    db.query(models.GameLog).filter(models.GameLog.player_id.in_(stale_ids)).delete(synchronize_session=False)
+    _delete_legacy_pending_actions(db, "player_id", stale_ids)
+    db.query(models.PlayerStatus).filter(models.PlayerStatus.id.in_(stale_ids)).delete(synchronize_session=False)
+    db.commit()
+    return len(stale_ids)
+
+
+def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
     """api-contract.md 2.2 の GameState の形に組み立てる。"""
 
     statuses = _node_statuses(db, player)
@@ -309,25 +371,30 @@ def _validate_timed_action(
         if status == "hacked":
             raise ActionRejected("invalid_state")
 
-        if status != "scanned":
-            raise ActionRejected("node_not_scanned")
-
-        # 入口以外は隣接ノードへの侵入が必要
+        # 入口以外は、侵入済みの隣接ノードが必要
         if node.layer not in ENTRY_LAYERS:
             if not any(
-                statuses.get(n) == "hacked"
-                for n in _neighbors(node.id)
+                statuses.get(neighbor_id) == "hacked"
+                for neighbor_id in _neighbors(node.id)
             ):
                 raise ActionRejected("node_unreachable")
 
+        # 到達可能なノードは、先にスキャンが必要
+        if status != "scanned":
+            raise ActionRejected("node_not_scanned")
+
+        # 必要な権限を確認
         if (
             _privilege_index(player.current_privilege)
             < _layer_index(node.layer)
         ):
             raise ActionRejected("insufficient_privilege")
 
+
     elif action_type == "dataExtract":
         if node.layer != "Core" or status != "hacked":
+            raise ActionRejected("invalid_state")
+        if TARGET_NODE_IDS and node.id not in TARGET_NODE_IDS:
             raise ActionRejected("invalid_state")
 
 
@@ -364,40 +431,39 @@ def _check_game_over(
         )
 
 
-def _apply_resource_reward(db, player, node):
-    """補給ノードへの侵入成功時にRESOURCEを回復する。"""
+def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.NodeMaster) -> None:
+    """侵入成功時の資源補給・警戒度変化・鍵断片取得を適用する。"""
+    effect = NODE_EFFECTS.get(node.id)
+    if effect:
+        # 同一ノードの補給は RESOURCE_REWARDS と二重加算しない。
+        # NODE_EFFECTS 側に設定があればそちらの値を優先する。
+        res_bonus = effect.get("resource_bonus", 0)
+        alert_delta = effect.get("alert_delta", 0.0)
+        if res_bonus:
+            before = player.analysis_resource
+            player.analysis_resource = min(MAX_ANALYSIS_RESOURCE, max(0, before + res_bonus))
+            actual_bonus = player.analysis_resource - before
+            add_log(db, player, "success", f"{node.name}: RESOURCE +{actual_bonus} ({player.analysis_resource}/{MAX_ANALYSIS_RESOURCE})")
+        if alert_delta:
+            player.alert_level = _clamp_alert(player.alert_level + alert_delta)
+        msg = effect.get("log")
+        if msg:
+            add_log(db, player, "info", msg)
+    else:
+        reward = RESOURCE_REWARDS.get(node.id, 0)
+        if reward:
+            before = player.analysis_resource
+            player.analysis_resource = min(MAX_ANALYSIS_RESOURCE, before + reward)
+            add_log(db, player, "success", f"{node.name}: RESOURCE +{player.analysis_resource - before} ({player.analysis_resource}/{MAX_ANALYSIS_RESOURCE})")
 
-    reward = RESOURCE_REWARDS.get(node.id, 0)
-
-    if reward <= 0:
-        return
-
-    before = player.analysis_resource
-
-    player.analysis_resource = min(
-        MAX_ANALYSIS_RESOURCE,
-        before + reward,
-    )
-
-    recovered = player.analysis_resource - before
-
-    add_log(
-        db,
-        player,
-        "success",
-        f"補給ノード {node.name} を確保。"
-        f"RESOURCE +{recovered} "
-        f"({player.analysis_resource}/{MAX_ANALYSIS_RESOURCE})",
-    )
+    if KEY_FRAGMENT_NODE_IDS and node.id in KEY_FRAGMENT_NODE_IDS:
+        statuses = _node_statuses(db, player)
+        statuses[node.id] = "hacked"
+        if all(statuses.get(kid) == "hacked" for kid in KEY_FRAGMENT_NODE_IDS):
+            add_log(db, player, "success", "すべての暗号鍵断片が揃いました！最終目標のデータ回収時に警戒度上昇を完全に抑えられます。")
 
 
-
-def apply_action(
-    db: Session,
-    player: models.PlayerStatus,
-    action_type: str,
-    node_id: Optional[str],
-) -> None:
+def apply_action(db: Session, player: models.PlayerStatus, action_type: str, node_id: Optional[str]) -> None:
     """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
 
     if action_type == "pause":
@@ -466,16 +532,23 @@ def apply_action(
     )
 
     cost = ACTION_COSTS[action_type]
+    # 鍵が揃っていればデータ回収の警戒度増加を打ち消す。
+    alert_delta = cost["alert_delta"]
+    has_all_keys = False
+    if action_type == "dataExtract" and KEY_FRAGMENT_NODE_IDS:
+        statuses = _node_statuses(db, player)
+        has_all_keys = all(statuses.get(kid) == "hacked" for kid in KEY_FRAGMENT_NODE_IDS)
+        if has_all_keys:
+            alert_delta = 0.0
 
     player.analysis_resource -= cost["resource"]
 
     _advance_time(
         player,
         cost["time"],
-        cost["alert_delta"],
+        alert_delta,
     )
 
-    
     if action_type in ("scan", "remoteScan"):
         _set_node_status(db, player, node.id, "scanned")
 
@@ -497,7 +570,6 @@ def apply_action(
     elif action_type == "breach":
         _set_node_status(db, player, node.id, "hacked")
 
-        _apply_resource_reward(db, player, node)
 
 
         # 侵入したレイヤーに応じて権限を昇格
@@ -516,20 +588,14 @@ def apply_action(
                 f"{node.name} への侵入に成功。権限が {player.current_privilege} に昇格しました。",
             )
         else:
-            add_log(
-                db,
-                player,
-                "success",
-                f"{node.name} への侵入に成功しました。",
-            )
+            add_log(db, player, "success", f"{node.name} への侵入に成功しました。")
+        _apply_node_effect(db, player, node)
 
     elif action_type == "dataExtract":
-        add_log(
-            db,
-            player,
-            "success",
-            f"{node.name} から機密データを回収しました。目的達成！",
-        )
+        if has_all_keys:
+            add_log(db, player, "success", f"復元した暗号鍵を使用し、{node.name} から極秘研究データを隠密回収しました。目的達成！")
+        else:
+            add_log(db, player, "success", f"{node.name} から機密データを回収しました。目的達成！")
         player.game_status = "won"
 
     if player.alert_level >= 70 and player.game_status == "playing":

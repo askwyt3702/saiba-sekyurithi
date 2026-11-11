@@ -21,11 +21,13 @@ function applyEvent(prev: GameState | null, event: ServerEvent): GameState | nul
   }
 }
 
-export function useGameClient() {
+// enabled が true になるまでバックエンドに接続しない(タイトル画面を開いただけでゲームが作られないように)
+export function useGameClient(enabled: boolean) {
   const clientRef = useRef<GameClient | null>(null);
   const [state, setState] = useState<GameState | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const handleEvent = (event: ServerEvent) => {
       if (!cancelled) {
@@ -59,7 +61,7 @@ export function useGameClient() {
       clientRef.current?.disconnect();
       clientRef.current = null;
     };
-  }, []);
+  }, [enabled]);
 
   const sendAction = (action: ActionRequest): Promise<ActionResult> => {
     if (!clientRef.current) return Promise.resolve({ accepted: false, reason: 'invalid_state' });
