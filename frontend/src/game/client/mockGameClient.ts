@@ -210,9 +210,14 @@ export class MockGameClient implements GameClient {
   }
 
   private checkGameOver(): void {
-    if (this.state.status === 'playing' && this.state.alertLevel >= 100) {
+    if (this.state.status !== 'playing') return;
+    if (this.state.alertLevel >= 100) {
       this.state.status = 'lost';
       this.log('danger', '警戒度が限界に達しました。侵入が検知され、作戦は失敗です。');
+      this.emit({ type: 'game_over', result: 'lost' });
+    } else if (this.state.analysisResource <= 0) {
+      this.state.status = 'lost';
+      this.log('danger', '解析資源が枯渇しました。これ以上の作戦継続は不可能です。');
       this.emit({ type: 'game_over', result: 'lost' });
     }
   }

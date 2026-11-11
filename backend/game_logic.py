@@ -338,9 +338,14 @@ def _advance_time(player: models.PlayerStatus, seconds: int, alert_delta: float)
 
 
 def _check_game_over(db: Session, player: models.PlayerStatus) -> None:
-    if player.game_status == "playing" and player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
+    if player.game_status != "playing":
+        return
+    if player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
         player.game_status = "lost"
         add_log(db, player, "danger", "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。")
+    elif player.analysis_resource <= 0:
+        player.game_status = "lost"
+        add_log(db, player, "danger", "解析資源が枯渇しました。これ以上の作戦継続は不可能です。")
 
 
 def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.NodeMaster) -> None:

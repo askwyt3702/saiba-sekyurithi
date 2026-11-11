@@ -106,7 +106,13 @@ function App() {
         onReset={handleReset}
       />
       {state.status === 'won' && <div className="app-banner app-banner--won">目的達成：データ回収に成功しました。</div>}
-      {state.status === 'lost' && <div className="app-banner app-banner--lost">作戦失敗：警戒度が限界に達しました。</div>}
+      {state.status === 'lost' && (
+        <div className="app-banner app-banner--lost">
+          {state.analysisResource <= 0 && state.alertLevel < 100
+            ? '作戦失敗：解析資源が枯渇しました。'
+            : '作戦失敗：警戒度が限界に達しました。'}
+        </div>
+      )}
       <div className="app-body">
         <MapView
           nodes={state.nodes}
