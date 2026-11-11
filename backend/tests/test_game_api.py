@@ -417,3 +417,35 @@ def test_reset_can_switch_stage(game, client):
     switched = client.post(f"/api/games/{game}/reset", json={"stageId": 0}).json()
     assert switched["stageId"] == 0
     assert len(switched["nodes"]) == 5
+
+
+# ---------- 解析資源枯渇によるゲームオーバー ----------
+
+def test_depleting_resource_to_zero_loses_the_game(game, act, set_player):
+    set_player(game, analysis_resource=SCAN_COST["resource"])
+    result = act(game, "scan", ENTRY)
+    assert result["accepted"] is True
+    state = result["state"]
+    assert state["analysisResource"] == 0
+    assert state["status"] == "lost"
+    assert any("解析資源が枯渇" in entry["message"] for entry in state["log"])
+
+
+def test_spending_last_resource_on_data_extract_still_wins(game, act, set_player):
+    path = clear_stage(act, game, set_player)
+    set_player(game, analysis_resource=ACTION_COSTS["dataExtract"]["resource"])
+    result = act(game, "dataExtract", path[-1])
+    assert result["accepted"] is True
+    assert result["state"]["analysisResource"] == 0
+    assert result["state"]["status"] == "won"
+
+
+def test_spending_last_resource_on_supply_node_survives(game, act, set_player):
+    act(game, "scan", "E01")
+    act(game, "breach", "E01")
+    act(game, "scan", "E03")
+    # 残り資源2（breachコストちょうど）で E03 に侵入すると、一度0になるが +5 補給されて生き残る
+    set_player(game, analysis_resource=BREACH_COST["resource"])
+    state = act(game, "breach", "E03")["state"]
+    assert state["analysisResource"] == 5
+    assert state["status"] == "playing"
