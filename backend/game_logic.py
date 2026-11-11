@@ -19,7 +19,14 @@ from balance_config import (
     PRIVILEGE_LADDER,
     STALE_GAME_DAYS,
 )
-from game_data import EDGES, ENTRY_LAYERS, NODES
+from game_data import (
+    EDGES,
+    ENTRY_LAYERS,
+    KEY_FRAGMENT_NODE_IDS,
+    NODES,
+    NODE_EFFECTS,
+    TARGET_NODE_IDS,
+)
 
 TIMED_ACTIONS = ("scan", "breach", "dataExtract")
 
@@ -260,6 +267,8 @@ def _validate_timed_action(
     elif action_type == "dataExtract":
         if node.layer != "Core" or status != "hacked":
             raise ActionRejected("invalid_state")
+        if TARGET_NODE_IDS and node.id not in TARGET_NODE_IDS:
+            raise ActionRejected("invalid_state")
 
 
 def _advance_time(player: models.PlayerStatus, seconds: int, alert_delta: float) -> None:
@@ -274,6 +283,36 @@ def _check_game_over(db: Session, player: models.PlayerStatus) -> None:
     if player.game_status == "playing" and player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
         player.game_status = "lost"
         add_log(db, player, "danger", "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。")
+
+
+def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.NodeMaster) -> None:
+    """ノード侵入(breach)成功時に、ステージ固有の特殊効果(資源補給・痕跡削減・鍵断片入手など)を適用する。"""
+    effect = NODE_EFFECTS.get(node.id)
+    if not effect:
+        return
+
+    res_bonus = effect.get("resource_bonus", 0)
+    alert_delta = effect.get("alert_delta", 0.0)
+    if res_bonus:
+        player.analysis_resource = max(0, player.analysis_resource + res_bonus)
+    if alert_delta:
+        player.alert_level = _clamp_alert(player.alert_level + alert_delta)
+
+    msg = effect.get("log")
+    if msg:
+        add_log(db, player, "info", msg)
+
+    # 暗号鍵の断片ノードがすべて揃った瞬間にお知らせログを出す
+    if KEY_FRAGMENT_NODE_IDS and node.id in KEY_FRAGMENT_NODE_IDS:
+        statuses = _node_statuses(db, player)
+        statuses[node.id] = "hacked"
+        if all(statuses.get(kid) == "hacked" for kid in KEY_FRAGMENT_NODE_IDS):
+            add_log(
+                db,
+                player,
+                "success",
+                "すべての暗号鍵断片が揃いました！最終目標のデータ回収時に警戒度上昇を完全に抑えられます。",
+            )
 
 
 def apply_action(db: Session, player: models.PlayerStatus, action_type: str, node_id: Optional[str]) -> None:
@@ -306,7 +345,17 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
 
     cost = ACTION_COSTS[action_type]
     player.analysis_resource -= cost["resource"]
-    _advance_time(player, cost["time"], cost["alert_delta"])
+
+    # 暗号鍵の断片がすべて揃っている場合、dataExtract 時の警戒度増加を 0 に抑える
+    alert_delta = cost["alert_delta"]
+    has_all_keys = False
+    if action_type == "dataExtract" and KEY_FRAGMENT_NODE_IDS:
+        statuses = _node_statuses(db, player)
+        if all(statuses.get(kid) == "hacked" for kid in KEY_FRAGMENT_NODE_IDS):
+            alert_delta = 0.0
+            has_all_keys = True
+
+    _advance_time(player, cost["time"], alert_delta)
 
     if action_type == "scan":
         _set_node_status(db, player, node.id, "scanned")
@@ -321,9 +370,13 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
             add_log(db, player, "success", f"{node.name} への侵入に成功。権限が {player.current_privilege} に昇格しました。")
         else:
             add_log(db, player, "success", f"{node.name} への侵入に成功しました。")
+        _apply_node_effect(db, player, node)
 
     elif action_type == "dataExtract":
-        add_log(db, player, "success", f"{node.name} から機密データを回収しました。目的達成！")
+        if has_all_keys:
+            add_log(db, player, "success", f"復元した暗号鍵を使用し、{node.name} から極秘研究データを隠密回収しました。目的達成！")
+        else:
+            add_log(db, player, "success", f"{node.name} から機密データを回収しました。目的達成！")
         player.game_status = "won"
 
     if player.alert_level >= 70 and player.game_status == "playing":

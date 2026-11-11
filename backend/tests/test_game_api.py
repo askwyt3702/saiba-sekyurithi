@@ -309,3 +309,58 @@ def test_legacy_network_endpoint_returns_nodes_and_edges(client):
 
 def test_legacy_scan_endpoint_rejects_unknown_node(client):
     assert client.post("/api/scan", json={"node_id": "no-such-node"}).json() == {"error": "invalid_state"}
+
+
+# ---------- 特殊ノード効果・目標ノード・暗号鍵ギミック ----------
+
+def test_resource_supply_node_grants_bonus_resource(game, act):
+    # E03（公開情報アーカイブ）は E01 の隣にあり、侵入すると資源ボーナス(+5)が得られる
+    act(game, "scan", "E01")
+    act(game, "breach", "E01")
+    before = act(game, "scan", "E03")["state"]["analysisResource"]
+    after_state = act(game, "breach", "E03")["state"]
+    # 侵入コスト(2)を払ったあと +5 補給されるので、差し引き +3 増える
+    assert after_state["analysisResource"] == before - BREACH_COST["resource"] + 5
+    assert any("補給" in entry["message"] for entry in after_state["log"])
+
+
+def test_trace_reduction_node_lowers_alert(game, act, set_player):
+    # D06（プロキシサーバー）に侵入すると警戒度が下がる
+    for nid in ("E01", "E03"):
+        act(game, "scan", nid)
+        act(game, "breach", nid)
+    act(game, "scan", "D06")
+    set_player(game, alert_level=50.0)
+    state = act(game, "breach", "D06")["state"]
+    # 通常なら +5 - 減衰1.0 = +4.0 で 54.0 になるところ、特殊効果(-8.0)で 50 未満に下がる
+    assert state["alertLevel"] < 50.0
+
+
+def test_non_target_core_node_cannot_extract_data(game, act, set_player):
+    # C01（Coreファイアウォール）は Core 層だが最終目標(C03)ではないため dataExtract できない
+    set_player(game, analysis_resource=1000)
+    for nid in ("E01", "D01", "D04", "I02", "I08", "C01"):
+        assert act(game, "scan", nid)["accepted"] is True
+        assert act(game, "breach", nid)["accepted"] is True
+    res = act(game, "dataExtract", "C01")
+    assert res["accepted"] is False
+    assert res["reason"] == "invalid_state"
+
+
+def test_collecting_key_fragments_enables_stealth_data_extract(game, act, set_player):
+    set_player(game, analysis_resource=1000)
+    # 暗号鍵の断片 I06, I07 を回収しつつ C03 まで攻略する
+    route = ["E01", "D02", "D05", "I06", "I07", "I09", "C04", "C03"]
+    state = None
+    for nid in route:
+        assert act(game, "scan", nid)["accepted"] is True
+        state = act(game, "breach", nid)["state"]
+
+    assert any("すべての暗号鍵断片が揃いました" in entry["message"] for entry in state["log"])
+
+    set_player(game, alert_level=40.0)
+    final_state = act(game, "dataExtract", "C03")["state"]
+    assert final_state["status"] == "won"
+    # 鍵が揃っているので dataExtract の alert_delta(+10) が 0 になり、自然減衰ぶんだけ下がる
+    assert final_state["alertLevel"] <= 40.0
+    assert any("暗号鍵を使用" in entry["message"] for entry in final_state["log"])
