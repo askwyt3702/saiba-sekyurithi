@@ -218,11 +218,14 @@ WebSocket（4節）は未実装のため、現状は **アクションの結果�
 
 - **scan**：`unscanned` のノードのみ。完了で `scanned`、`info` と `vulnerability` が開示される。
 - **breach**：`scanned` であること／External 以外は隣接ノードのどれかが `hacked` であること／権限が layer の要求以上であること（External=GUEST, DMZ=USER, Internal=ADMIN, Core=ROOT）。成功で `hacked`、権限が「侵入した layer の1段上」まで昇格。
-- **dataExtract**：`hacked` 状態の Core ノードのみ。成功で `status = 'won'`。
+- **dataExtract**：`hacked` 状態の**最終目標ノード**のみ（`game_data.TARGET_NODE_IDS`。空ならCore層すべて）。それ以外のノードは `invalid_state`。成功で `status = 'won'`。
+- **暗号鍵の断片**：`game_data.KEY_FRAGMENT_NODE_IDS` のノードをすべて `hacked` にしてから dataExtract すると、回収時の警戒度上昇が 0 になる。
+- **ノードの特殊効果**：`game_data.NODE_EFFECTS` に登録されたノードは、breach 成功時に解析資源の増減・警戒度の増減・追加ログが発生する。
 - **pause / resume**：`playing` ⇔ `paused`。`playing` 以外ではアクションは `invalid_state` で却下。
 - 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（リアルタイム化後は tick 側に移す）。
 - 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
+- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源を変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。
 
 ### 古いゲームの自動削除（backend）
 

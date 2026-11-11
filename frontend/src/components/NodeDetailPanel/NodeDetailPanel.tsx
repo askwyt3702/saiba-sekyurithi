@@ -1,4 +1,5 @@
 import type { ActionType, NetworkNode } from '../../game/model/types';
+import { isExtractTarget } from '../../game/data/stageData';
 import './NodeDetailPanel.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -21,7 +22,7 @@ export function NodeDetailPanel({ node, notice, onAction }: NodeDetailPanelProps
   const isUnscanned = node.status === 'unscanned';
   const canScan = isUnscanned;
   const canBreach = node.status === 'scanned';
-  const canExtract = node.layer === 'Core' && node.status === 'hacked';
+  const canExtract = isExtractTarget(node) && node.status === 'hacked';
 
   return (
     <aside className="node-detail">
