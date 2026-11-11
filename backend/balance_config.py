@@ -21,3 +21,7 @@ ALERT_GAME_OVER_THRESHOLD = 100.0
 # 権限の序列（暫定）。layer の並びと対応させ、侵入したノードの layer に応じて昇格する。
 PRIVILEGE_LADDER = ["GUEST", "USER", "ADMIN", "ROOT"]
 LAYER_ORDER = ["External", "DMZ", "Internal", "Core"]
+
+# この日数だれもAPIを触らなかったゲームは自動で削除する（画面を開くたびに新規ゲームが作られて
+# DBが膨らみ続けるのを防ぐ）。ただし /api/network 等の旧APIが使う「最初のゲーム」は消さない。
+STALE_GAME_DAYS = 7

@@ -22,7 +22,7 @@ docker compose up
 
 - frontend: http://localhost:5173
 - backend: http://localhost:8000
-- db(PostgreSQL): `localhost:5432`(user: `detective` / password: `secretpassword` / db: `cyber_mystery`。`docker-compose.yml`参照)
+- db(PostgreSQL): `localhost:5433`(user: `detective` / password: `secretpassword` / db: `cyber_mystery`。`docker-compose.yml`参照。PC側のPostgreSQLとぶつからないよう5433にしてある。コンテナ同士は従来どおり`db:5432`でつながる)
 
 ### 個別に起動する場合
 
@@ -49,7 +49,7 @@ PostgreSQLが必要です。DBだけdocker-composeで起動するのが手軽で
 ```bash
 cd backend
 pip install -r requirements.txt
-DATABASE_URL=postgresql://detective:secretpassword@localhost:5432/cyber_mystery uvicorn main:app --reload
+DATABASE_URL=postgresql://detective:secretpassword@localhost:5433/cyber_mystery uvicorn main:app --reload
 ```
 
 ## CI

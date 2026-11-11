@@ -1,6 +1,13 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
+
+
+def utcnow() -> datetime:
+    """UTCの現在時刻(タイムゾーン情報なし)。SQLite/PostgreSQL どちらでも同じ扱いにするため。"""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # 1. プレイヤーの現在の状態（1行 = 1ゲーム。id を gameId として扱う）
 class PlayerStatus(Base):
@@ -12,6 +19,7 @@ class PlayerStatus(Base):
     analysis_resource = Column(Integer, default=25)     # 解析資源
     current_privilege = Column(String, default="GUEST") # 所持権限
     game_status = Column(String, default="playing")     # playing / paused / won / lost
+    last_accessed_at = Column(DateTime, default=utcnow) # 最後にAPIで触られた時刻（古いゲームの掃除に使う）
 
 # 2. ノードの基本設計図（マスターデータ）
 class NodeMaster(Base):
