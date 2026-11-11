@@ -1,3 +1,4 @@
+
 """ゲームのルール（権威ロジック）。
 API層(main.py)からは「状態の取得」と「アクションの適用」だけを呼び出す。
 バランス数値は balance_config.py、ステージ構造は game_data.py に分離してある。
@@ -7,6 +8,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 import models
+
 from balance_config import (
     ACTION_COSTS,
     ALERT_DECAY_PER_SECOND,
@@ -15,10 +17,18 @@ from balance_config import (
     INITIAL_PRIVILEGE,
     LAYER_ORDER,
     PRIVILEGE_LADDER,
+    RESOURCE_RECOVERY_AMOUNT,
+    MAX_ANALYSIS_RESOURCE,
 )
-from game_data import EDGES, ENTRY_LAYERS, NODES
 
-TIMED_ACTIONS = ("scan", "breach", "dataExtract")
+
+from game_data import EDGES, ENTRY_LAYERS, NODES, RESOURCE_REWARDS
+
+
+
+
+TIMED_ACTIONS = ("scan", "remoteScan", "breach", "dataExtract", "recover")
+
 
 
 class ActionRejected(Exception):
@@ -54,28 +64,49 @@ def _neighbors(node_id: str) -> set[str]:
 
 
 def _node_statuses(db: Session, player: models.PlayerStatus) -> dict[str, str]:
-    rows = db.query(models.NodeState).filter(models.NodeState.player_id == player.id).all()
+    rows = db.query(models.NodeState).filter(
+        models.NodeState.player_id == player.id
+    ).all()
     return {row.node_id: row.status for row in rows}
 
 
-def _set_node_status(db: Session, player: models.PlayerStatus, node_id: str, status: str) -> None:
+def _set_node_status(
+    db: Session,
+    player: models.PlayerStatus,
+    node_id: str,
+    status: str,
+) -> None:
     row = db.query(models.NodeState).filter(
         models.NodeState.player_id == player.id,
         models.NodeState.node_id == node_id,
     ).first()
+
     if row is None:
-        db.add(models.NodeState(player_id=player.id, node_id=node_id, status=status))
+        db.add(
+            models.NodeState(
+                player_id=player.id,
+                node_id=node_id,
+                status=status,
+            )
+        )
     else:
         row.status = status
 
 
-def add_log(db: Session, player: models.PlayerStatus, severity: str, message: str) -> None:
-    db.add(models.GameLog(
-        player_id=player.id,
-        timestamp=player.game_time,
-        message=message,
-        severity=severity,
-    ))
+def add_log(
+    db: Session,
+    player: models.PlayerStatus,
+    severity: str,
+    message: str,
+) -> None:
+    db.add(
+        models.GameLog(
+            player_id=player.id,
+            timestamp=player.game_time,
+            message=message,
+            severity=severity,
+        )
+    )
 
 
 # ---------- ゲームの生成・取得 ----------
@@ -88,18 +119,35 @@ def create_game(db: Session) -> models.PlayerStatus:
         current_privilege=INITIAL_PRIVILEGE,
         game_status="playing",
     )
+
     db.add(player)
-    db.flush()  # id を確定させる
-    add_log(db, player, "info", "侵入作戦を開始しました。まずは公開サーバーをスキャンしてください。")
+    db.flush()
+
+    add_log(
+        db,
+        player,
+        "info",
+        "侵入作戦を開始しました。まずは公開サーバーをスキャンしてください。",
+    )
+
     db.commit()
     db.refresh(player)
     return player
 
 
-def reset_game(db: Session, player: models.PlayerStatus) -> models.PlayerStatus:
+def reset_game(
+    db: Session,
+    player: models.PlayerStatus,
+) -> models.PlayerStatus:
     """指定されたゲームを初期状態にリセットする。"""
-    db.query(models.NodeState).filter(models.NodeState.player_id == player.id).delete()
-    db.query(models.GameLog).filter(models.GameLog.player_id == player.id).delete()
+
+    db.query(models.NodeState).filter(
+        models.NodeState.player_id == player.id
+    ).delete()
+
+    db.query(models.GameLog).filter(
+        models.GameLog.player_id == player.id
+    ).delete()
 
     player.game_time = 0
     player.alert_level = 0.0
@@ -107,34 +155,73 @@ def reset_game(db: Session, player: models.PlayerStatus) -> models.PlayerStatus:
     player.current_privilege = INITIAL_PRIVILEGE
     player.game_status = "playing"
 
-    add_log(db, player, "info", "侵入作戦を開始しました。まずは公開サーバーをスキャンしてください。")
+    add_log(
+        db,
+        player,
+        "info",
+        "侵入作戦を開始しました。まずは公開サーバーをスキャンしてください。",
+    )
+
     db.commit()
     db.refresh(player)
     return player
 
 
-def get_game(db: Session, game_id: int) -> Optional[models.PlayerStatus]:
-    return db.query(models.PlayerStatus).filter(models.PlayerStatus.id == game_id).first()
+def get_game(
+    db: Session,
+    game_id: int,
+) -> Optional[models.PlayerStatus]:
+    return db.query(models.PlayerStatus).filter(
+        models.PlayerStatus.id == game_id
+    ).first()
 
 
-def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
+def build_game_state(
+    db: Session,
+    player: models.PlayerStatus,
+) -> dict:
     """api-contract.md 2.2 の GameState の形に組み立てる。"""
+
     statuses = _node_statuses(db, player)
     nodes = []
-    order = {n["id"]: i for i, n in enumerate(NODES)}
-    db_nodes = sorted(db.query(models.NodeMaster).all(), key=lambda n: order.get(n.id, len(order)))
+
+    # 現在のステージに存在するノードIDと表示順を定義
+    order = {
+        n["id"]: i
+        for i, n in enumerate(NODES)
+    }
+
+    # 古い5ノードを除外し、現在の24ノードだけ取得
+    db_nodes = sorted(
+        db.query(models.NodeMaster)
+        .filter(models.NodeMaster.id.in_(order.keys()))
+        .all(),
+        key=lambda n: order[n.id],
+    )
+
     for node in db_nodes:
         status = statuses.get(node.id, "unscanned")
         revealed = status != "unscanned"
+
         nodes.append({
             "id": node.id,
-            "position": {"x": node.pos_x, "y": node.pos_y},
+            "position": {
+                "x": node.pos_x,
+                "y": node.pos_y,
+            },
             "data": {
                 "label": node.name,
                 "layer": node.layer,
-                # 未スキャンなら情報を隠し、スキャン済み・侵入済みなら開示する
-                "info": node.info if revealed else "不明（スキャンが必要です）",
-                "vulnerability": node.vulnerability if revealed else None,
+                "info": (
+                    node.info
+                    if revealed
+                    else "不明（スキャンが必要です）"
+                ),
+                "vulnerability": (
+                    node.vulnerability
+                    if revealed
+                    else None
+                ),
                 "status": status,
             },
         })
@@ -153,7 +240,12 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
         "nodes": nodes,
         "edges": EDGES,
         "log": [
-            {"id": str(l.id), "timestamp": l.timestamp, "message": l.message, "severity": l.severity}
+            {
+                "id": str(l.id),
+                "timestamp": l.timestamp,
+                "message": l.message,
+                "severity": l.severity,
+            }
             for l in logs
         ],
     }
@@ -162,34 +254,76 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
 # ---------- アクション ----------
 
 def _validate_timed_action(
-    db: Session, player: models.PlayerStatus, action_type: str, node: Optional[models.NodeMaster]
+    db: Session,
+    player: models.PlayerStatus,
+    action_type: str,
+    node: Optional[models.NodeMaster],
 ) -> None:
     if player.game_status != "playing":
         raise ActionRejected("invalid_state")
+
+    
+    if action_type == "recover":
+        statuses = _node_statuses(db, player)
+
+        # 侵入済みノードが必要
+        if not any(status == "hacked" for status in statuses.values()):
+            raise ActionRejected("node_unreachable")
+
+        # RESOURCEが上限なら回復できない
+        if player.analysis_resource >= MAX_ANALYSIS_RESOURCE:
+            raise ActionRejected("invalid_state")
+
+        return
+
     if node is None:
         raise ActionRejected("invalid_state")
 
+
     cost = ACTION_COSTS[action_type]
+
     if player.analysis_resource < cost["resource"]:
         raise ActionRejected("insufficient_resource")
 
     statuses = _node_statuses(db, player)
     status = statuses.get(node.id, "unscanned")
 
-    if action_type == "scan":
+    
+    if action_type in ("scan", "remoteScan"):
         if status != "unscanned":
             raise ActionRejected("invalid_state")
+
+        if action_type == "scan":
+            # 通常スキャンは侵入済みノードの隣接先だけ
+            # ただしExternal層は初期探索の入口として許可
+            has_hacked_neighbor = any(
+                statuses.get(neighbor_id) == "hacked"
+                for neighbor_id in _neighbors(node.id)
+            )
+
+            if node.layer != "External" and not has_hacked_neighbor:
+                raise ActionRejected("node_unreachable")
+
 
     elif action_type == "breach":
         if status == "hacked":
             raise ActionRejected("invalid_state")
+
         if status != "scanned":
             raise ActionRejected("node_not_scanned")
-        # 入口 layer 以外は、隣接ノードのどれかを侵入済みにしていないと届かない
+
+        # 入口以外は隣接ノードへの侵入が必要
         if node.layer not in ENTRY_LAYERS:
-            if not any(statuses.get(n) == "hacked" for n in _neighbors(node.id)):
+            if not any(
+                statuses.get(n) == "hacked"
+                for n in _neighbors(node.id)
+            ):
                 raise ActionRejected("node_unreachable")
-        if _privilege_index(player.current_privilege) < _layer_index(node.layer):
+
+        if (
+            _privilege_index(player.current_privilege)
+            < _layer_index(node.layer)
+        ):
             raise ActionRejected("insufficient_privilege")
 
     elif action_type == "dataExtract":
@@ -197,26 +331,79 @@ def _validate_timed_action(
             raise ActionRejected("invalid_state")
 
 
-def _advance_time(player: models.PlayerStatus, seconds: int, alert_delta: float) -> None:
-    """アクションにかかった時間を経過させ、警戒度を更新する（ターン制）。"""
+def _advance_time(
+    player: models.PlayerStatus,
+    seconds: int,
+    alert_delta: float,
+) -> None:
+    """アクションにかかった時間を経過させ、警戒度を更新する。"""
+
     player.game_time += seconds
+
     player.alert_level = _clamp_alert(
-        player.alert_level - ALERT_DECAY_PER_SECOND * seconds + alert_delta
+        player.alert_level
+        - ALERT_DECAY_PER_SECOND * seconds
+        + alert_delta
     )
 
 
-def _check_game_over(db: Session, player: models.PlayerStatus) -> None:
-    if player.game_status == "playing" and player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
+def _check_game_over(
+    db: Session,
+    player: models.PlayerStatus,
+) -> None:
+    if (
+        player.game_status == "playing"
+        and player.alert_level >= ALERT_GAME_OVER_THRESHOLD
+    ):
         player.game_status = "lost"
-        add_log(db, player, "danger", "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。")
+        add_log(
+            db,
+            player,
+            "danger",
+            "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。",
+        )
 
 
-def apply_action(db: Session, player: models.PlayerStatus, action_type: str, node_id: Optional[str]) -> None:
-    """アクションを検証して適用する。却下時は ActionRejected を投げる（DBは変更しない）。"""
+def _apply_resource_reward(db, player, node):
+    """補給ノードへの侵入成功時にRESOURCEを回復する。"""
+
+    reward = RESOURCE_REWARDS.get(node.id, 0)
+
+    if reward <= 0:
+        return
+
+    before = player.analysis_resource
+
+    player.analysis_resource = min(
+        MAX_ANALYSIS_RESOURCE,
+        before + reward,
+    )
+
+    recovered = player.analysis_resource - before
+
+    add_log(
+        db,
+        player,
+        "success",
+        f"補給ノード {node.name} を確保。"
+        f"RESOURCE +{recovered} "
+        f"({player.analysis_resource}/{MAX_ANALYSIS_RESOURCE})",
+    )
+
+
+
+def apply_action(
+    db: Session,
+    player: models.PlayerStatus,
+    action_type: str,
+    node_id: Optional[str],
+) -> None:
+    """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
 
     if action_type == "pause":
         if player.game_status != "playing":
             raise ActionRejected("invalid_state")
+
         player.game_status = "paused"
         add_log(db, player, "info", "作戦を一時停止しました。")
         db.commit()
@@ -225,44 +412,133 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
     if action_type == "resume":
         if player.game_status != "paused":
             raise ActionRejected("invalid_state")
+
         player.game_status = "playing"
         add_log(db, player, "info", "作戦を再開しました。")
         db.commit()
         return
 
+    
     if action_type not in TIMED_ACTIONS:
         raise ActionRejected("invalid_state")
 
-    node = None
-    if node_id is not None:
-        node = db.query(models.NodeMaster).filter(models.NodeMaster.id == node_id).first()
+    # RESOURCE回復はノード選択不要
+    if action_type == "recover":
+        _validate_timed_action(db, player, action_type, None)
 
-    _validate_timed_action(db, player, action_type, node)
+        cost = ACTION_COSTS["recover"]
+
+        player.analysis_resource = min(
+            MAX_ANALYSIS_RESOURCE,
+            player.analysis_resource + RESOURCE_RECOVERY_AMOUNT,
+        )
+
+        _advance_time(
+            player,
+            cost["time"],
+            cost["alert_delta"],
+        )
+
+        add_log(
+            db,
+            player,
+            "success",
+            f"解析資源を回復しました。"
+            f"現在のRESOURCE: {player.analysis_resource}",
+        )
+
+        _check_game_over(db, player)
+        db.commit()
+        return
+
+    node = None
+
+    if node_id is not None:
+        node = db.query(models.NodeMaster).filter(
+            models.NodeMaster.id == node_id
+        ).first()
+
+    _validate_timed_action(
+        db,
+        player,
+        action_type,
+        node,
+    )
 
     cost = ACTION_COSTS[action_type]
-    player.analysis_resource -= cost["resource"]
-    _advance_time(player, cost["time"], cost["alert_delta"])
 
-    if action_type == "scan":
+    player.analysis_resource -= cost["resource"]
+
+    _advance_time(
+        player,
+        cost["time"],
+        cost["alert_delta"],
+    )
+
+    
+    if action_type in ("scan", "remoteScan"):
         _set_node_status(db, player, node.id, "scanned")
-        add_log(db, player, "success", f"{node.name} のスキャンが完了しました。脆弱性: {node.vulnerability or '不明'}")
+
+        scan_label = (
+            "リモートスキャン"
+            if action_type == "remoteScan"
+            else "通常スキャン"
+        )
+
+        add_log(
+            db,
+            player,
+            "success",
+            f"{node.name} の{scan_label}が完了しました。"
+            f"脆弱性: {node.vulnerability or '不明'}"
+        )
+
 
     elif action_type == "breach":
         _set_node_status(db, player, node.id, "hacked")
-        # 侵入した layer に応じて権限を昇格（下がることはない）
-        granted = min(_layer_index(node.layer) + 1, len(PRIVILEGE_LADDER) - 1)
+
+        _apply_resource_reward(db, player, node)
+
+
+        # 侵入したレイヤーに応じて権限を昇格
+        granted = min(
+            _layer_index(node.layer) + 1,
+            len(PRIVILEGE_LADDER) - 1,
+        )
+
         if granted > _privilege_index(player.current_privilege):
             player.current_privilege = PRIVILEGE_LADDER[granted]
-            add_log(db, player, "success", f"{node.name} への侵入に成功。権限が {player.current_privilege} に昇格しました。")
+
+            add_log(
+                db,
+                player,
+                "success",
+                f"{node.name} への侵入に成功。権限が {player.current_privilege} に昇格しました。",
+            )
         else:
-            add_log(db, player, "success", f"{node.name} への侵入に成功しました。")
+            add_log(
+                db,
+                player,
+                "success",
+                f"{node.name} への侵入に成功しました。",
+            )
 
     elif action_type == "dataExtract":
-        add_log(db, player, "success", f"{node.name} から機密データを回収しました。目的達成！")
+        add_log(
+            db,
+            player,
+            "success",
+            f"{node.name} から機密データを回収しました。目的達成！",
+        )
         player.game_status = "won"
 
     if player.alert_level >= 70 and player.game_status == "playing":
-        add_log(db, player, "warning", f"警戒度が {player.alert_level:.0f}% に上昇しています。")
+        add_log(
+            db,
+            player,
+            "warning",
+            f"警戒度が {player.alert_level:.0f}% に上昇しています。",
+        )
 
     _check_game_over(db, player)
     db.commit()

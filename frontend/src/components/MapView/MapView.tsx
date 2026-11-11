@@ -1,12 +1,15 @@
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Background,
   Controls,
   ReactFlow,
   PanOnScrollMode,
+  useReactFlow,
+  ReactFlowProvider,
   type Edge,
 } from '@xyflow/react';
+
 import '@xyflow/react/dist/style.css';
 
 import type {
@@ -25,6 +28,13 @@ const nodeTypes = {
   networkNode: NetworkNodeView,
 };
 
+/* マップ移動範囲の制限 */
+const MAP_BOUNDS: [[number, number], [number, number]] = [
+  [-200, -100],
+  [1600, 3650],
+];
+
+
 interface MapViewProps {
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
@@ -32,12 +42,47 @@ interface MapViewProps {
   onSelectNode: (nodeId: string) => void;
 }
 
-export function MapView({
+function MapContent({
   nodes,
   edges,
   selectedNodeId,
   onSelectNode,
 }: MapViewProps) {
+  const { setViewport } = useReactFlow();
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef(false);
+
+  // ノード状態の一覧
+  const nodeStatusMap = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node.status])),
+    [nodes],
+  );
+
+  // 侵入済みノードと隣接するノードを取得
+  const reachableNodeIds = useMemo(() => {
+    const reachable = new Set<string>();
+
+    for (const edge of edges) {
+      const sourceHacked =
+        nodeStatusMap.get(edge.source) === 'hacked';
+
+      const targetHacked =
+        nodeStatusMap.get(edge.target) === 'hacked';
+
+      if (sourceHacked && !targetHacked) {
+        reachable.add(edge.target);
+      }
+
+      if (targetHacked && !sourceHacked) {
+        reachable.add(edge.source);
+      }
+    }
+
+    return reachable;
+  }, [edges, nodeStatusMap]);
+
+  // React Flow用のノード
   const flowNodes: NetworkFlowNode[] = useMemo(
     () =>
       nodes.map((node) => ({
@@ -49,73 +94,135 @@ export function MapView({
           selected: node.id === selectedNodeId,
         },
         draggable: false,
+        className:
+          node.status !== 'hacked' &&
+          reachableNodeIds.has(node.id)
+            ? 'map-node--reachable'
+            : '',
       })),
-    [nodes, selectedNodeId],
+    [nodes, selectedNodeId, reachableNodeIds],
   );
 
+  // 接続線の表示制御
   const flowEdges: Edge[] = useMemo(
     () =>
-      edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        animated: edge.animated,
-      })),
-    [edges],
+      edges.map((edge) => {
+        const sourceStatus = nodeStatusMap.get(edge.source);
+        const targetStatus = nodeStatusMap.get(edge.target);
+
+        const bothHacked =
+          sourceStatus === 'hacked' &&
+          targetStatus === 'hacked';
+
+        const connectedToSelected =
+          selectedNodeId !== null &&
+          (edge.source === selectedNodeId ||
+            edge.target === selectedNodeId);
+
+        let stroke = '#8392a8';
+        let strokeWidth = 1.5;
+
+        if (bothHacked) {
+          stroke = '#22c55e';
+          strokeWidth = 2;
+        }
+
+        if (connectedToSelected) {
+          stroke = '#60a5fa';
+          strokeWidth = 2.5;
+        }
+
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          type: 'default',
+          animated: false,
+          style: {
+            stroke,
+            strokeWidth,
+            
+opacity: connectedToSelected
+  ? 1
+  : bothHacked
+    ? 0.9
+    : 0.55,
+
+          },
+          zIndex: connectedToSelected ? 10 : 0,
+        };
+      }),
+    [edges, nodeStatusMap, selectedNodeId],
   );
 
+  // 最初のノードを中央上部に表示
+  useEffect(() => {
+    if (initialized.current || nodes.length === 0) return;
+
+    const entryNode = nodes.find((node) => node.id === 'E01');
+    const container = containerRef.current;
+
+    if (!entryNode || !container) return;
+
+    const width = container.clientWidth;
+    if (width === 0) return;
+
+    const nodeWidth = 180;
+    const initialZoom = 1;
+
+    setViewport(
+      {
+        x:
+          width / 2 -
+          (entryNode.position.x + nodeWidth / 2) *
+            initialZoom,
+        y: 65 - entryNode.position.y * initialZoom,
+        zoom: initialZoom,
+      },
+      { duration: 0 },
+    );
+
+    initialized.current = true;
+  }, [nodes, setViewport]);
+
   return (
-    <div className="map-view">
-      <ReactFlow
-        nodes={flowNodes}
-        edges={flowEdges}
-        nodeTypes={nodeTypes}
+    <div className="map-view" ref={containerRef}>
+      
+<ReactFlow
+  nodes={flowNodes}
+  edges={flowEdges}
+  nodeTypes={nodeTypes}
+  translateExtent={MAP_BOUNDS}
         onNodeClick={(_, node) => onSelectNode(node.id)}
-
-        // 全ノードを一画面に収めない
         fitView={false}
-
-        // 初期ズーム倍率
-       defaultViewport={{
-           x: 80,
-           y: 80,
-           zoom: 1,
-         }}
-
-        // ズーム倍率を固定
-        minZoom={1}
-        maxZoom={1}
+        minZoom={0.45}
+        maxZoom={1.6}
         zoomOnScroll={false}
-        zoomOnPinch={false}
+        zoomOnPinch={true}
         zoomOnDoubleClick={false}
-
-        // ホイールで上下にスクロール
         panOnScroll={true}
         panOnScrollMode={PanOnScrollMode.Vertical}
-
-        // ドラッグでマップを動かさない
-        panOnDrag={false}
-
-        // ノード位置は固定
+        panOnDrag={true}
         nodesDraggable={false}
         nodesConnectable={false}
-
-        // 表示設定
-        proOptions={{
-          hideAttribution: true,
-        }}
+        proOptions={{ hideAttribution: true }}
       >
-        <Background
-          color="#2a2e38"
-          gap={24}
-        />
+        <Background color="#2a2e38" gap={24} />
 
         <Controls
           showInteractive={false}
-          showZoom={false}
-          showFitView={false}
+          position="bottom-left"
         />
       </ReactFlow>
     </div>
   );
 }
+
+export function MapView(props: MapViewProps) {
+  return (
+    <ReactFlowProvider>
+      <MapContent {...props} />
+    </ReactFlowProvider>
+  );
+}
+

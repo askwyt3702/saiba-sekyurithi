@@ -19,3 +19,13 @@
   border-bottom: 1px solid #2a2e38;
   fill: #c7ccd6;
 }
+
+/* 攻略候補ノードの強調表示 */
+
+.map-view .react-flow__node.map-node--reachable {
+  filter: drop-shadow(0 0 7px rgba(250, 204, 21, 0.45));
+}
+
+.map-view .react-flow__node.map-node--reachable .network-node {
+  border-color: #facc15;
+}

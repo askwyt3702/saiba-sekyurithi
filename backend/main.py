@@ -69,9 +69,20 @@ setup_database()
 
 
 # ======= スキーマ =======
+
+
 class ActionRequest(BaseModel):
-    type: Literal["scan", "breach", "dataExtract", "pause", "resume"]
+    type: Literal[
+        "scan",
+        "remoteScan",
+        "breach",
+        "dataExtract",
+        "recover",
+        "pause",
+        "resume",
+    ]
     nodeId: Optional[str] = None
+
 
 
 def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
@@ -107,9 +118,11 @@ def reset_game(game_id: int, db: Session = Depends(get_db)):
 # ======= 2. プレイヤー操作 =======
 @app.post("/api/games/{game_id}/actions")
 def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_db)):
-    """scan / breach / dataExtract / pause / resume を実行する。
+
+    """scan / remoteScan / breach / dataExtract / pause / resume を実行する。
     受理可否(accepted, reason)に加えて、操作後の GameState を state として返す。
     """
+
     player = _get_game_or_404(db, game_id)
     try:
         game_logic.apply_action(db, player, action.type, action.nodeId)

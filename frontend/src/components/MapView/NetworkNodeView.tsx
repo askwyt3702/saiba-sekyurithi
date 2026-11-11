@@ -1,4 +1,11 @@
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+
+import {
+  Handle,
+  Position,
+  type Node,
+  type NodeProps,
+} from '@xyflow/react';
+
 import type { NetworkNode } from '../../game/model/types';
 import './NetworkNodeView.css';
 
@@ -10,9 +17,24 @@ export interface NetworkNodeData {
 
 export type NetworkFlowNode = Node<NetworkNodeData, 'networkNode'>;
 
-export function NetworkNodeView({ data }: NodeProps<NetworkFlowNode>) {
+const STATUS_LABELS: Record<string, string> = {
+  unscanned: 'UNKNOWN',
+  scanned: 'SCANNED',
+  hacked: 'HACKED',
+};
+
+export function NetworkNodeView({
+  data,
+}: NodeProps<NetworkFlowNode>) {
   const { node, selected } = data;
-  const displayName = node.status === 'unscanned' ? '不明ノード' : node.name;
+
+  const displayName =
+    node.status === 'unscanned'
+      ? '不明ノード'
+      : node.name;
+
+  const statusLabel =
+    STATUS_LABELS[node.status] ?? node.status;
 
   return (
     <div
@@ -26,8 +48,20 @@ export function NetworkNodeView({ data }: NodeProps<NetworkFlowNode>) {
         .join(' ')}
     >
       <Handle type="target" position={Position.Top} />
-      <div className="network-node__layer">{node.layer}</div>
-      <div className="network-node__name">{displayName}</div>
+
+      <div className="network-node__layer">
+        {node.layer}
+      </div>
+
+      <div className="network-node__name">
+        {displayName}
+      </div>
+
+      <div className="network-node__status">
+        <span className="network-node__status-dot" />
+        {statusLabel}
+      </div>
+
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

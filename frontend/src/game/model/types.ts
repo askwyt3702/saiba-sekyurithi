@@ -102,7 +102,18 @@ export interface GameState {
   log: LogEntry[];
 }
 
-export type ActionType = 'scan' | 'breach' | 'dataExtract' | 'pause' | 'resume';
+ 
+
+export type ActionType =
+  | 'scan'
+  | 'remoteScan'
+  | 'breach'
+  | 'dataExtract'
+  | 'recover'
+  | 'pause'
+  | 'resume';
+
+
 
 export interface ActionRequest {
   type: ActionType;
@@ -134,12 +145,15 @@ export interface ActionCost {
   alertDelta: number;
 }
 
+
 export interface BalanceConfig {
   scan: ActionCost;
+  remoteScan: ActionCost;
   breach: ActionCost;
   dataExtract: ActionCost;
   alertDecayPerSecond: number;
 }
+
 
 export interface GameClient {
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState>;
