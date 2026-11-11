@@ -247,3 +247,16 @@ pytest
 - ノードIDは直書きせず `game_data.py` から計算しているので、ステージのデータを差し替えてもテストは壊れない。
 - 「初期の解析資源だけで最短経路をクリアできる」ことも検査している（バランス調整で資源やコストを変えて、クリア不能になるとここで失敗する）。
 - GitHub Actions の `backend` ジョブでも `pytest` を実行する。
+
+
+### クリア時の作戦評価と複数ステージ対応（backend）
+
+- **ステージ一覧取得**: `GET /api/stages` → `{ stages: [{ id, name, difficulty, nodeCount }] }`
+  - `stageId = 0`: `TRAINING: 基礎侵入訓練`（チュートリアル5ノード）
+  - `stageId = 1`: `OPERATION SILENT TRACE: 消えた機密データ`（本編24ノード・既定）
+- **ステージ指定作成 / 切り替え**:
+  - `POST /api/games` に `{"stageId": 0}` などを渡すと指定ステージで作成（ボディ省略時は `stageId = 1`）。
+  - `POST /api/games/{gameId}/reset` に `{"stageId": 0}` などを渡すと指定ステージに切り替えてリセット。
+  - `GameState` に `stageId: number` を追加。
+- **クリア時の作戦評価（`GameState.evaluation`）**:
+  - クリア（`status === "won"`）時、`evaluation: { rank: "S" | "A" | "B" | "C", score: number, title: string }` が返り、イベントログにも評価が出力される（未クリア時は `null`）。

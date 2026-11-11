@@ -19,6 +19,7 @@ class PlayerStatus(Base):
     analysis_resource = Column(Integer, default=25)     # 解析資源
     current_privilege = Column(String, default="GUEST") # 所持権限
     game_status = Column(String, default="playing")     # playing / paused / won / lost
+    stage_id = Column(Integer, default=1)               # プレイ中のステージID（既定=1）
     last_accessed_at = Column(DateTime, default=utcnow) # 最後にAPIで触られた時刻（古いゲームの掃除に使う）
 
 # 2. ノードの基本設計図（マスターデータ）

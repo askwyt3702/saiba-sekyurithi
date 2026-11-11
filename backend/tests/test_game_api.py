@@ -364,3 +364,56 @@ def test_collecting_key_fragments_enables_stealth_data_extract(game, act, set_pl
     # 鍵が揃っているので dataExtract の alert_delta(+10) が 0 になり、自然減衰ぶんだけ下がる
     assert final_state["alertLevel"] <= 40.0
     assert any("暗号鍵を使用" in entry["message"] for entry in final_state["log"])
+
+
+# ---------- クリア時のスコア・ランク判定 & 複数ステージ ----------
+
+def test_winning_game_includes_evaluation_and_rank_log(game, act, set_player):
+    path = clear_stage(act, game, set_player)
+    set_player(game, alert_level=10.0, analysis_resource=15, game_time=120)
+    state = act(game, "dataExtract", path[-1])["state"]
+    assert state["status"] == "won"
+    assert state["evaluation"] is not None
+    assert state["evaluation"]["rank"] == "S"
+    assert state["evaluation"]["score"] >= 900
+    assert any("作戦評価: RANK S" in entry["message"] for entry in state["log"])
+
+
+def test_high_alert_clear_gets_lower_rank(game, act, set_player):
+    path = clear_stage(act, game, set_player)
+    set_player(game, alert_level=80.0, analysis_resource=3, game_time=450)
+    state = act(game, "dataExtract", path[-1])["state"]
+    assert state["status"] == "won"
+    assert state["evaluation"]["rank"] in ("B", "C")
+
+
+def test_list_stages_returns_available_stages(client):
+    res = client.get("/api/stages")
+    assert res.status_code == 200
+    stages = res.json()["stages"]
+    stage_ids = {s["id"] for s in stages}
+    assert {0, 1}.issubset(stage_ids)
+
+
+def test_create_and_clear_tutorial_stage_0(client, act):
+    state = client.post("/api/games", json={"stageId": 0}).json()
+    gid = state["gameId"]
+    assert state["stageId"] == 0
+    assert [n["id"] for n in state["nodes"]] == ["external-1", "dmz-1", "dmz-2", "internal-1", "core-1"]
+
+    # チュートリアルステージに存在しない本編のノード(E01)は操作できない
+    assert act(gid, "scan", "E01")["accepted"] is False
+
+    for nid in ("external-1", "dmz-1", "internal-1", "core-1"):
+        assert act(gid, "scan", nid)["accepted"] is True
+        assert act(gid, "breach", nid)["accepted"] is True
+    final_state = act(gid, "dataExtract", "core-1")["state"]
+    assert final_state["status"] == "won"
+    assert final_state["evaluation"] is not None
+
+
+def test_reset_can_switch_stage(game, client):
+    assert client.get(f"/api/games/{game}").json()["stageId"] == 1
+    switched = client.post(f"/api/games/{game}/reset", json={"stageId": 0}).json()
+    assert switched["stageId"] == 0
+    assert len(switched["nodes"]) == 5

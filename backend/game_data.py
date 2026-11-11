@@ -403,3 +403,65 @@ NODE_EFFECTS = {
         "log": "緊急防衛システムを無効化！ARGUSの緊急遮断プロトコルを停止しました（警戒度 -15%）。",
     },
 }
+
+
+# ==========================================
+# 複数ステージ（ミッション）定義
+# ==========================================
+# シナリオ担当がミッション2・3を追加するときは STAGES に辞書を足すだけでよい。
+
+TUTORIAL_NODES = [
+    {"id": "external-1", "name": "External (公開サーバー)", "layer": "External", "pos_x": 250, "pos_y": 50,
+     "vulnerability": "弱いSSHパスワード", "info": "最初の侵入口。SSHポート(22)が開いている。"},
+    {"id": "dmz-1", "name": "DMZ (Webサーバー)", "layer": "DMZ", "pos_x": 150, "pos_y": 150,
+     "vulnerability": "古いApacheの既知の脆弱性", "info": "古いバージョンのApacheが稼働中。"},
+    {"id": "dmz-2", "name": "DMZ (メールサーバー)", "layer": "DMZ", "pos_x": 350, "pos_y": 150,
+     "vulnerability": "漏洩した社員アドレスへのフィッシング", "info": "SMTPサーバー。社員のメールアドレスが漏洩している。"},
+    {"id": "internal-1", "name": "Internal (社内網)", "layer": "Internal", "pos_x": 250, "pos_y": 250,
+     "vulnerability": "Active Directoryの権限設定ミス", "info": "Active Directoryサーバー。アクセス権が厳重。"},
+    {"id": "core-1", "name": "Core (機密DB)", "layer": "Core", "pos_x": 250, "pos_y": 350,
+     "vulnerability": "SQLインジェクション", "info": "目標データが存在。SQLインジェクションの痕跡あり。"},
+]
+
+TUTORIAL_EDGES = [
+    {"id": "e1", "source": "external-1", "target": "dmz-1", "animated": True},
+    {"id": "e2", "source": "external-1", "target": "dmz-2", "animated": True},
+    {"id": "e3", "source": "dmz-1", "target": "internal-1"},
+    {"id": "e4", "source": "dmz-2", "target": "internal-1"},
+    {"id": "e5", "source": "internal-1", "target": "core-1"},
+]
+
+DEFAULT_STAGE_ID = 1
+
+STAGES = {
+    0: {
+        "id": 0,
+        "name": "TRAINING: 基礎侵入訓練",
+        "difficulty": "tutorial",
+        "nodes": TUTORIAL_NODES,
+        "edges": TUTORIAL_EDGES,
+        "entry_layers": {"External"},
+        "target_node_ids": {"core-1"},
+        "key_fragment_node_ids": set(),
+        "node_effects": {},
+    },
+    1: {
+        "id": 1,
+        "name": "OPERATION SILENT TRACE: 消えた機密データ",
+        "difficulty": "beginner",
+        "nodes": NODES,
+        "edges": EDGES,
+        "entry_layers": ENTRY_LAYERS,
+        "target_node_ids": TARGET_NODE_IDS,
+        "key_fragment_node_ids": KEY_FRAGMENT_NODE_IDS,
+        "node_effects": NODE_EFFECTS,
+    },
+}
+
+# 全ステージの全ノード（DBの node_master 同期用）
+ALL_STAGE_NODES = [node for stage in STAGES.values() for node in stage["nodes"]]
+
+
+def get_stage(stage_id: int) -> dict:
+    """指定された stage_id のステージ定義を返す（未定義なら既定ステージ 1 にフォールバック）。"""
+    return STAGES.get(stage_id, STAGES[DEFAULT_STAGE_ID])
