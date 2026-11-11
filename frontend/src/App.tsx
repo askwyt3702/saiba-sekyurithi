@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameClient } from './game/hooks/useGameClient';
 import type { ActionRejectReason, ActionType } from './game/model/types';
 import { MapView } from './components/MapView/MapView';
@@ -26,20 +26,23 @@ interface Notice {
 
 type Screen = 'title' | 'mission' | 'game';
 
+// game.html の START GAME ボタンから ?autostart=1 付きで遷移した場合はミッション選択を直接表示する
+function hasAutostartParam(): boolean {
+  return new URLSearchParams(window.location.search).get('autostart') === '1';
+}
+
 function App() {
-  const { state, sendAction, reset } = useGameClient();
+  // 初期値の計算は副作用なしにする(開発時のStrictModeは初期化関数を2回呼ぶため、
+  // ここでURLを書き換えると2回目で ?autostart=1 が消えてタイトルに戻ってしまう)
+  const [screen, setScreen] = useState<Screen>(() => (hasAutostartParam() ? 'mission' : 'title'));
+  const { state, sendAction, reset } = useGameClient(screen === 'game');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [screen, setScreen] = useState<Screen>(() => {
-    // game.html の START GAME ボタンから ?autostart=1 付きで遷移した場合はミッション選択を直接表示
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('autostart') === '1') {
-      // URLを綺麗にする（履歴を汚さないようにreplaceState）
-      window.history.replaceState({}, '', '/');
-      return 'mission';
-    }
-    return 'title';
-  });
+
+  useEffect(() => {
+    // URLを綺麗にする（履歴を汚さないようにreplaceState）
+    if (hasAutostartParam()) window.history.replaceState({}, '', '/');
+  }, []);
 
   const selectedNode = state?.nodes.find((n) => n.id === selectedNodeId) ?? null;
 
