@@ -18,6 +18,7 @@ from balance_config import (
     LAYER_ORDER,
     PRIVILEGE_LADDER,
     STALE_GAME_DAYS,
+    SECURITY_RULES,
 )
 from game_data import EDGES, ENTRY_LAYERS, NODES
 
@@ -79,6 +80,24 @@ def add_log(db: Session, player: models.PlayerStatus, severity: str, message: st
         message=message,
         severity=severity,
     ))
+
+def _security_event_done(
+    db: Session,
+    player: models.PlayerStatus,
+    node_id: str,
+    event_key: str,
+) -> bool:
+    marker = f"[SECURITY:{node_id}:{event_key}]"
+
+    return (
+        db.query(models.GameLog)
+        .filter(
+            models.GameLog.player_id == player.id,
+            models.GameLog.message == marker,
+        )
+        .first()
+        is not None
+    )
 
 
 # ---------- ゲームの生成・取得 ----------
@@ -295,6 +314,58 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
         db.commit()
         return
 
+    # E01：情報確認
+    if action_type == "confirmInfo":
+        if player.game_status != "playing":
+            raise ActionRejected("invalid_state")
+
+        if node_id != "E01":
+            raise ActionRejected("invalid_state")
+
+        statuses = _node_statuses(db, player)
+
+        if statuses.get("E01") != "scanned":
+            raise ActionRejected("node_not_scanned")
+
+        if _security_event_done(db, player, "E01", "INFO_CONFIRMED"):
+            raise ActionRejected("invalid_state")
+
+        add_log(
+            db,
+            player,
+            "success",
+            "[SECURITY:E01:INFO_CONFIRMED]"
+        )
+        db.commit()
+        return
+
+    # E01：解析イベント完了
+    if action_type == "completeAnalysis":
+        if player.game_status != "playing":
+            raise ActionRejected("invalid_state")
+
+        if node_id != "E01":
+            raise ActionRejected("invalid_state")
+
+        if not _security_event_done(
+            db, player, "E01", "INFO_CONFIRMED"
+        ):
+            raise ActionRejected("invalid_state")
+
+        if _security_event_done(
+            db, player, "E01", "ANALYSIS_COMPLETED"
+        ):
+            raise ActionRejected("invalid_state")
+
+        add_log(
+            db,
+            player,
+            "success",
+            "[SECURITY:E01:ANALYSIS_COMPLETED]"
+        )
+        db.commit()
+        return
+
     if action_type not in TIMED_ACTIONS:
         raise ActionRejected("invalid_state")
 
@@ -304,6 +375,42 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
 
     _validate_timed_action(db, player, action_type, node)
 
+
+# E01：追加条件の達成チェック
+    if action_type == "breach" and node.id in SECURITY_RULES:
+        rule = SECURITY_RULES[node.id]
+
+        info_done = _security_event_done(
+            db, player, node.id, "INFO_CONFIRMED"
+        )
+
+        analysis_done = _security_event_done(
+            db, player, node.id, "ANALYSIS_COMPLETED"
+        )
+
+        if not info_done or not analysis_done:
+            cost = ACTION_COSTS[action_type]
+
+            player.analysis_resource -= cost["resource"]
+
+            # 失敗時は設定された警戒度上昇量を適用
+            _advance_time(
+                player,
+                cost["time"],
+                rule["failure_alert"]
+            )
+
+            add_log(
+                db,
+                player,
+                "warning",
+                f"{node.name} の攻略条件を満たしていません。"
+            )
+
+            _check_game_over(db, player)
+            db.commit()
+            return
+        
     cost = ACTION_COSTS[action_type]
     player.analysis_resource -= cost["resource"]
     _advance_time(player, cost["time"], cost["alert_delta"])
@@ -321,6 +428,20 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
             add_log(db, player, "success", f"{node.name} への侵入に成功。権限が {player.current_privilege} に昇格しました。")
         else:
             add_log(db, player, "success", f"{node.name} への侵入に成功しました。")
+
+        # ノードごとの成功報酬
+        rule = SECURITY_RULES.get(node.id)
+
+        if rule:
+            reward = rule.get("success_resource", 0)
+            player.analysis_resource += reward
+
+            add_log(
+                db,
+                player,
+                "success",
+                f"{node.name} の攻略報酬として解析資源を{reward}獲得しました。"
+            )
 
     elif action_type == "dataExtract":
         add_log(db, player, "success", f"{node.name} から機密データを回収しました。目的達成！")
