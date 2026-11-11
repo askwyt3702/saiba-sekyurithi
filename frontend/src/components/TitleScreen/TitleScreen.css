@@ -1,0 +1,182 @@
+/* タイトル画面 */
+.title-screen {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background:
+        radial-gradient(ellipse at center, #151515 0%, #080808 55%, #000000 100%);
+    overflow: hidden;
+}
+
+/* タイトル全体 */
+.title-content {
+    text-align: center;
+    width: 90%;
+    max-width: 900px;
+    animation: ts-fadeIn 1.5s ease;
+}
+
+/* 上部ラベル */
+.title-game-label {
+    color: #777777;
+    font-size: 12px;
+    letter-spacing: 6px;
+    margin-bottom: 30px;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+/* ゲームタイトル */
+.title-game-title {
+    font-size: clamp(48px, 8vw, 100px);
+    font-weight: 300;
+    letter-spacing: 12px;
+    color: #ffffff;
+    margin: 0;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+.title-game-title span {
+    color: #999999;
+}
+
+/* タイトル下の線 */
+.title-line {
+    width: 70%;
+    height: 1px;
+    margin: 25px auto;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        #ffffff,
+        transparent
+    );
+}
+
+/* サブタイトル */
+.title-game-subtitle {
+    color: #888888;
+    font-size: 13px;
+    letter-spacing: 9px;
+    margin-bottom: 65px;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+/* メニュー */
+.title-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 25px;
+}
+
+/* STARTボタン */
+.title-start-button {
+    width: 340px;
+    max-width: 90%;
+    padding: 20px;
+    background: transparent;
+    border: 1px solid #aaaaaa;
+    color: white;
+    font-size: 16px;
+    letter-spacing: 6px;
+    cursor: pointer;
+    transition: 0.3s;
+    position: relative;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+.title-start-button span {
+    margin-left: 15px;
+    font-size: 12px;
+}
+
+.title-start-button:hover {
+    background: #ffffff;
+    color: #000000;
+    box-shadow: 0 0 25px #ffffff33;
+}
+
+/* SETTINGボタン */
+.title-setting-button {
+    background: transparent;
+    border: none;
+    color: #777777;
+    font-size: 13px;
+    letter-spacing: 6px;
+    padding: 12px 25px;
+    cursor: pointer;
+    transition: 0.3s;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+.title-setting-button:hover {
+    color: white;
+    letter-spacing: 9px;
+}
+
+/* バージョン表記 */
+.title-version {
+    position: absolute;
+    bottom: 25px;
+    left: 0;
+    width: 100%;
+    color: #444444;
+    font-size: 10px;
+    letter-spacing: 3px;
+    font-family: ui-monospace, Consolas, monospace;
+    text-align: center;
+}
+
+/* 角の装飾 */
+.title-corner-decoration {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    opacity: 0.12;
+    pointer-events: none;
+}
+
+.title-corner-decoration.top-left {
+    top: 0;
+    left: 0;
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+}
+
+.title-corner-decoration.bottom-right {
+    bottom: 0;
+    right: 0;
+    border-bottom: 2px solid white;
+    border-right: 2px solid white;
+}
+
+/* フェードイン */
+@keyframes ts-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* スマートフォン対応 */
+@media (max-width: 600px) {
+    .title-game-title {
+        letter-spacing: 5px;
+    }
+
+    .title-game-subtitle {
+        letter-spacing: 4px;
+    }
+
+    .title-game-label {
+        letter-spacing: 3px;
+    }
+}

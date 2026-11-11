@@ -1,0 +1,482 @@
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #050505;
+    color: #ffffff;
+    font-family: "Segoe UI", sans-serif;
+    overflow: hidden;
+}
+
+/* タイトル画面 */
+.title-screen {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background:
+        radial-gradient(ellipse at center, #151515 0%, #080808 55%, #000000 100%);
+}
+
+/* タイトル全体 */
+.title-content {
+    text-align: center;
+    width: 90%;
+    max-width: 900px;
+    animation: fadeIn 1.5s ease;
+}
+
+/* 上部ラベル */
+.game-label {
+    color: #777777;
+    font-size: 12px;
+    letter-spacing: 6px;
+    margin-bottom: 30px;
+}
+
+/* ゲームタイトル */
+.game-title {
+    font-size: clamp(48px, 8vw, 100px);
+    font-weight: 300;
+    letter-spacing: 12px;
+    color: #ffffff;
+}
+
+.game-title span {
+    color: #999999;
+}
+
+/* タイトル下の線 */
+.title-line {
+    width: 70%;
+    height: 1px;
+    margin: 25px auto;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        #ffffff,
+        transparent
+    );
+}
+
+/* サブタイトル */
+.game-subtitle {
+    color: #888888;
+    font-size: 13px;
+    letter-spacing: 9px;
+    margin-bottom: 65px;
+}
+
+/* メニュー */
+.menu {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 25px;
+}
+
+/* STARTボタン */
+.start-button {
+    width: 340px;
+    max-width: 90%;
+    padding: 20px;
+    background: transparent;
+    border: 1px solid #aaaaaa;
+    color: white;
+    font-size: 16px;
+    letter-spacing: 6px;
+    cursor: pointer;
+    transition: 0.3s;
+    position: relative;
+}
+
+.start-button span {
+    margin-left: 15px;
+    font-size: 12px;
+}
+
+.start-button:hover {
+    background: #ffffff;
+    color: #000000;
+    box-shadow: 0 0 25px #ffffff33;
+}
+
+/* SETTINGボタン */
+.setting-button {
+    background: transparent;
+    border: none;
+    color: #777777;
+    font-size: 13px;
+    letter-spacing: 6px;
+    padding: 12px 25px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.setting-button:hover {
+    color: white;
+    letter-spacing: 9px;
+}
+
+/* バージョン表記 */
+.version {
+    position: absolute;
+    bottom: 25px;
+    left: 0;
+    width: 100%;
+    color: #444444;
+    font-size: 10px;
+    letter-spacing: 3px;
+}
+
+/* 角の装飾 */
+.corner-decoration {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    opacity: 0.12;
+    pointer-events: none;
+}
+
+.top-left {
+    top: 0;
+    left: 0;
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+}
+
+.bottom-right {
+    bottom: 0;
+    right: 0;
+    border-bottom: 2px solid white;
+    border-right: 2px solid white;
+}
+
+/* フェードイン */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* スマートフォン対応 */
+@media (max-width: 600px) {
+    .game-title {
+        letter-spacing: 5px;
+    }
+
+    .game-subtitle {
+        letter-spacing: 4px;
+    }
+
+    .game-label {
+        letter-spacing: 3px;
+    }
+}
+
+/* ミッション選択画面 */
+.mission-screen {
+    min-height: 100vh;
+    background: #080808;
+    color: #fff;
+    padding: 32px 6%;
+}
+
+.mission-header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #333;
+    padding-bottom: 20px;
+}
+
+.header-logo {
+    font-size: 18px;
+    letter-spacing: 4px;
+}
+
+.header-label,
+.section-label {
+    color: #888;
+    letter-spacing: 3px;
+}
+
+.mission-content {
+    max-width: 1100px;
+    margin: 80px auto;
+}
+
+.mission-content h1 {
+    font-size: 42px;
+    font-weight: 300;
+    letter-spacing: 5px;
+    margin: 12px 0;
+}
+
+.mission-description {
+    color: #888;
+    margin-bottom: 40px;
+}
+
+.mission-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+}
+
+.mission-card {
+    background: #111;
+    border: 1px solid #444;
+    padding: 25px;
+    cursor: pointer;
+    transition: 0.25s;
+    min-height: 230px;
+    display: flex;
+    flex-direction: column;
+}
+
+.mission-card:hover {
+    border-color: #fff;
+    transform: translateY(-4px);
+    background: #171717;
+}
+
+.mission-card.locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.mission-number {
+    color: #888;
+    font-size: 12px;
+    letter-spacing: 3px;
+}
+
+.mission-card h2 {
+    font-size: 21px;
+    font-weight: 400;
+    margin: 28px 0 12px;
+}
+
+.mission-card p {
+    color: #999;
+    font-size: 13px;
+    line-height: 1.8;
+}
+
+.mission-bottom {
+    margin-top: auto;
+    padding-top: 25px;
+    display: flex;
+    justify-content: space-between;
+    color: #ddd;
+    font-size: 12px;
+    letter-spacing: 2px;
+}
+
+.back-button {
+    margin-top: 45px;
+    background: transparent;
+    border: 0;
+    color: #888;
+    cursor: pointer;
+    letter-spacing: 2px;
+    padding: 10px 0;
+}
+
+.back-button:hover {
+    color: white;
+}
+
+/* スマートフォン対応 */
+@media (max-width: 800px) {
+    .mission-list {
+        grid-template-columns: 1fr;
+    }
+
+    .mission-content {
+        margin: 45px auto;
+    }
+
+    .mission-content h1 {
+        font-size: 30px;
+    }
+}
+
+/* =========================
+   ミッション調査画面
+========================= */
+
+.investigation-screen {
+    min-height: 100vh;
+    height: 100vh;
+    overflow-y: auto;
+    background: #080808;
+    color: #fff;
+    padding: 32px 6%;
+}
+
+.investigation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #333;
+    padding-bottom: 20px;
+    color: #888;
+    font-size: 13px;
+    letter-spacing: 2px;
+}
+
+.investigation-content {
+    max-width: 1100px;
+    margin: 65px auto;
+}
+
+.investigation-content h1 {
+    font-size: 38px;
+    font-weight: 300;
+    letter-spacing: 5px;
+    margin: 15px 0;
+}
+
+.investigation-description {
+    color: #888;
+    margin-bottom: 35px;
+    line-height: 1.8;
+}
+
+.investigation-panel {
+    background: #111;
+    border: 1px solid #333;
+    padding: 28px;
+    margin-bottom: 25px;
+}
+
+.investigation-panel h2 {
+    font-size: 16px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+}
+
+.network-area {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.network-node {
+    background: #090909;
+    border: 1px solid #666;
+    color: #fff;
+    padding: 18px 25px;
+    min-width: 170px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: 0.2s;
+}
+
+.network-node:hover {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+}
+
+.network-connection {
+    color: #777;
+    font-size: 25px;
+    margin: 10px;
+}
+
+.network-branches {
+    display: flex;
+    justify-content: center;
+    gap: 35px;
+    flex-wrap: wrap;
+}
+
+.node-information {
+    margin-top: 35px;
+    padding: 22px;
+    background: #090909;
+    border-left: 2px solid #888;
+}
+
+.node-information h3 {
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+}
+
+.node-information p {
+    color: #999;
+    font-size: 13px;
+    line-height: 1.8;
+}
+
+.investigation-log {
+    min-height: 100px;
+    color: #aaa;
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    line-height: 2;
+    white-space: pre-line;
+}
+
+@media (max-width: 600px) {
+    .investigation-content h1 {
+        font-size: 27px;
+    }
+
+    .investigation-panel {
+        padding: 18px;
+    }
+
+    .network-branches {
+        gap: 12px;
+    }
+
+    .network-node {
+        min-width: 130px;
+        padding: 14px;
+        font-size: 11px;
+    }
+}
+
+/* ネットワークスキャンボタン */
+
+.scan-button {
+    display: block;
+    margin: 0 auto 30px;
+    padding: 16px 30px;
+    background: transparent;
+    border: 1px solid #888;
+    color: #fff;
+    font-size: 13px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.scan-button span {
+    margin-left: 15px;
+}
+
+.scan-button:hover {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+}

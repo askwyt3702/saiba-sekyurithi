@@ -5,6 +5,8 @@ import { MapView } from './components/MapView/MapView';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { NodeDetailPanel } from './components/NodeDetailPanel/NodeDetailPanel';
 import { EventLog } from './components/EventLog/EventLog';
+import { TitleScreen } from './components/TitleScreen/TitleScreen';
+import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -22,16 +24,24 @@ interface Notice {
   message: string;
 }
 
+type Screen = 'title' | 'mission' | 'game';
+
 function App() {
   const { state, sendAction, reset } = useGameClient();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [screen, setScreen] = useState<Screen>(() => {
+    // game.html の START GAME ボタンから ?autostart=1 付きで遷移した場合はミッション選択を直接表示
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') === '1') {
+      // URLを綺麗にする（履歴を汚さないようにreplaceState）
+      window.history.replaceState({}, '', '/');
+      return 'mission';
+    }
+    return 'title';
+  });
 
-  if (!state) {
-    return <div className="app-loading">接続中...</div>;
-  }
-
-  const selectedNode = state.nodes.find((n) => n.id === selectedNodeId) ?? null;
+  const selectedNode = state?.nodes.find((n) => n.id === selectedNodeId) ?? null;
 
   const handleSelectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
@@ -60,6 +70,28 @@ function App() {
     setNotice(null);
     reset().catch((err) => console.error('[App] リセットに失敗しました:', err));
   };
+
+  // タイトル画面
+  if (screen === 'title') {
+    return <TitleScreen onStart={() => setScreen('mission')} />;
+  }
+
+  // ミッション選択画面
+  if (screen === 'mission') {
+    return (
+      <MissionScreen
+        onSelectMission={(id) => {
+          if (id === 1) setScreen('game');
+        }}
+        onBack={() => setScreen('title')}
+      />
+    );
+  }
+
+  // ゲーム本体
+  if (!state) {
+    return <div className="app-loading">接続中...</div>;
+  }
 
   return (
     <div className="app-shell">
