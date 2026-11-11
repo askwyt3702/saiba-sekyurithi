@@ -2,8 +2,10 @@
 API層(main.py)からは「状態の取得」と「アクションの適用」だけを呼び出す。
 バランス数値は balance_config.py、ステージ構造は game_data.py に分離してある。
 """
+from datetime import datetime, timedelta
 from typing import Optional
 
+from sqlalchemy import bindparam, func, inspect, text
 from sqlalchemy.orm import Session
 
 import models
@@ -15,6 +17,7 @@ from balance_config import (
     INITIAL_PRIVILEGE,
     LAYER_ORDER,
     PRIVILEGE_LADDER,
+    STALE_GAME_DAYS,
 )
 from game_data import EDGES, ENTRY_LAYERS, NODES
 
@@ -115,6 +118,68 @@ def reset_game(db: Session, player: models.PlayerStatus) -> models.PlayerStatus:
 
 def get_game(db: Session, game_id: int) -> Optional[models.PlayerStatus]:
     return db.query(models.PlayerStatus).filter(models.PlayerStatus.id == game_id).first()
+
+
+def touch_game(db: Session, player: models.PlayerStatus) -> None:
+    """「このゲームは今使われている」と記録する（古いゲームの掃除の判断材料）。"""
+    player.last_accessed_at = models.utcnow()
+    db.commit()
+
+
+def _delete_legacy_pending_actions(db: Session, column: str, ids: list) -> None:
+    """過去にリアルタイム版で作られた pending_action テーブルが既存DBに残っていると、
+    player_status / node_master への外部キーのせいで行の削除に失敗するため、あれば先に掃除する。
+    （現行のコードでは使っていないテーブルなので、モデルには定義していない）
+    """
+    if ids and inspect(db.get_bind()).has_table("pending_action"):
+        db.execute(
+            text(f"DELETE FROM pending_action WHERE {column} IN :ids").bindparams(
+                bindparam("ids", value=ids, expanding=True)
+            )
+        )
+
+
+def remove_obsolete_nodes(db: Session) -> int:
+    """game_data.py に無いノードを DB から削除し、削除した件数を返す。
+    ステージのデータを差し替えたときに、古いノードがゲーム状態に混ざり続けないようにする。
+    """
+    valid_ids = {n["id"] for n in NODES}
+    obsolete_ids = [
+        row[0] for row in db.query(models.NodeMaster.id).filter(models.NodeMaster.id.notin_(valid_ids))
+    ]
+    if not obsolete_ids:
+        return 0
+    db.query(models.NodeState).filter(models.NodeState.node_id.in_(obsolete_ids)).delete(synchronize_session=False)
+    _delete_legacy_pending_actions(db, "node_id", obsolete_ids)
+    db.query(models.NodeMaster).filter(models.NodeMaster.id.in_(obsolete_ids)).delete(synchronize_session=False)
+    db.commit()
+    return len(obsolete_ids)
+
+
+def cleanup_stale_games(
+    db: Session, now: Optional[datetime] = None, max_age_days: int = STALE_GAME_DAYS
+) -> int:
+    """max_age_days 日以上だれも触っていないゲームを削除し、削除した件数を返す。
+    旧API(/api/network, /api/scan)が使う「最初のゲーム」は、古くても消さない。
+    """
+    cutoff = (now or models.utcnow()) - timedelta(days=max_age_days)
+    keep_id = db.query(func.min(models.PlayerStatus.id)).scalar()
+    stale_ids = [
+        row[0]
+        for row in db.query(models.PlayerStatus.id).filter(
+            models.PlayerStatus.last_accessed_at < cutoff,
+            models.PlayerStatus.id != keep_id,
+        )
+    ]
+    if not stale_ids:
+        return 0
+
+    db.query(models.NodeState).filter(models.NodeState.player_id.in_(stale_ids)).delete(synchronize_session=False)
+    db.query(models.GameLog).filter(models.GameLog.player_id.in_(stale_ids)).delete(synchronize_session=False)
+    _delete_legacy_pending_actions(db, "player_id", stale_ids)
+    db.query(models.PlayerStatus).filter(models.PlayerStatus.id.in_(stale_ids)).delete(synchronize_session=False)
+    db.commit()
+    return len(stale_ids)
 
 
 def build_game_state(db: Session, player: models.PlayerStatus) -> dict:

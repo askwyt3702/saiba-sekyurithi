@@ -50,7 +50,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
       # 実際にPostgreSQLに接続してアプリを起動時まで通すことで、
       # importのtypoやモデル定義ミスなど「起動して初めて分かる」不具合を検知する。
       - run: python -c "import main"
+      # ゲームルールのテスト(backend/tests)。テスト自体は使い捨てのSQLiteで動くので、DBの状態に依存しない。
+      - run: pytest
