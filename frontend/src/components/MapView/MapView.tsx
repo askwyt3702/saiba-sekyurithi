@@ -89,9 +89,10 @@ export function MapView({
         zoomOnPinch={false}
         zoomOnDoubleClick={false}
 
-        // ホイールで上下にスクロール
+        // ホイールで上下、Shift+ホイール/トラックパッドで左右にスクロール。
+        // ノードは横にも広がっている(x≒1000まで)ため、縦だけだと狭い画面で右側に届かない。
         panOnScroll={true}
-        panOnScrollMode={PanOnScrollMode.Vertical}
+        panOnScrollMode={PanOnScrollMode.Free}
 
         // ドラッグでマップを動かさない
         panOnDrag={false}
