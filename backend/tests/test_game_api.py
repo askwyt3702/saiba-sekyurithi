@@ -364,3 +364,145 @@ def test_collecting_key_fragments_enables_stealth_data_extract(game, act, set_pl
     # 鍵が揃っているので dataExtract の alert_delta(+10) が 0 になり、自然減衰ぶんだけ下がる
     assert final_state["alertLevel"] <= 40.0
     assert any("暗号鍵を使用" in entry["message"] for entry in final_state["log"])
+
+
+# ---------- クリア時のスコア・ランク判定 & 複数ステージ ----------
+
+def test_winning_game_includes_evaluation_and_rank_log(game, act, set_player):
+    path = clear_stage(act, game, set_player)
+    set_player(game, alert_level=10.0, analysis_resource=15, game_time=120)
+    state = act(game, "dataExtract", path[-1])["state"]
+    assert state["status"] == "won"
+    assert state["evaluation"] is not None
+    assert state["evaluation"]["rank"] == "S"
+    assert state["evaluation"]["score"] >= 900
+    assert any("作戦評価: RANK S" in entry["message"] for entry in state["log"])
+
+
+def test_high_alert_clear_gets_lower_rank(game, act, set_player):
+    path = clear_stage(act, game, set_player)
+    set_player(game, alert_level=80.0, analysis_resource=3, game_time=450)
+    state = act(game, "dataExtract", path[-1])["state"]
+    assert state["status"] == "won"
+    assert state["evaluation"]["rank"] in ("B", "C")
+
+
+def test_list_stages_returns_available_stages(client):
+    res = client.get("/api/stages")
+    assert res.status_code == 200
+    stages = res.json()["stages"]
+    stage_ids = {s["id"] for s in stages}
+    assert {0, 1}.issubset(stage_ids)
+
+
+def test_create_and_clear_tutorial_stage_0(client, act):
+    state = client.post("/api/games", json={"stageId": 0}).json()
+    gid = state["gameId"]
+    assert state["stageId"] == 0
+    assert [n["id"] for n in state["nodes"]] == ["external-1", "dmz-1", "dmz-2", "internal-1", "core-1"]
+
+    # チュートリアルステージに存在しない本編のノード(E01)は操作できない
+    assert act(gid, "scan", "E01")["accepted"] is False
+
+    for nid in ("external-1", "dmz-1", "internal-1", "core-1"):
+        assert act(gid, "scan", nid)["accepted"] is True
+        assert act(gid, "breach", nid)["accepted"] is True
+    final_state = act(gid, "dataExtract", "core-1")["state"]
+    assert final_state["status"] == "won"
+    assert final_state["evaluation"] is not None
+
+
+def test_reset_can_switch_stage(game, client):
+    assert client.get(f"/api/games/{game}").json()["stageId"] == 1
+    switched = client.post(f"/api/games/{game}/reset", json={"stageId": 0}).json()
+    assert switched["stageId"] == 0
+    assert len(switched["nodes"]) == 5
+
+
+# ---------- 解析資源枯渇によるゲームオーバー ----------
+
+def test_depleting_resource_to_zero_loses_the_game(game, act, set_player):
+    set_player(game, analysis_resource=SCAN_COST["resource"])
+    result = act(game, "scan", ENTRY)
+    assert result["accepted"] is True
+    state = result["state"]
+    assert state["analysisResource"] == 0
+    assert state["status"] == "lost"
+    assert any("解析資源が枯渇" in entry["message"] for entry in state["log"])
+
+
+def test_spending_last_resource_on_data_extract_still_wins(game, act, set_player):
+    path = clear_stage(act, game, set_player)
+    set_player(game, analysis_resource=ACTION_COSTS["dataExtract"]["resource"])
+    result = act(game, "dataExtract", path[-1])
+    assert result["accepted"] is True
+    assert result["state"]["analysisResource"] == 0
+    assert result["state"]["status"] == "won"
+
+
+def test_spending_last_resource_on_supply_node_survives(game, act, set_player):
+    act(game, "scan", "E01")
+    act(game, "breach", "E01")
+    act(game, "scan", "E03")
+    # 残り資源2（breachコストちょうど）で E03 に侵入すると、一度0になるが +5 補給されて生き残る
+    set_player(game, analysis_resource=BREACH_COST["resource"])
+    state = act(game, "breach", "E03")["state"]
+    assert state["analysisResource"] == 5
+    assert state["status"] == "playing"
+
+
+def test_all_nodes_scanned_with_only_1_resource_left_loses_the_game(client, act, set_player):
+    import main
+    import models
+
+    state = client.post("/api/games", json={"stageId": 0}).json()
+    gid = state["gameId"]
+    # Seed scanned nodes without hacking: ordinary scans require a hacked neighbor.
+    # Leave the entry unscanned so the final action is still a legal ordinary scan.
+    db = main.SessionLocal()
+    try:
+        for node in state["nodes"]:
+            if node["id"] != "external-1":
+                db.add(models.NodeState(player_id=int(gid), node_id=node["id"], status="scanned"))
+        db.commit()
+    finally:
+        db.close()
+    set_player(gid, analysis_resource=SCAN_COST["resource"] + 1)
+    final_res = act(gid, "scan", "external-1")
+    assert final_res["accepted"] is True
+    assert final_res["state"]["analysisResource"] == 1
+    assert final_res["state"]["status"] == "lost"
+
+
+def test_recovery_prevents_false_resource_game_over(game, act, set_player):
+    assert act(game, "scan", ENTRY)["accepted"]
+    set_player(game, analysis_resource=BREACH_COST["resource"])
+    state = act(game, "breach", ENTRY)["state"]
+    assert state["analysisResource"] == 0
+    assert state["status"] == "playing"
+    recovered = act(game, "recover")
+    assert recovered["accepted"]
+    assert recovered["state"]["analysisResource"] == 5
+    assert recovered["state"]["elapsedSeconds"] == (
+        SCAN_COST["time"] + BREACH_COST["time"] + ACTION_COSTS["recover"]["time"]
+    )
+
+
+def test_remote_scan_reaches_disconnected_core(game, act):
+    core = nodes_in_layer("Core")[0]
+    blocked = act(game, "scan", core)
+    assert blocked["accepted"] is False
+    assert blocked["reason"] == "node_unreachable"
+    remote = act(game, "remoteScan", core)
+    assert remote["accepted"] is True
+    assert node_of(remote["state"], core)["status"] == "scanned"
+    assert remote["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - ACTION_COSTS["remoteScan"]["resource"]
+
+
+def test_recovery_requires_hacked_node_and_respects_cap(game, act, set_player):
+    assert act(game, "recover")["reason"] == "node_unreachable"
+    act(game, "scan", ENTRY)
+    act(game, "breach", ENTRY)
+    set_player(game, analysis_resource=29)
+    assert act(game, "recover")["state"]["analysisResource"] == 30
+    assert act(game, "recover")["reason"] == "invalid_state"

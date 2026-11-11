@@ -2,10 +2,9 @@
 import game_logic
 import main
 import models
-from helpers import node_of
 
 
-def test_obsolete_nodes_are_removed_from_db_and_game_state(game, client):
+def test_obsolete_nodes_are_never_included_in_game_state_and_removed_from_db(game, client):
     db = main.SessionLocal()
     try:
         # 古いステージのノードがDBに残っている状況を再現

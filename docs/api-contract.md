@@ -216,13 +216,17 @@ WebSocket（4節）は未実装のため、現状は **アクションの結果�
 
 ### ゲームルール（暫定・`balance_config.py` で調整）
 
-- **scan**：`unscanned` のノードのみ。完了で `scanned`、`info` と `vulnerability` が開示される。
+- **scan**：`unscanned` かつ External 層、または侵入済みノードの隣接先のみ。完了で `scanned`、`info` と `vulnerability` が開示される。**remoteScan** は隣接条件なしで未スキャンノードを調べられる。
 - **breach**：`scanned` であること／External 以外は隣接ノードのどれかが `hacked` であること／権限が layer の要求以上であること（External=GUEST, DMZ=USER, Internal=ADMIN, Core=ROOT）。成功で `hacked`、権限が「侵入した layer の1段上」まで昇格。
-- **dataExtract**：`hacked` 状態の Core ノードのみ。成功で `status = 'won'`。
+- **dataExtract**：`hacked` 状態の**最終目標ノード**のみ（`game_data.TARGET_NODE_IDS`。空ならCore層すべて）。それ以外のノードは `invalid_state`。成功で `status = 'won'`。
+- **暗号鍵の断片**：`game_data.KEY_FRAGMENT_NODE_IDS` のノードをすべて `hacked` にしてから dataExtract すると、回収時の警戒度上昇が 0 になる。
+- **ノードの特殊効果**：`game_data.NODE_EFFECTS` に登録されたノードは、breach 成功時に解析資源の増減・警戒度の増減・追加ログが発生する。
 - **pause / resume**：`playing` ⇔ `paused`。`playing` 以外ではアクションは `invalid_state` で却下。
 - 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（リアルタイム化後は tick 側に移す）。
-- 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。
+- **recover**：侵入済みノードがあり、資源が上限未満ならノード選択なしで回復できる。資源0でも実行可能。
+- 警戒度が100に達するか、勝利していない状態で回復を含む実行可能な操作がなくなると `status = 'lost'`（ゲームオーバー）。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
+- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源を変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。
 
 ### 古いゲームの自動削除（backend）
 
@@ -244,3 +248,23 @@ pytest
 - ノードIDは直書きせず `game_data.py` から計算しているので、ステージのデータを差し替えてもテストは壊れない。
 - 「初期の解析資源だけで最短経路をクリアできる」ことも検査している（バランス調整で資源やコストを変えて、クリア不能になるとここで失敗する）。
 - GitHub Actions の `backend` ジョブでも `pytest` を実行する。
+
+
+### クリア時の作戦評価と複数ステージ対応（backend）
+
+- **ステージ一覧取得**: `GET /api/stages` → `{ stages: [{ id, name, difficulty, nodeCount }] }`
+  - `stageId = 0`: `TRAINING: 基礎侵入訓練`（チュートリアル5ノード）
+  - `stageId = 1`: `OPERATION SILENT TRACE: 消えた機密データ`（本編24ノード・既定）
+- **ステージ指定作成 / 切り替え**:
+  - `POST /api/games` に `{"stageId": 0}` などを渡すと指定ステージで作成（ボディ省略時は `stageId = 1`）。
+  - `POST /api/games/{gameId}/reset` に `{"stageId": 0}` などを渡すと指定ステージに切り替えてリセット。
+  - `GameState` に `stageId: number` を追加。
+- **クリア時の作戦評価（`GameState.evaluation`）**:
+  - クリア（`status === "won"`）時、`evaluation: { rank: "S" | "A" | "B" | "C", score: number, title: string }` が返り、イベントログにも評価が出力される（未クリア時は `null`）。
+
+### Merge integration: scan and recovery rules
+
+- Normal scan requires an External node or a hacked neighbor. Remote scan can reveal any unscanned node in the current stage.
+- recover needs no nodeId, requires a hacked node and resource below MAX_ANALYSIS_RESOURCE. It restores RESOURCE_RECOVERY_AMOUNT up to the cap, consumes 30 game seconds and adds 12 alert before natural decay.
+- Resource exhaustion causes defeat only when no legal action remains, including recovery. A hacked node therefore allows recovery even at zero resource. Alert reaching 100 still causes defeat.
+- NODE_EFFECTS takes precedence over RESOURCE_REWARDS for the same node; supply is not counted twice and is capped at MAX_ANALYSIS_RESOURCE.

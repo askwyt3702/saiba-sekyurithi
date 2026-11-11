@@ -1,3 +1,4 @@
+import { isExtractTarget } from '../../game/data/stageData';
 
 import type {
   ActionType,
@@ -63,7 +64,7 @@ export function NodeDetailPanel({
     analysisResource >= balanceConfig.breach.resource;
 
   const canExtract =
-    node.layer === 'Core' &&
+    isExtractTarget(node) &&
     node.status === 'hacked' &&
     analysisResource >= balanceConfig.dataExtract.resource;
 

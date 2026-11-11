@@ -24,13 +24,11 @@ from balance_config import (
     STALE_GAME_DAYS,
 )
 from game_data import (
-    EDGES,
-    ENTRY_LAYERS,
-    KEY_FRAGMENT_NODE_IDS,
-    NODES,
-    NODE_EFFECTS,
     RESOURCE_REWARDS,
-    TARGET_NODE_IDS,
+    ALL_STAGE_NODES,
+    DEFAULT_STAGE_ID,
+    STAGES,
+    get_stage,
 )
 
 
@@ -64,9 +62,14 @@ def _layer_index(layer: str) -> int:
     return LAYER_ORDER.index(layer) if layer in LAYER_ORDER else len(LAYER_ORDER) - 1
 
 
-def _neighbors(node_id: str) -> set[str]:
+def _player_stage(player: models.PlayerStatus) -> dict:
+    stage_id = player.stage_id if player.stage_id is not None else DEFAULT_STAGE_ID
+    return get_stage(stage_id)
+
+
+def _neighbors(node_id: str, edges: list[dict]) -> set[str]:
     result = set()
-    for e in EDGES:
+    for e in edges:
         if e["source"] == node_id:
             result.add(e["target"])
         elif e["target"] == node_id:
@@ -102,6 +105,7 @@ def _set_node_status(
         )
     else:
         row.status = status
+    db.flush()
 
 
 def add_log(
@@ -120,15 +124,49 @@ def add_log(
     )
 
 
+def evaluate_mission_result(player: models.PlayerStatus) -> dict:
+    """作戦クリア時のスコアとランク(S/A/B/C)を算出する。"""
+    alert_penalty = round(player.alert_level * 8)
+    time_penalty = max(0, (player.game_time - 200) // 2)
+    resource_bonus = player.analysis_resource * 15
+    score = max(0, 1000 - alert_penalty - time_penalty + resource_bonus)
+
+    if score >= 900 or (player.alert_level <= 25.0 and player.analysis_resource >= 5):
+        rank, title = "S", "完璧な隠密作戦 (GHOST OPERATIVE)"
+    elif score >= 750 or player.alert_level <= 50.0:
+        rank, title = "A", "優秀な侵入工作 (SHADOW AGENT)"
+    elif score >= 550 or player.alert_level <= 75.0:
+        rank, title = "B", "作戦目標達成 (FIELD OPERATIVE)"
+    else:
+        rank, title = "C", "強行突破による生還 (LOUD BREACHER)"
+
+    return {"rank": rank, "score": score, "title": title}
+
+
 # ---------- ゲームの生成・取得 ----------
 
-def create_game(db: Session) -> models.PlayerStatus:
+def list_stages() -> list[dict]:
+    """選択可能なステージ一覧を返す。"""
+    return [
+        {
+            "id": s["id"],
+            "name": s["name"],
+            "difficulty": s["difficulty"],
+            "nodeCount": len(s["nodes"]),
+        }
+        for s in STAGES.values()
+    ]
+
+
+def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID) -> models.PlayerStatus:
+    stage = get_stage(stage_id)
     player = models.PlayerStatus(
         game_time=0,
         alert_level=0.0,
         analysis_resource=INITIAL_ANALYSIS_RESOURCE,
         current_privilege=INITIAL_PRIVILEGE,
         game_status="playing",
+        stage_id=stage["id"],
     )
 
     db.add(player)
@@ -147,18 +185,16 @@ def create_game(db: Session) -> models.PlayerStatus:
 
 
 def reset_game(
-    db: Session,
-    player: models.PlayerStatus,
+    db: Session, player: models.PlayerStatus, stage_id: Optional[int] = None
 ) -> models.PlayerStatus:
-    """指定されたゲームを初期状態にリセットする。"""
+    """指定されたゲームを初期状態にリセットする（stage_id を渡せば別ステージに切り替え可能）。"""
+    db.query(models.NodeState).filter(models.NodeState.player_id == player.id).delete()
+    db.query(models.GameLog).filter(models.GameLog.player_id == player.id).delete()
 
-    db.query(models.NodeState).filter(
-        models.NodeState.player_id == player.id
-    ).delete()
-
-    db.query(models.GameLog).filter(
-        models.GameLog.player_id == player.id
-    ).delete()
+    if stage_id is not None:
+        player.stage_id = get_stage(stage_id)["id"]
+    elif player.stage_id is None:
+        player.stage_id = DEFAULT_STAGE_ID
 
     player.game_time = 0
     player.alert_level = 0.0
@@ -204,8 +240,8 @@ def _delete_legacy_pending_actions(db: Session, column: str, ids: list) -> None:
 
 
 def remove_obsolete_nodes(db: Session) -> int:
-    """game_data.py に無いノードを DB から削除する。"""
-    valid_ids = {n["id"] for n in NODES}
+    """game_data.py のどのステージにも存在しない古いノードを DB から削除し、削除した件数を返す。"""
+    valid_ids = {n["id"] for n in ALL_STAGE_NODES}
     obsolete_ids = [
         row[0] for row in db.query(models.NodeMaster.id).filter(models.NodeMaster.id.notin_(valid_ids))
     ]
@@ -243,24 +279,18 @@ def cleanup_stale_games(
 
 def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
     """api-contract.md 2.2 の GameState の形に組み立てる。"""
+    stage = _player_stage(player)
+    stage_nodes = stage["nodes"]
+    stage_node_ids = {n["id"] for n in stage_nodes}
+    order = {n["id"]: i for i, n in enumerate(stage_nodes)}
 
     statuses = _node_statuses(db, player)
-    nodes = []
-
-    # 現在のステージに存在するノードIDと表示順を定義
-    order = {
-        n["id"]: i
-        for i, n in enumerate(NODES)
-    }
-
-    # 古い5ノードを除外し、現在の24ノードだけ取得
     db_nodes = sorted(
-        db.query(models.NodeMaster)
-        .filter(models.NodeMaster.id.in_(order.keys()))
-        .all(),
-        key=lambda n: order[n.id],
+        db.query(models.NodeMaster).filter(models.NodeMaster.id.in_(stage_node_ids)).all(),
+        key=lambda n: order.get(n.id, len(order)),
     )
 
+    nodes = []
     for node in db_nodes:
         status = statuses.get(node.id, "unscanned")
         revealed = status != "unscanned"
@@ -294,13 +324,15 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
 
     return {
         "gameId": str(player.id),
+        "stageId": stage["id"],
         "status": player.game_status,
         "elapsedSeconds": player.game_time,
         "alertLevel": round(player.alert_level, 2),
         "analysisResource": player.analysis_resource,
         "privilege": player.current_privilege,
+        "evaluation": evaluate_mission_result(player) if player.game_status == "won" else None,
         "nodes": nodes,
-        "edges": EDGES,
+        "edges": stage["edges"],
         "log": [
             {
                 "id": str(l.id),
@@ -341,6 +373,10 @@ def _validate_timed_action(
     if node is None:
         raise ActionRejected("invalid_state")
 
+    stage = _player_stage(player)
+    stage_node_ids = {n["id"] for n in stage["nodes"]}
+    if node.id not in stage_node_ids:
+        raise ActionRejected("invalid_state")
 
     cost = ACTION_COSTS[action_type]
 
@@ -360,7 +396,7 @@ def _validate_timed_action(
             # ただしExternal層は初期探索の入口として許可
             has_hacked_neighbor = any(
                 statuses.get(neighbor_id) == "hacked"
-                for neighbor_id in _neighbors(node.id)
+                for neighbor_id in _neighbors(node.id, stage["edges"])
             )
 
             if node.layer != "External" and not has_hacked_neighbor:
@@ -372,10 +408,10 @@ def _validate_timed_action(
             raise ActionRejected("invalid_state")
 
         # 入口以外は、侵入済みの隣接ノードが必要
-        if node.layer not in ENTRY_LAYERS:
+        if node.layer not in stage["entry_layers"]:
             if not any(
                 statuses.get(neighbor_id) == "hacked"
-                for neighbor_id in _neighbors(node.id)
+                for neighbor_id in _neighbors(node.id, stage["edges"])
             ):
                 raise ActionRejected("node_unreachable")
 
@@ -394,7 +430,8 @@ def _validate_timed_action(
     elif action_type == "dataExtract":
         if node.layer != "Core" or status != "hacked":
             raise ActionRejected("invalid_state")
-        if TARGET_NODE_IDS and node.id not in TARGET_NODE_IDS:
+        target_ids = stage["target_node_ids"]
+        if target_ids and node.id not in target_ids:
             raise ActionRejected("invalid_state")
 
 
@@ -414,26 +451,41 @@ def _advance_time(
     )
 
 
-def _check_game_over(
-    db: Session,
-    player: models.PlayerStatus,
-) -> None:
-    if (
-        player.game_status == "playing"
-        and player.alert_level >= ALERT_GAME_OVER_THRESHOLD
-    ):
+def _has_any_affordable_action(db: Session, player: models.PlayerStatus) -> bool:
+    """Use action validation to detect dead ends, including recovery."""
+    try:
+        _validate_timed_action(db, player, "recover", None)
+        return True
+    except ActionRejected:
+        pass
+    stage = _player_stage(player)
+    for data in stage["nodes"]:
+        node = db.get(models.NodeMaster, data["id"])
+        for action in ("scan", "remoteScan", "breach", "dataExtract"):
+            try:
+                _validate_timed_action(db, player, action, node)
+                return True
+            except ActionRejected:
+                pass
+    return False
+
+
+def _check_game_over(db: Session, player: models.PlayerStatus) -> None:
+    if player.game_status != "playing":
+        return
+    if player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
         player.game_status = "lost"
-        add_log(
-            db,
-            player,
-            "danger",
-            "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。",
-        )
+        add_log(db, player, "danger", "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。")
+    elif not _has_any_affordable_action(db, player):
+        player.game_status = "lost"
+        add_log(db, player, "danger", "解析資源が枯渇しました。これ以上の作戦継続は不可能です。")
 
 
 def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.NodeMaster) -> None:
     """侵入成功時の資源補給・警戒度変化・鍵断片取得を適用する。"""
-    effect = NODE_EFFECTS.get(node.id)
+    stage = _player_stage(player)
+    key_ids = stage["key_fragment_node_ids"]
+    effect = stage["node_effects"].get(node.id)
     if effect:
         # 同一ノードの補給は RESOURCE_REWARDS と二重加算しない。
         # NODE_EFFECTS 側に設定があればそちらの値を優先する。
@@ -450,16 +502,16 @@ def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.No
         if msg:
             add_log(db, player, "info", msg)
     else:
-        reward = RESOURCE_REWARDS.get(node.id, 0)
+        reward = RESOURCE_REWARDS.get(node.id, 0) if stage["id"] == DEFAULT_STAGE_ID else 0
         if reward:
             before = player.analysis_resource
             player.analysis_resource = min(MAX_ANALYSIS_RESOURCE, before + reward)
             add_log(db, player, "success", f"{node.name}: RESOURCE +{player.analysis_resource - before} ({player.analysis_resource}/{MAX_ANALYSIS_RESOURCE})")
 
-    if KEY_FRAGMENT_NODE_IDS and node.id in KEY_FRAGMENT_NODE_IDS:
+    if key_ids and node.id in key_ids:
         statuses = _node_statuses(db, player)
         statuses[node.id] = "hacked"
-        if all(statuses.get(kid) == "hacked" for kid in KEY_FRAGMENT_NODE_IDS):
+        if all(statuses.get(kid) == "hacked" for kid in key_ids):
             add_log(db, player, "success", "すべての暗号鍵断片が揃いました！最終目標のデータ回収時に警戒度上昇を完全に抑えられます。")
 
 
@@ -531,13 +583,15 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
         node,
     )
 
+    stage = _player_stage(player)
+    key_ids = stage["key_fragment_node_ids"]
     cost = ACTION_COSTS[action_type]
     # 鍵が揃っていればデータ回収の警戒度増加を打ち消す。
     alert_delta = cost["alert_delta"]
     has_all_keys = False
-    if action_type == "dataExtract" and KEY_FRAGMENT_NODE_IDS:
+    if action_type == "dataExtract" and key_ids:
         statuses = _node_statuses(db, player)
-        has_all_keys = all(statuses.get(kid) == "hacked" for kid in KEY_FRAGMENT_NODE_IDS)
+        has_all_keys = all(statuses.get(kid) == "hacked" for kid in key_ids)
         if has_all_keys:
             alert_delta = 0.0
 
@@ -597,6 +651,13 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
         else:
             add_log(db, player, "success", f"{node.name} から機密データを回収しました。目的達成！")
         player.game_status = "won"
+        ev = evaluate_mission_result(player)
+        add_log(
+            db,
+            player,
+            "success",
+            f"作戦評価: RANK {ev['rank']}（スコア: {ev['score']} / 経過: {player.game_time}秒 / 最終警戒度: {player.alert_level:.0f}% / 残資源: {player.analysis_resource}） - {ev['title']}",
+        )
 
     if player.alert_level >= 70 and player.game_status == "playing":
         add_log(

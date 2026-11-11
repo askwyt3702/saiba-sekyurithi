@@ -11,6 +11,7 @@ import { NodeDetailPanel } from './components/NodeDetailPanel/NodeDetailPanel';
 import { EventLog } from './components/EventLog/EventLog';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
+import { MAX_ANALYSIS_RESOURCE } from './game/data/stageData';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -65,7 +66,7 @@ function App() {
   // RESOURCE回復可能か
   const canRecover =
     state?.status === 'playing' &&
-    state.analysisResource < 30 &&
+    state.analysisResource < MAX_ANALYSIS_RESOURCE &&
     state.nodes.some((node) => node.status === 'hacked') &&
     !isRecovering;
 
@@ -177,19 +178,14 @@ function App() {
         onRecover={handleRecover}
         onReset={handleReset}
       />
-
-      {state.status === 'won' && (
-        <div className="app-banner app-banner--won">
-          目的達成：データ回収に成功しました。
-        </div>
-      )}
-
+      {state.status === 'won' && <div className="app-banner app-banner--won">目的達成：データ回収に成功しました。</div>}
       {state.status === 'lost' && (
         <div className="app-banner app-banner--lost">
-          作戦失敗：警戒度が限界に達しました。
+          {state.alertLevel < 100
+            ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
+            : '作戦失敗：警戒度が限界に達しました。'}
         </div>
       )}
-
       <div className="app-body">
         <MapView
           nodes={state.nodes}
