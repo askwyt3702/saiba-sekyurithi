@@ -43,7 +43,7 @@ npm test            # テスト(tests/*.test.mjs)
 npm run build        # 本番ビルド
 ```
 
-`npm test`のMock比較テストはバックエンドのPython環境も使用します。Python 3.12環境に`backend/requirements-dev.txt`を導入してください。Pythonのパスは`NULL_ROUTE_TEST_PYTHON`で指定できます（通常は`backend/.venv`を自動検出）。ゲームDBには接続せず、メモリ内SQLiteで再生します。
+`npm test`のMock比較テストはバックエンドのPython環境も使用します。Python 3.12環境に`backend/requirements-dev.txt`を導入してください。Pythonのパスは`NULL_ROUTE_TEST_PYTHON`で指定できます（通常は`backend/.venv`を自動検出）。ゲームDBには接続せず、メモリ内SQLiteで再生します。Python環境が無い手元では、この比較テストだけ警告を出してスキップします（他のテストは実行されます）。CIでは必ず実行され、Mockとバックエンドの挙動がずれていると失敗します。
 
 #### backend
 

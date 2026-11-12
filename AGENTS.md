@@ -40,7 +40,7 @@ Mockはバックエンドのルールを写したもので、片方だけ変え�
 ## コミット前の確認
 
 - バックエンドを変えた場合:`cd backend` して `pytest` を実行し、すべて通ることを確認する
-- フロントを変えた場合:`frontend` で `npm run typecheck`、`npm run lint`、`npm test`、`npm run build` を実行する
+- フロントを変えた場合:`frontend` で `npm run typecheck`、`npm run lint`、`npm test`、`npm run build` を実行する(Python環境が無いとMockとバックエンドの比較テストはスキップされる。Mockを変えた場合は、CIの結果まで確認する)
 - テンプレートのままのプロジェクト、バックアップ用のコピー、ビルド成果物(`dist/` など)はコミットしない。古い内容はgitの履歴に残っているので、バックアップファイルは不要
 
 ## 依存ライブラリを追加したとき
