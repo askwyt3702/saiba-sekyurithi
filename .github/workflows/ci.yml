@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
   # backend/game_data.py・balance_config.py を変えたのに stageData.ts を生成し直していないと失敗する。

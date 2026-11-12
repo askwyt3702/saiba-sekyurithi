@@ -39,6 +39,7 @@ npm run dev
 ```bash
 npm run typecheck   # tsc --noEmit
 npm run lint        # oxlint
+npm test            # テスト(tests/*.test.mjs)
 npm run build        # 本番ビルド
 ```
 
@@ -56,7 +57,7 @@ DATABASE_URL=postgresql://detective:secretpassword@localhost:5432/cyber_mystery 
 
 `main`へのpush・Pull Requestで [`.github/workflows/ci.yml`](.github/workflows/ci.yml) が自動実行されます。
 
-- **frontend**: 依存関係インストール → 型チェック(`tsc --noEmit`) → lint(`oxlint`) → ビルド
+- **frontend**: 依存関係インストール → 型チェック(`tsc --noEmit`) → lint(`oxlint`) → テスト(`npm test`) → ビルド
 - **backend**: 依存関係インストール → 実際にPostgreSQLへ接続してアプリをimportまで通す(importのtypoやモデル定義ミスなど、起動して初めて分かる不具合を早期検知する)
 
-ローカルで事前に確認したい場合は、上記の`npm run typecheck` / `npm run lint` / `npm run build`、backendなら `python -c "import main"`(DBが必要)を実行してください。
+ローカルで事前に確認したい場合は、上記の`npm run typecheck` / `npm run lint` / `npm test` / `npm run build`、backendなら `python -c "import main"`(DBが必要)を実行してください。
