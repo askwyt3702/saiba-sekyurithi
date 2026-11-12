@@ -12,7 +12,7 @@ import { EventLog } from './components/EventLog/EventLog';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { MissionResult } from './components/MissionResult/MissionResult';
-import { MAX_ANALYSIS_RESOURCE } from './game/data/stageData';
+import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE } from './game/data/stageData';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -46,9 +46,10 @@ function App() {
   const [screen, setScreen] = useState<Screen>(() =>
     hasAutostartParam() ? 'mission' : 'title'
   );
+  const [stageId, setStageId] = useState<number>(DEFAULT_STAGE_ID);
 
   // ゲーム画面のときだけゲームデータを取得
-  const { state, sendAction, reset } = useGameClient(screen === 'game');
+  const { state, sendAction, reset } = useGameClient(screen === 'game', stageId);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -165,7 +166,10 @@ function App() {
     return (
       <MissionScreen
         onSelectMission={(id) => {
-          if (id === 1) {
+          if (id === 0 || id === 1) {
+            setStageId(id);
+            setSelectedNodeId(null);
+            setNotice(null);
             setScreen('game');
           }
         }}
@@ -190,6 +194,11 @@ function App() {
         canRecover={canRecover}
         onRecover={handleRecover}
         onReset={handleReset}
+        onSelectMission={() => {
+          setSelectedNodeId(null);
+          setNotice(null);
+          setScreen('mission');
+        }}
       />
       {state.status === 'won' && (
         <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />

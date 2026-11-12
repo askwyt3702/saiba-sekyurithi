@@ -50,7 +50,7 @@ function MapContent({
   const { setViewport } = useReactFlow();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const initialized = useRef(false);
+  const initializedEntryId = useRef<string | null>(null);
 
   // ノードの状態
   const nodeStatusMap = useMemo(
@@ -152,14 +152,17 @@ function MapContent({
     [edges, nodeStatusMap, selectedNodeId],
   );
 
-  // 初期表示をE01付近に設定
+  // 初期表示を入口ノード（E01 または External階層の先頭ノード）付近に設定
   useEffect(() => {
-    if (initialized.current || nodes.length === 0) return;
+    if (nodes.length === 0) return;
 
-    const entryNode = nodes.find((node) => node.id === 'E01');
+    const entryNode =
+      nodes.find((node) => node.id === 'E01') ??
+      nodes.find((node) => node.layer === 'External') ??
+      nodes[0];
     const container = containerRef.current;
 
-    if (!entryNode || !container) return;
+    if (!entryNode || !container || initializedEntryId.current === entryNode.id) return;
 
     const width = container.clientWidth;
     if (width === 0) return;
@@ -179,7 +182,7 @@ function MapContent({
       { duration: 0 },
     );
 
-    initialized.current = true;
+    initializedEntryId.current = entryNode.id;
   }, [nodes, setViewport]);
 
   return (
