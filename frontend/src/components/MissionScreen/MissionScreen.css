@@ -60,7 +60,7 @@
 
 .mission-list {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     gap: 18px;
 }
 
@@ -84,6 +84,17 @@
 .mission-card.locked {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+button.mission-card {
+    font: inherit;
+    text-align: left;
+    width: 100%;
+}
+
+button.mission-card:focus-visible {
+    outline: 2px solid #67e8f9;
+    outline-offset: 4px;
 }
 
 .mission-number {

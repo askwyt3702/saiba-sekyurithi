@@ -39,3 +39,34 @@
   color: #ef4444;
   border-bottom: 1px solid #ef4444;
 }
+
+
+/* ========================================
+   NULL ROUTE - 画面レイアウト改善
+======================================== */
+
+/* 画面全体 */
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* マップと詳細パネルの表示領域 */
+.app-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* マップ領域 */
+.app-body > .map-view {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* React Flowをマップ領域いっぱいに表示 */
+.map-view .react-flow {
+  width: 100%;
+  height: 100%;
+}

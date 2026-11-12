@@ -19,29 +19,39 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
         <h1>ミッション選択</h1>
 
         <p className="mission-description">
-          調査するミッションを選択してください。
+          調査するミッションを選択してください。初めてプレイする方はチュートリアルから始めるのがおすすめです。
         </p>
 
         <div className="mission-list">
-          <div className="mission-card" onClick={() => onSelectMission(1)}>
-            <div className="mission-number">ミッション 01</div>
-            <h2>消えた機密データ</h2>
-            <p>不正アクセスの侵入経路を特定せよ。</p>
+          <div className="mission-card" onClick={() => onSelectMission(0)}>
+            <div className="mission-number">チュートリアル / TRAINING</div>
+            <h2>基礎侵入訓練</h2>
+            <p>5ノードの小規模ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。ステージ1の初期侵入口はE01のみ。</p>
             <div className="mission-bottom">
-              <span>初級</span>
+              <span>訓練 (5ノード)</span>
               <span>選択可能 →</span>
             </div>
           </div>
 
-          <div className="mission-card locked">
-            <div className="mission-number">ミッション 02</div>
-            <h2>偽装された通信記録</h2>
-            <p>通信ログに隠された異常を発見せよ。</p>
+          <div className="mission-card" onClick={() => onSelectMission(1)}>
+            <div className="mission-number">ミッション 01</div>
+            <h2>消えた機密データ</h2>
+            <p>E01から侵入し、最短・安全・資源回収の方針を選んでC03のデータを回収せよ。回収時も警戒度100%で敗北。</p>
             <div className="mission-bottom">
-              <span>中級</span>
-              <span>未解放</span>
+              <span>初級 (24ノード)</span>
+              <span>選択可能 →</span>
             </div>
           </div>
+
+          <button type="button" className="mission-card" onClick={() => onSelectMission(2)}>
+            <div className="mission-number">ミッション 02</div>
+            <h2>偽装された通信記録</h2>
+            <p>S2-E01から侵入し、S2-C03で原本通信証跡を回収せよ。監視の追加警戒度+12%とゲート条件を確認し、攻略方針を選べ。</p>
+            <div className="mission-bottom">
+              <span>中級〜上級 (16ノード)</span>
+              <span>ミッション開始 →</span>
+            </div>
+          </button>
 
           <div className="mission-card locked">
             <div className="mission-number">ミッション 03</div>

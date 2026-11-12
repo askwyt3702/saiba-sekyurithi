@@ -66,11 +66,17 @@ interface LogEntry {
 
 interface GameState {
   gameId: string;
+  stageId?: number;
   status: GameStatus;
   elapsedSeconds: number;    // DBでは player_status.game_time
   alertLevel: number;        // DBでは player_status.alert_level (0-100)
   analysisResource: number;  // DBでは player_status.analysis_resource
   privilege: string;         // DBでは player_status.current_privilege。値の一覧は未定義（確認できるのは "GUEST" のみ）
+  keyFragments?: {           // 入手済みの暗号鍵の断片（未入手は null）
+    a: string | null;
+    b: string | null;
+    unlocked?: boolean;     // 両断片取得済みで暗号認証成功、または回収資源不足による救済が有効
+  };
   nodes: ApiNetworkNode[]    // 2.1 と同じ形
   edges: ApiNetworkEdge[];
   log: LogEntry[];
@@ -110,7 +116,8 @@ type ActionType = 'scan' | 'breach' | 'dataExtract' | 'pause' | 'resume';
 
 interface ActionRequest {
   type: ActionType;
-  nodeId?: string; // pause / resume では不要
+  nodeId?: string;   // pause / resume / recover では不要
+  passcode?: string; // 最終目標ノード侵入時の暗号キー入力（任意）
 }
 ```
 
@@ -123,7 +130,7 @@ interface ActionResult {
 }
 ```
 
-却下理由の例：`insufficient_resource` / `insufficient_privilege` / `node_not_scanned` / `invalid_state`
+却下理由の例：`insufficient_resource` / `insufficient_privilege` / `node_not_scanned` / `node_unreachable` / `invalid_passcode` / `invalid_state`
 
 ## 4. サーバー → クライアント push（WebSocket）※未実装・v0.4でターン制に決定したため当面使わない想定
 
@@ -175,6 +182,7 @@ interface GameClient {
 ```
 
 - `HttpGameClient`（`frontend/src/game/client/httpGameClient.ts`）：REST(8節のAPI)でバックエンドと通信する本番用の実装。作成したゲームの `gameId` を `localStorage` に保存し、リロード後も同じゲームを続ける（保存済みのゲームが404なら新規作成）。
+- 保存キーは`nullroute.gameId.<stageId>`でステージ別。旧`nullroute.gameId`は実際のstageIdを確認して移行し、新しい保存先がある場合は上書きしない。ミッション選択で別ステージのゲームをリセットしない。選択したstageIdと異なる応答はロードしない。
 - `MockGameClient`：バックエンドに接続できないときに `useGameClient` が自動で切り替えるブラウザ内のダミー実装。ルールは `backend/game_logic.py` に合わせてあるので、ルールを変えたら両方を更新すること。
 
 ## 7. まだ決まっていないこと
@@ -216,13 +224,18 @@ WebSocket（4節）は未実装のため、現状は **アクションの結果�
 
 ### ゲームルール（暫定・`balance_config.py` で調整）
 
-- **scan**：`unscanned` のノードのみ。完了で `scanned`、`info` と `vulnerability` が開示される。
-- **breach**：`scanned` であること／External 以外は隣接ノードのどれかが `hacked` であること／権限が layer の要求以上であること（External=GUEST, DMZ=USER, Internal=ADMIN, Core=ROOT）。成功で `hacked`、権限が「侵入した layer の1段上」まで昇格。
-- **dataExtract**：`hacked` 状態の Core ノードのみ。成功で `status = 'won'`。
+- **初期入口**：ステージ1はE01のみ、訓練はexternal-1のみ（`entry_node_ids`）。最初の侵入前は入口以外へのscan/remoteScan/breachを`node_unreachable`で却下する。
+- **scan**：`unscanned` かつ指定入口、または侵入済みノードの隣接先のみ。完了で `scanned`、`info` と `vulnerability` が開示される。**remoteScan** は入口の侵入後に限り、隣接条件なしで現在のステージの未スキャンノードを調べられる。
+- **breach**：`scanned` であること／指定入口以外は隣接ノードのどれかが `hacked` であること／権限が layer の要求以上であること（External=GUEST, DMZ=USER, Internal=ADMIN, Core=ROOT）。成功で `hacked`、権限が「侵入した layer の1段上」まで昇格。E02/E03も入口の例外にはならない。
+- **dataExtract**：`hacked` 状態の**最終目標ノード**のみ（`game_data.TARGET_NODE_IDS`。空ならCore層すべて）。それ以外のノードは `invalid_state`。成功で `status = 'won'`。
+- **暗号鍵の断片**：`game_data.KEY_FRAGMENT_NODE_IDS` のノードをすべて `hacked` にしてから dataExtract すると、回収時の警戒度上昇が 0 になる。
+- **ノードの特殊効果**：`game_data.NODE_EFFECTS` に登録されたノードは、breach 成功時に解析資源の増減・警戒度の増減・追加ログが発生する。
 - **pause / resume**：`playing` ⇔ `paused`。`playing` 以外ではアクションは `invalid_state` で却下。
-- 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（リアルタイム化後は tick 側に移す）。
-- 警戒度が 100 に達したら `status = 'lost'`（7節の未確定事項に対する暫定）。
+- 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる。ターン制で、待機では変化しない。
+- **recover**：侵入済みノードがあり、資源が上限未満ならノード選択なしで回復できる。資源0でも実行可能。
+- データ回収を含む全時間消費アクションで警戒度が100に達すると `status = 'lost'`。資源・時間は消費し、検知をノード攻略効果・勝利より優先する。却下ではなく`accepted: true`で敗北状態を返し、評価はnull、成功ログは出ない。鍵の回収軽減は警戒度加算前に適用する。検知されず、勝利もせず、回復を含む操作が残っていない場合も敗北する。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
+- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源・操作コストを変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。フロントの `balanceConfig.ts` も生成値を読むだけ。生成し忘れはCIの `stage-data` ジョブで検出される。
 
 ### 古いゲームの自動削除（backend）
 
@@ -244,3 +257,32 @@ pytest
 - ノードIDは直書きせず `game_data.py` から計算しているので、ステージのデータを差し替えてもテストは壊れない。
 - 「初期の解析資源だけで最短経路をクリアできる」ことも検査している（バランス調整で資源やコストを変えて、クリア不能になるとここで失敗する）。
 - GitHub Actions の `backend` ジョブでも `pytest` を実行する。
+
+
+### クリア時の作戦評価と複数ステージ対応（backend）
+
+- **ステージ一覧取得**: `GET /api/stages` → `{ stages: [{ id, name, difficulty, nodeCount }] }`
+  - `stageId = 0`: `TRAINING: 基礎侵入訓練`（チュートリアル5ノード）
+  - `stageId = 1`: `OPERATION SILENT TRACE: 消えた機密データ`（本編24ノード・既定）
+    - `stageId = 2`: `偽装された通信記録`（16ノード・21接続、入口S2-E01、目標S2-C03）
+    - 初期資源25・上限30・共通コスト。静的な補給・警戒度低減は有効。
+    - S2-I07未攻略中、S2-I01・S2-C01・S2-C03の侵入に追加警戒度+12%。スキャン・回収には加算しない。追加分と自然減衰を含む判定で100%に到達すると、侵入完了・ノード効果より先に敗北する。
+    - S2-C02の侵入にはS2-I04攻略、S2-C04にはS2-I07攻略が必要。未解除の侵入は`accepted: false, reason: "node_locked"`。資源・時間・警戒度・ログは変更しない。スキャンの既存条件は変更しない。
+    - 監視解除・ゲート解除は既存`log`に記録する。監視・ゲートのための`GameState`追加項目やDB構造変更はない。UIはノード攻略状態から現在の監視・ロック状態を導出する。
+    - 生成設定は`conditionalBreachAlert`（解除ノード・対象・追加値）と`breachRequirements`（ゲートごとの前提ノード一覧）。旧`plannedMechanics`は置換。ステージ0・1はそれぞれnullと空マップで無効。
+- **ステージ指定作成 / 切り替え**:
+  - `POST /api/games` に `{"stageId": 0}` などを渡すと指定ステージで作成（ボディ省略時は `stageId = 1`）。
+  - `POST /api/games/{gameId}/reset` に `{"stageId": 0}` などを渡すと指定ステージに切り替えてリセット。
+  - この明示的なreset APIは同じgameIdの内容を置き換える。通常のミッション選択ではこれを別ステージへ呼ばず、ステージごとに新規作成/再開し、他の進行を保持する。
+  - `GameState` に `stageId: number` を追加。
+- **クリア時の作戦評価（`GameState.evaluation`）**:
+  - クリア（`status === "won"`）時、`evaluation: { rank: "S" | "A" | "B" | "C" | "D", score: number, title: string }` が返り、イベントログ・Mock・リザルトにも同じ評価を使う（未クリア時は `null`）。
+  - 係数・閾値は`backend/balance_config.py`の`EVALUATION_CONFIG`で管理し、生成スクリプトでフロントに同期する。
+  - 得点 = max(0, floor(1000 − max(0, 経過秒−240)×0.5 − 警戒度×5 ＋ min(10, 残資源)×10 ＋ 0.5))。警戒度はGameStateと同じ小数2桁を使用。900以上S、750以上A、550以上B、350以上C、それ未満D。警戒度だけによる別の昇格条件は廃止。
+
+### Merge integration: scan and recovery rules
+
+- Normal scan requires a designated entry node or a hacked neighbor. Before the first breach, remote scan is also restricted to the entry. After a foothold is established, remote scan can reveal any unscanned node in the current stage.
+- recover needs no nodeId, requires a hacked node and resource below MAX_ANALYSIS_RESOURCE. It restores RESOURCE_RECOVERY_AMOUNT up to the cap, consumes 30 game seconds and adds 12 alert before natural decay.
+- Resource exhaustion causes defeat only when no legal action remains, including recovery. A hacked node therefore allows recovery even at zero resource. Alert reaching 100 still causes defeat.
+- NODE_EFFECTS takes precedence over RESOURCE_REWARDS for the same node; supply is not counted twice and is capped at MAX_ANALYSIS_RESOURCE.

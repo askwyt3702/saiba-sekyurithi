@@ -9,7 +9,18 @@ import type {
   ServerEvent,
 } from '../model/types';
 import { balanceConfig } from '../data/balanceConfig';
-import { createMockGameState, MOCK_VULNERABILITIES } from '../data/mockGameState';
+import { createMockGameState } from '../data/mockGameState';
+import { canReachNode, canRemoteScanNode, mechanicsUnlockMessages, missingGateRequirements, monitoringExtra } from '../model/actionRules';
+import { calculateMissionResult } from '../model/missionResult';
+import {
+  DEFAULT_STAGE_ID,
+  getStageData,
+  isExtractTarget,
+  MAX_ANALYSIS_RESOURCE,
+  RESOURCE_RECOVERY_AMOUNT,
+  RECOVERY_COST,
+  RESOURCE_REWARDS,
+} from '../data/stageData';
 
 function nextId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -19,6 +30,20 @@ function nextId(): string {
 
 function clampAlert(value: number): number {
   return Math.min(100, Math.max(0, value));
+}
+
+const KEY_FRAGMENT_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateKeyFragment(): string {
+  let out = '';
+  for (let i = 0; i < 4; i++) {
+    out += KEY_FRAGMENT_ALPHABET[Math.floor(Math.random() * KEY_FRAGMENT_ALPHABET.length)];
+  }
+  return out;
+}
+
+function normalizePasscode(value: string): string {
+  return value.replace(/[\s-]/g, '').toUpperCase();
 }
 
 // 権限の値一覧は backend でまだ定義されていない(確認できているのは "GUEST" のみ)ため、
@@ -35,7 +60,7 @@ function layerRequirement(layer: NetworkLayer): number {
   return LAYER_ORDER.indexOf(layer);
 }
 
-type TimedActionType = 'scan' | 'breach' | 'dataExtract';
+type TimedActionType = 'scan' | 'remoteScan' | 'breach' | 'dataExtract';
 
 // ターン制なので各アクションはリアルタイムの遅延なしに即座に確定する。
 // 「time」コストはゲーム内時間を進める量として扱うだけで、実際の待ち時間ではない。
@@ -44,10 +69,17 @@ type TimedActionType = 'scan' | 'breach' | 'dataExtract';
 // GameClient のダミー実装。HttpGameClient と同じインターフェースを満たす。
 export class MockGameClient implements GameClient {
   private state: GameState;
+  private readonly stageId: number;
+  private fragmentA: string;
+  private fragmentB: string;
   private onEvent: ((event: ServerEvent) => void) | null = null;
 
-  constructor(gameId: string) {
-    this.state = createMockGameState(gameId);
+  constructor(gameId: string, stageId: number = DEFAULT_STAGE_ID) {
+    this.stageId = stageId;
+    this.fragmentA = generateKeyFragment();
+    this.fragmentB = generateKeyFragment();
+    this.state = createMockGameState(gameId, stageId);
+    this.state.keyFragments = { a: null, b: null };
   }
 
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState> {
@@ -57,7 +89,10 @@ export class MockGameClient implements GameClient {
   }
 
   reset(): Promise<void> {
-    this.state = createMockGameState(this.state.gameId);
+    this.fragmentA = generateKeyFragment();
+    this.fragmentB = generateKeyFragment();
+    this.state = createMockGameState(this.state.gameId, this.stageId);
+    this.state.keyFragments = { a: null, b: null };
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
     return Promise.resolve();
   }
@@ -80,6 +115,20 @@ export class MockGameClient implements GameClient {
         this.log('info', '作戦を再開しました。');
         this.emit({ type: 'state_snapshot', state: this.cloneState() });
         return Promise.resolve({ accepted: true });
+      case 'recover':
+        if (this.state.status !== 'playing' || this.state.analysisResource >= MAX_ANALYSIS_RESOURCE) {
+          return Promise.resolve({ accepted: false, reason: 'invalid_state' });
+        }
+        if (!this.state.nodes.some((node) => node.status === 'hacked')) {
+          return Promise.resolve({ accepted: false, reason: 'node_unreachable' });
+        }
+        this.state.analysisResource = Math.min(MAX_ANALYSIS_RESOURCE, this.state.analysisResource + RESOURCE_RECOVERY_AMOUNT);
+        this.advanceTime(RECOVERY_COST.time, RECOVERY_COST.alertDelta);
+        this.log('success', '\u89e3\u6790\u8cc7\u6e90\u3092\u56de\u5fa9\u3057\u307e\u3057\u305f\u3002RESOURCE: ' + this.state.analysisResource);
+        this.checkGameOver();
+        this.emit({ type: 'state_snapshot', state: this.cloneState() });
+        return Promise.resolve({ accepted: true });
+      case 'remoteScan':
       case 'scan':
       case 'breach':
       case 'dataExtract':
@@ -98,10 +147,38 @@ export class MockGameClient implements GameClient {
     const rejection = this.validate(type, node);
     if (rejection) return { accepted: false, reason: rejection };
 
+    const stage = getStageData(this.stageId);
+    let silentBreach = false;
+    if (type === 'breach' && action.passcode !== undefined && action.passcode.trim() !== '') {
+      const expected = normalizePasscode(this.fragmentA + this.fragmentB);
+      const submitted = normalizePasscode(action.passcode);
+      if (
+        !isExtractTarget(node, this.stageId) ||
+        stage.keyFragmentNodeIds.length === 0 ||
+        !this.hasAllKeyFragments() ||
+        submitted !== expected
+      ) {
+        return { accepted: false, reason: 'invalid_passcode' };
+      }
+      silentBreach = true;
+    }
+
     const cost = balanceConfig[type];
-    this.state.analysisResource -= cost.resource;
-    this.advanceTime(cost.time, cost.alertDelta);
-    this.resolveAction(type, node);
+    const silentExtract = type === 'dataExtract' && this.hasAllKeyFragments();
+    const freeExtract =
+      silentExtract &&
+      (Boolean(this.state.keyFragments?.unlocked) || this.state.analysisResource < cost.resource);
+    this.state.analysisResource -= freeExtract ? 0 : cost.resource;
+    // 暗号鍵の断片がすべて揃っていればデータ回収時、または正しい暗号を入力した侵入時の警戒度上昇を0に抑える
+    const extra = type === 'breach' ? monitoringExtra(node.id, this.state.nodes, stage) : 0;
+    this.advanceTime(cost.time, (silentExtract || silentBreach ? 0 : cost.alertDelta) + extra);
+    if (extra) this.log('warning', `条件付き監視: ${node.id} 侵入の追加警戒度 +${extra}%。`);
+    if (this.state.alertLevel < 100) {
+      if (silentBreach && this.state.keyFragments) {
+        this.state.keyFragments = { ...this.state.keyFragments, unlocked: true };
+      }
+      this.resolveAction(type, node, silentExtract, silentBreach);
+    }
     this.checkGameOver();
 
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
@@ -113,20 +190,27 @@ export class MockGameClient implements GameClient {
     node: NetworkNode,
   ): ActionRejectReason | undefined {
     const cost = balanceConfig[type];
-    if (this.state.analysisResource < cost.resource) return 'insufficient_resource';
+    const requiredResource = type === 'dataExtract' && this.hasAllKeyFragments() ? 0 : cost.resource;
+    if (this.state.analysisResource < requiredResource) return 'insufficient_resource';
 
-    if (type === 'scan') {
+    const stage = getStageData(this.stageId);
+    if (type !== 'dataExtract' && !canRemoteScanNode(node.id, this.state.nodes, stage)) return 'node_unreachable';
+    if (type === 'scan' || type === 'remoteScan') {
       if (node.status !== 'unscanned') return 'invalid_state';
+      if (type === 'scan' && !canReachNode(node.id, this.state.nodes, this.state.edges, stage)) return 'node_unreachable';
     } else if (type === 'breach') {
       if (node.status === 'hacked') return 'invalid_state';
-      if (node.status !== 'scanned') return 'node_not_scanned';
+
       // 入口(External)以外は、隣接ノードのどれかを侵入済みにしていないと届かない
-      if (node.layer !== 'External' && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
+      if (!canReachNode(node.id, this.state.nodes, this.state.edges, stage)) return 'node_unreachable';
+      if (node.status !== 'scanned') return 'node_not_scanned';
+      if (missingGateRequirements(node.id, this.state.nodes, stage).length > 0) return 'node_locked';
       if (privilegeIndex(this.state.privilege) < layerRequirement(node.layer)) {
         return 'insufficient_privilege';
       }
     } else {
       if (node.layer !== 'Core' || node.status !== 'hacked') return 'invalid_state';
+      if (!isExtractTarget(node, this.stageId)) return 'invalid_state';
     }
     return undefined;
   }
@@ -140,10 +224,11 @@ export class MockGameClient implements GameClient {
     );
   }
 
-  private resolveAction(type: TimedActionType, node: NetworkNode): void {
-    if (type === 'scan') {
+  private resolveAction(type: TimedActionType, node: NetworkNode, silentExtract: boolean, silentBreach = false): void {
+    const stage = getStageData(this.stageId);
+    if (type === 'scan' || type === 'remoteScan') {
       node.status = 'scanned';
-      node.vulnerability = MOCK_VULNERABILITIES[node.id] ?? null;
+      node.vulnerability = stage.vulnerabilities[node.id] ?? null;
       this.log('success', `${node.name} のスキャンが完了しました。脆弱性: ${node.vulnerability ?? '不明'}`);
     } else if (type === 'breach') {
       node.status = 'hacked';
@@ -152,28 +237,91 @@ export class MockGameClient implements GameClient {
       if (granted > privilegeIndex(this.state.privilege)) {
         this.state.privilege = PRIVILEGE_LADDER[granted];
         this.log('success', `${node.name} への侵入に成功。権限が ${this.state.privilege} に昇格しました。`);
+      } else if (silentBreach) {
+        this.log('success', `暗号キー認証に成功！${node.name} へ隠密侵入しました（警戒度上昇なし）。`);
       } else {
         this.log('success', `${node.name} への侵入に成功しました。`);
       }
+      this.applyNodeEffect(node);
+      for (const message of mechanicsUnlockMessages(node.id, this.state.nodes, stage)) this.log('success', message);
     } else {
       this.state.status = 'won';
-      this.log('success', `${node.name} からデータを回収しました。目的達成。`);
+      const { rank, score, title } = calculateMissionResult(this.state);
+      this.state.evaluation = { rank, score, title };
+      if (silentExtract) {
+        this.log('success', `復元した暗号鍵を使用し、${node.name} から極秘研究データを隠密回収しました。目的達成！`);
+      } else {
+        this.log('success', `${node.name} から機密データを回収しました。目的達成！`);
+      }
+      this.log('success', `作戦評価: RANK ${rank}（スコア: ${score}） - ${title}`);
       this.emit({ type: 'game_over', result: 'won' });
     }
   }
 
-  private hasHackedNeighbor(nodeId: string): boolean {
-    return this.state.edges.some((edge) => {
-      const neighborId =
-        edge.source === nodeId ? edge.target : edge.target === nodeId ? edge.source : null;
-      return neighborId !== null && this.state.nodes.some((n) => n.id === neighborId && n.status === 'hacked');
-    });
+  // backend/game_logic.py の _apply_node_effect と同じ: 侵入成功時のステージ固有の効果
+  private applyNodeEffect(node: NetworkNode): void {
+    const stage = getStageData(this.stageId);
+    const effect = stage.nodeEffects[node.id];
+    if (!effect) {
+      const reward = stage.id === DEFAULT_STAGE_ID ? RESOURCE_REWARDS[node.id] ?? 0 : 0;
+      this.state.analysisResource = Math.min(MAX_ANALYSIS_RESOURCE, this.state.analysisResource + reward);
+      return;
+    }
+
+    if (effect.resourceBonus) {
+      this.state.analysisResource = Math.min(MAX_ANALYSIS_RESOURCE, Math.max(0, this.state.analysisResource + effect.resourceBonus));
+    }
+    if (effect.alertDelta) {
+      this.state.alertLevel = clampAlert(this.state.alertLevel + effect.alertDelta);
+    }
+    const orderedKeyIds = [...stage.keyFragmentNodeIds].sort();
+    let logMessage = effect.log;
+    if (orderedKeyIds[0] === node.id) {
+      this.state.keyFragments = { a: this.fragmentA, b: this.state.keyFragments?.b ?? null };
+      node.info = `${node.info ?? ''} 【入手済み断片A: ${this.fragmentA}】`.trim();
+      logMessage = `【重要】${node.name}から「暗号鍵の断片A: ${this.fragmentA}」を入手しました。`;
+    } else if (orderedKeyIds[1] === node.id) {
+      this.state.keyFragments = { a: this.state.keyFragments?.a ?? null, b: this.fragmentB };
+      node.info = `${node.info ?? ''} 【入手済み断片B: ${this.fragmentB}】`.trim();
+      logMessage = `【重要】${node.name}から「暗号鍵の断片B: ${this.fragmentB}」を入手しました。`;
+    }
+    if (logMessage) this.log('info', logMessage);
+
+    if (stage.keyFragmentNodeIds.includes(node.id) && this.hasAllKeyFragments()) {
+      this.log(
+        'success',
+        `すべての暗号鍵断片が揃いました！断片A「${this.fragmentA}」と断片B「${this.fragmentB}」を繋げた暗号を最終目標の侵入時に入力すると、警戒度上昇を0に抑えられます。`,
+      );
+    }
+  }
+
+  private hasAllKeyFragments(): boolean {
+    const stage = getStageData(this.stageId);
+    return (
+      stage.keyFragmentNodeIds.length > 0 &&
+      stage.keyFragmentNodeIds.every((id) => this.state.nodes.some((n) => n.id === id && n.status === 'hacked'))
+    );
+  }
+
+  private hasAnyAffordableAction(): boolean {
+    if (this.state.analysisResource < MAX_ANALYSIS_RESOURCE && this.state.nodes.some((node) => node.status === 'hacked')) return true;
+    for (const node of this.state.nodes) {
+      for (const type of ['scan', 'remoteScan', 'breach', 'dataExtract'] as const) {
+        if (this.validate(type, node) === undefined) return true;
+      }
+    }
+    return false;
   }
 
   private checkGameOver(): void {
-    if (this.state.status === 'playing' && this.state.alertLevel >= 100) {
+    if (this.state.status !== 'playing') return;
+    if (this.state.alertLevel >= 100) {
       this.state.status = 'lost';
       this.log('danger', '警戒度が限界に達しました。侵入が検知され、作戦は失敗です。');
+      this.emit({ type: 'game_over', result: 'lost' });
+    } else if (!this.hasAnyAffordableAction()) {
+      this.state.status = 'lost';
+      this.log('danger', '解析資源が枯渇しました。これ以上の作戦継続は不可能です。');
       this.emit({ type: 'game_over', result: 'lost' });
     }
   }

@@ -22,7 +22,7 @@ docker compose up
 
 - frontend: http://localhost:5173
 - backend: http://localhost:8000
-- db(PostgreSQL): `localhost:5433`(user: `detective` / password: `secretpassword` / db: `cyber_mystery`。`docker-compose.yml`参照。PC側のPostgreSQLとぶつからないよう5433にしてある。コンテナ同士は従来どおり`db:5432`でつながる)
+- db(PostgreSQL): `localhost:5432`(user: `detective` / password: `secretpassword` / db: `cyber_mystery`。`docker-compose.yml`参照)
 
 ### 個別に起動する場合
 
@@ -39,8 +39,11 @@ npm run dev
 ```bash
 npm run typecheck   # tsc --noEmit
 npm run lint        # oxlint
+npm test            # テスト(tests/*.test.mjs)
 npm run build        # 本番ビルド
 ```
+
+`npm test`のMock比較テストはバックエンドのPython環境も使用します。Python 3.12環境に`backend/requirements-dev.txt`を導入してください。Pythonのパスは`NULL_ROUTE_TEST_PYTHON`で指定できます（通常は`backend/.venv`を自動検出）。ゲームDBには接続せず、メモリ内SQLiteで再生します。Python環境が無い手元では、この比較テストだけ警告を出してスキップします（他のテストは実行されます）。CIでは必ず実行され、Mockとバックエンドの挙動がずれていると失敗します。
 
 #### backend
 
@@ -49,14 +52,14 @@ PostgreSQLが必要です。DBだけdocker-composeで起動するのが手軽で
 ```bash
 cd backend
 pip install -r requirements.txt
-DATABASE_URL=postgresql://detective:secretpassword@localhost:5433/cyber_mystery uvicorn main:app --reload
+DATABASE_URL=postgresql://detective:secretpassword@localhost:5432/cyber_mystery uvicorn main:app --reload
 ```
 
 ## CI
 
 `main`へのpush・Pull Requestで [`.github/workflows/ci.yml`](.github/workflows/ci.yml) が自動実行されます。
 
-- **frontend**: 依存関係インストール → 型チェック(`tsc --noEmit`) → lint(`oxlint`) → ビルド
+- **frontend**: 依存関係インストール → 型チェック(`tsc --noEmit`) → lint(`oxlint`) → テスト(`npm test`) → ビルド
 - **backend**: 依存関係インストール → 実際にPostgreSQLへ接続してアプリをimportまで通す(importのtypoやモデル定義ミスなど、起動して初めて分かる不具合を早期検知する)
 
-ローカルで事前に確認したい場合は、上記の`npm run typecheck` / `npm run lint` / `npm run build`、backendなら `python -c "import main"`(DBが必要)を実行してください。
+ローカルで事前に確認したい場合は、上記の`npm run typecheck` / `npm run lint` / `npm test` / `npm run build`、backendなら `python -c "import main"`(DBが必要)を実行してください。

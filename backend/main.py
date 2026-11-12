@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 import models
 import game_logic
 from database import engine, SessionLocal
-from game_data import NODES
+from game_data import ALL_STAGE_NODES, DEFAULT_STAGE_ID
 
 app = FastAPI(title="NULL ROUTE API")
 
@@ -36,6 +36,13 @@ def migrate_db():
         if "game_status" not in columns:
             conn.execute(text("ALTER TABLE player_status ADD COLUMN game_status VARCHAR DEFAULT 'playing'"))
             conn.execute(text("UPDATE player_status SET game_status = 'playing' WHERE game_status IS NULL"))
+        if "stage_id" not in columns:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN stage_id INTEGER DEFAULT 1"))
+            conn.execute(text("UPDATE player_status SET stage_id = 1 WHERE stage_id IS NULL"))
+        if "key_fragment_a" not in columns:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_a VARCHAR"))
+        if "key_fragment_b" not in columns:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_b VARCHAR"))
         if "last_accessed_at" not in columns:
             conn.execute(text("ALTER TABLE player_status ADD COLUMN last_accessed_at TIMESTAMP"))
         # 既存のゲームには「今触った」扱いで猶予期間を与える（いきなり全部消えないように）
@@ -47,11 +54,11 @@ def migrate_db():
 def init_db():
     db = SessionLocal()
     try:
-        # ノード情報を game_data.py の内容に同期（既存行は上書き、無ければ追加）
-        for node in NODES:
+        # 全ステージのノード情報を game_data.py の内容に同期（既存行は上書き、無ければ追加）
+        for node in ALL_STAGE_NODES:
             db.merge(models.NodeMaster(**node))
         db.commit()
-        # game_data.py から消えたノード（ステージ差し替え前の古いノード）も DB から取り除く
+        # game_data.py から消えたノードも DB から取り除く
         removed_nodes = game_logic.remove_obsolete_nodes(db)
         if removed_nodes:
             print(f"[startup] removed {removed_nodes} obsolete node(s)")
@@ -59,6 +66,8 @@ def init_db():
         # テスト用プレイヤーデータの初期化（/api/network・/api/scan が使う既定のゲーム）
         if db.query(models.PlayerStatus).count() == 0:
             game_logic.create_game(db)
+        else:
+            game_logic.ensure_key_fragments(db)
 
         # 長期間使われていないゲームを掃除する
         removed = game_logic.cleanup_stale_games(db)
@@ -85,17 +94,30 @@ setup_database()
 
 
 # ======= スキーマ =======
+class CreateGameRequest(BaseModel):
+    stageId: int = DEFAULT_STAGE_ID
+
+
+class ResetGameRequest(BaseModel):
+    stageId: Optional[int] = None
+
+
 class ActionRequest(BaseModel):
     type: Literal[
         "scan",
+        "scan",
+        "remoteScan",
         "breach",
         "dataExtract",
+        "recover",
         "pause",
         "resume",
         "confirmInfo",
-        "completeAnalysis"
+        "completeAnalysis",
     ]
     nodeId: Optional[str] = None
+    passcode: Optional[str] = None
+
 
 
 def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
@@ -106,12 +128,22 @@ def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
     return player
 
 
+# ======= 0. ステージ一覧の取得 =======
+@app.get("/api/stages")
+def get_stages():
+    """選択可能なステージ（ミッション）一覧を返す。"""
+    return {"stages": game_logic.list_stages()}
+
+
 # ======= 1. ゲームの作成・取得・リセット =======
 @app.post("/api/games")
-def create_game(db: Session = Depends(get_db)):
-    """新しいゲームを開始し、初期状態(GameState)を返す。"""
+def create_game(req: Optional[CreateGameRequest] = None, db: Session = Depends(get_db)):
+    """新しいゲームを開始し、初期状態(GameState)を返す。
+    ボディ無しでも呼べる（既定ステージ1）。{"stageId": 0} 等を渡せば指定ステージで開始する。
+    """
     game_logic.cleanup_stale_games(db)  # 作るついでに、長期間使われていないゲームを掃除する
-    player = game_logic.create_game(db)
+    stage_id = req.stageId if req is not None else DEFAULT_STAGE_ID
+    player = game_logic.create_game(db, stage_id=stage_id)
     return game_logic.build_game_state(db, player)
 
 
@@ -123,23 +155,25 @@ def get_game_state(game_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/games/{game_id}/reset")
-def reset_game(game_id: int, db: Session = Depends(get_db)):
+def reset_game(game_id: int, req: Optional[ResetGameRequest] = None, db: Session = Depends(get_db)):
     """指定されたゲームを初期状態にリセットし、初期 GameState を返す。"""
     player = _get_game_or_404(db, game_id)
-    game_logic.reset_game(db, player)
+    stage_id = req.stageId if req is not None else None
+    game_logic.reset_game(db, player, stage_id=stage_id)
     return game_logic.build_game_state(db, player)
 
 
 # ======= 2. プレイヤー操作 =======
 @app.post("/api/games/{game_id}/actions")
 def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_db)):
-    """scan / breach / dataExtract / pause / resume /
+    """scan / remoteScan / breach / dataExtract / recover / pause / resume /
     confirmInfo / completeAnalysis を実行する。
     受理可否(accepted, reason)に加えて、操作後の GameState を state として返す。
     """
+
     player = _get_game_or_404(db, game_id)
     try:
-        game_logic.apply_action(db, player, action.type, action.nodeId)
+        game_logic.apply_action(db, player, action.type, action.nodeId, passcode=action.passcode)
     except game_logic.ActionRejected as e:
         db.rollback()
         return {

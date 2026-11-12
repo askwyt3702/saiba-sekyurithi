@@ -90,8 +90,17 @@ export interface LogEntry {
   severity: LogSeverity;
 }
 
+export interface KeyFragments {
+  a: string | null;
+  b: string | null;
+  unlocked?: boolean;
+}
+
 export interface GameState {
   gameId: string;
+  stageId?: number;
+  evaluation?: MissionEvaluation | null;
+  keyFragments?: KeyFragments;
   status: GameStatus;
   elapsedSeconds: number;    // backend DBでは player_status.game_time
   alertLevel: number;        // backend DBでは player_status.alert_level
@@ -102,11 +111,29 @@ export interface GameState {
   log: LogEntry[];
 }
 
-export type ActionType = 'scan' | 'breach' | 'dataExtract' | 'pause' | 'resume';
+export interface MissionEvaluation {
+  rank: 'S' | 'A' | 'B' | 'C' | 'D';
+  score: number;
+  title: string;
+}
+
+ 
+
+export type ActionType =
+  | 'scan'
+  | 'remoteScan'
+  | 'breach'
+  | 'dataExtract'
+  | 'recover'
+  | 'pause'
+  | 'resume';
+
+
 
 export interface ActionRequest {
   type: ActionType;
   nodeId?: string;
+  passcode?: string;
 }
 
 export type ActionRejectReason =
@@ -114,6 +141,8 @@ export type ActionRejectReason =
   | 'insufficient_privilege'
   | 'node_not_scanned'
   | 'node_unreachable'
+  | 'node_locked'
+  | 'invalid_passcode'
   | 'invalid_state';
 
 export interface ActionResult {
@@ -134,12 +163,15 @@ export interface ActionCost {
   alertDelta: number;
 }
 
+
 export interface BalanceConfig {
   scan: ActionCost;
+  remoteScan: ActionCost;
   breach: ActionCost;
   dataExtract: ActionCost;
   alertDecayPerSecond: number;
 }
+
 
 export interface GameClient {
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState>;
