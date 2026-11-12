@@ -1,36 +1,12 @@
-
 import type { BalanceConfig } from '../model/types';
+import { ACTION_COSTS, ALERT_DECAY_PER_SECOND } from './stageData';
 
-// 暫定値。playtestで調整する前提でロジックから分離してある。
+// 数値は backend/balance_config.py から生成した stageData.ts を使う。
+// 調整するときはバックエンド側を変えて `python scripts/gen_stage_data.py` を実行すること(ここに数値を書かない)。
 export const balanceConfig: BalanceConfig = {
-  // 通常スキャン
-  scan: {
-    time: 10,
-    resource: 1,
-    alertDelta: 2,
-  },
-
-  // リモートスキャン
-  remoteScan: {
-    time: 25,
-    resource: 4,
-    alertDelta: 8,
-  },
-
-  // 侵入
-  breach: {
-    time: 20,
-    resource: 2,
-    alertDelta: 5,
-  },
-
-  // データ回収
-  dataExtract: {
-    time: 15,
-    resource: 3,
-    alertDelta: 10,
-  },
-
-  // 警戒度の自然減衰
-  alertDecayPerSecond: 0.05,
+  scan: ACTION_COSTS.scan,
+  remoteScan: ACTION_COSTS.remoteScan,
+  breach: ACTION_COSTS.breach,
+  dataExtract: ACTION_COSTS.dataExtract,
+  alertDecayPerSecond: ALERT_DECAY_PER_SECOND,
 };

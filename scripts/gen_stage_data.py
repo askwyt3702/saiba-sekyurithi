@@ -62,6 +62,14 @@ def format_effects(effect_map, indent="  ") -> str:
     )
 
 
+def format_action_costs(cost_map, indent="  ") -> str:
+    return NL.join(
+        f"{indent}{name}: {{ time: {ts_num(c['time'])}, resource: {ts_num(c['resource'])}, "
+        f"alertDelta: {ts_num(c['alert_delta'])} }},"
+        for name, c in cost_map.items()
+    )
+
+
 def format_stage_entry(stage_id: int, stage: dict) -> str:
     nodes_ts = format_nodes(stage["nodes"], indent="      ")
     edges_ts = format_edges(stage["edges"], indent="      ")
@@ -91,13 +99,20 @@ nodes = format_nodes(g.NODES)
 edges = format_edges(g.EDGES)
 vulnerabilities = format_vulnerabilities(g.NODES)
 effects = format_effects(g.NODE_EFFECTS)
+action_costs = format_action_costs(balance_config.ACTION_COSTS)
 stages_ts = NL.join(format_stage_entry(sid, s) for sid, s in sorted(g.STAGES.items()))
 all_target_ids = sorted({tid for s in g.STAGES.values() for tid in s.get("target_node_ids", set())})
 
 OUTPUT.write_text(
     f"""// このファイルは scripts/gen_stage_data.py で backend/game_data.py・balance_config.py から生成している。
 // 手で編集せず、バックエンド側を変えたらスクリプトを実行し直すこと。
-import type {{ ApiNetworkEdge, NetworkNode }} from '../model/types';
+import type {{ ActionCost, ApiNetworkEdge, NetworkNode }} from '../model/types';
+
+// 各操作のコスト(time: 経過秒数, resource: 消費する解析資源, alertDelta: 警戒度の上昇)。
+export const ACTION_COSTS = {{
+{action_costs}
+}} satisfies Record<string, ActionCost>;
+export const ALERT_DECAY_PER_SECOND = {ts_num(balance_config.ALERT_DECAY_PER_SECOND)};
 
 export const INITIAL_ANALYSIS_RESOURCE = {ts_num(balance_config.INITIAL_ANALYSIS_RESOURCE)};
 export const MAX_ANALYSIS_RESOURCE = {ts_num(balance_config.MAX_ANALYSIS_RESOURCE)};

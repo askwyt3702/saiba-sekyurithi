@@ -1,6 +1,7 @@
 
 # バランス数値（暫定値）
-# frontend/src/game/data/balanceConfig.ts と同期すること。
+# 変えたらリポジトリのルートで `python scripts/gen_stage_data.py` を実行し、
+# 生成された frontend/src/game/data/stageData.ts も同じコミットに含めること。
 
 ACTION_COSTS = {
     # 通常スキャン

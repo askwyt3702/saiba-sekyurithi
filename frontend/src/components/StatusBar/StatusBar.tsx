@@ -1,4 +1,8 @@
-import { MAX_ANALYSIS_RESOURCE } from '../../game/data/stageData';
+import {
+  MAX_ANALYSIS_RESOURCE,
+  RECOVERY_COST,
+  RESOURCE_RECOVERY_AMOUNT,
+} from '../../game/data/stageData';
 import './StatusBar.css';
 
 interface StatusBarProps {
@@ -67,9 +71,9 @@ export function StatusBar({
           type="button"
           disabled={!canRecover}
           onClick={onRecover}
-          title="RESOURCE +5 / TIME +30秒 / ALERT +12"
+          title={`RESOURCE +${RESOURCE_RECOVERY_AMOUNT} / TIME +${RECOVERY_COST.time}秒 / ALERT +${RECOVERY_COST.alertDelta}`}
         >
-          回復 +5
+          回復 +{RESOURCE_RECOVERY_AMOUNT}
         </button>
       </div>
 

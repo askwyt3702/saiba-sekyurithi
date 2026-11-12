@@ -24,6 +24,18 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  # backend/game_data.py・balance_config.py を変えたのに stageData.ts を生成し直していないと失敗する。
+  # 失敗したら、リポジトリのルートで `python scripts/gen_stage_data.py` を実行してコミットし直すこと。
+  stage-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python scripts/gen_stage_data.py
+      - run: git diff --ignore-cr-at-eol --exit-code -- frontend/src/game/data/stageData.ts
+
   backend:
     runs-on: ubuntu-latest
     services:

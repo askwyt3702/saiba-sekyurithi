@@ -222,11 +222,11 @@ WebSocket（4節）は未実装のため、現状は **アクションの結果�
 - **暗号鍵の断片**：`game_data.KEY_FRAGMENT_NODE_IDS` のノードをすべて `hacked` にしてから dataExtract すると、回収時の警戒度上昇が 0 になる。
 - **ノードの特殊効果**：`game_data.NODE_EFFECTS` に登録されたノードは、breach 成功時に解析資源の増減・警戒度の増減・追加ログが発生する。
 - **pause / resume**：`playing` ⇔ `paused`。`playing` 以外ではアクションは `invalid_state` で却下。
-- 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（リアルタイム化後は tick 側に移す）。
+- 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる（ターン制のため、時間は操作したときだけ進む）。
 - **recover**：侵入済みノードがあり、資源が上限未満ならノード選択なしで回復できる。資源0でも実行可能。
 - 警戒度が100に達するか、勝利していない状態で回復を含む実行可能な操作がなくなると `status = 'lost'`（ゲームオーバー）。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
-- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源を変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。
+- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源・操作コストを変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。フロントの `balanceConfig.ts` も生成値を読むだけ。生成し忘れはCIの `stage-data` ジョブで検出される。
 
 ### 古いゲームの自動削除（backend）
 
