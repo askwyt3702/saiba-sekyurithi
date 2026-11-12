@@ -83,14 +83,21 @@ function App() {
   };
 
   // ノードに対するアクション
-  const handleAction = async (type: TimedActionType, passcode?: string) => {
+  const handleAction = async (
+    type: TimedActionType,
+    passcode?: string,
+    exploitMismatch?: boolean,
+  ) => {
     if (!selectedNode) return;
 
     const nodeId = selectedNode.id;
     setNotice(null);
 
     try {
-      const result = await sendAction({ type, nodeId, passcode });
+      if (type === 'breach' && !exploitMismatch && (nodeId === 'E01' || nodeId === 'E02' || nodeId === 'E03')) {
+        await sendAction({ type: 'confirmInfo' as ActionType, nodeId }).catch(() => {});
+      }
+      const result = await sendAction({ type, nodeId, passcode, exploitMismatch });
 
       if (!result.accepted) {
         setNotice({

@@ -651,6 +651,7 @@ def apply_action(
     action_type: str,
     node_id: Optional[str],
     passcode: Optional[str] = None,
+    exploit_mismatch: bool = False,
 ) -> None:
     """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
 
@@ -768,6 +769,18 @@ def apply_action(
         action_type,
         node,
     )
+
+    if action_type == "breach" and exploit_mismatch:
+        player.alert_level = _clamp_alert(player.alert_level + 8.0)
+        add_log(
+            db,
+            player,
+            "danger",
+            f"【IDS検知警告】{node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: {player.alert_level:.0f}%）。",
+        )
+        _check_game_over(db, player)
+        db.commit()
+        return
 
     # E02：情報確認が完了しているかチェック
     if action_type == "breach" and node.id == "E02":
