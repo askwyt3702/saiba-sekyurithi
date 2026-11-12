@@ -26,8 +26,8 @@
 
 ## 確認
 
-フロントエンドで `node --test tests/missionResult.test.mjs tests/strategy.test.mjs` を実行する。
-後者はプロジェクトのPython環境でバックエンドをメモリ内再生し、Mockと一手ごとに比較する。Pythonパスは`NULL_ROUTE_TEST_PYTHON`で指定可能。
+フロントエンドで `npm test` を実行する。
+戦略テストはプロジェクトのPython環境でバックエンドをメモリ内再生し、Mockと一手ごとに比較する。Pythonパスは`NULL_ROUTE_TEST_PYTHON`で指定可能。CIでもPython 3.12とバックエンドのテスト依存を準備して実行する。
 ランク境界、結果表示、攻略数、ボタンの呼び分け・二重送信防止・通信失敗、Appの勝利条件と遷移を検証する。
 追加依存なし。既存TypeScriptコンパイラとNodeのテストランナーを使う。
 
