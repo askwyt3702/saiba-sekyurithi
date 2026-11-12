@@ -54,7 +54,7 @@ function App() {
   const [stageId, setStageId] = useState<number>(DEFAULT_STAGE_ID);
 
   // ゲーム画面のときだけゲームデータを取得
-  const { state, sendAction, reset } = useGameClient(screen === 'game', stageId);
+  const { state, connectionMode, sendAction, reset } = useGameClient(screen === 'game', stageId);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -196,6 +196,7 @@ function App() {
         alertLevel={state.alertLevel}
         analysisResource={state.analysisResource}
         privilege={state.privilege}
+        offline={connectionMode === 'mock'}
         canRecover={canRecover}
         onRecover={handleRecover}
         onReset={handleReset}

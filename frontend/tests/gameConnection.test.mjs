@@ -76,3 +76,17 @@ test('backend connection failure falls back to the selected stage2 Mock', async 
   await settle();
   assert.equal(h.render(true, 2).state.stageId, 2);
 });
+
+test('connectionMode reports backend or Mock so the UI can show an offline badge', async () => {
+  const online = connectionHarness();
+  assert.equal(online.render(true, 1).connectionMode, null);
+  online.http[0].ready(); await settle();
+  assert.equal(online.render(true, 1).connectionMode, 'backend');
+
+  const offline = connectionHarness();
+  offline.render(true, 1);
+  offline.http[0].reject(new Error('offline'));
+  await settle();
+  assert.equal(offline.render(true, 1).connectionMode, 'mock');
+  assert.equal(offline.render(false, 1).connectionMode, null);
+});
