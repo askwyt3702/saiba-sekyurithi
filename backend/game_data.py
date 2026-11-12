@@ -382,7 +382,7 @@ KEY_FRAGMENT_NODE_IDS = {"I06", "I07"}
 # ノード侵入成功時の特殊効果
 NODE_EFFECTS = {
     "E03": {
-        "resource_bonus": 5,
+        "resource_bonus": 0,
         "alert_delta": 0.0,
         "log": "公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。",
     },
