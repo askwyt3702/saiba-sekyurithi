@@ -9,43 +9,91 @@
 </head>
 <body>
 
-    <main class="title-screen">
+    
+<main class="title-screen">
 
-        <div class="corner-decoration top-left"></div>
-        <div class="corner-decoration bottom-right"></div>
+    <!-- 動くネットワーク背景 -->
+    <canvas id="networkCanvas"></canvas>
 
-        <div class="title-content">
+    <!-- 背景の暗幕 -->
+    <div class="screen-overlay"></div>
 
-            <p class="game-label">CYBER MYSTERY PROJECT</p>
+    <!-- 左上：システム情報 -->
+    <div class="system-status">
+        <p>&gt; SYSTEM ONLINE</p>
+        <p>&gt; NETWORK CONNECTION : ESTABLISHED</p>
+        <p>&gt; USER : GUEST</p>
+    </div>
 
-            <h1 class="game-title">
-                NULL <span>ROUTE</span>
-            </h1>
+    <!-- 右上：バージョン -->
+    <div class="version-tag">
+        ver. 1.0.0
+    </div>
 
-            <div class="title-line"></div>
+    <!-- 中央タイトル -->
+    <div class="title-content">
 
-            <p class="game-subtitle">
-                CYBER MYSTERY GAME
-            </p>
+        <p class="game-label">
+            CYBER SECURITY PROJECT
+        </p>
 
-            <div class="menu">
+        <h1 class="game-title">
+            NULL <span>ROUTE</span>
+        </h1>
 
-                <button id="startButton" class="start-button">
-                    START GAME
-                    <span>▶</span>
-                </button>
+        <div class="title-line"></div>
 
-                <button id="settingButton" class="setting-button">
-                    SETTING
-                </button>
+        <p class="game-subtitle">
+            C Y B E R &nbsp; M I S S I O N
+        </p>
 
-            </div>
+        <!-- メニュー -->
+        <div class="menu">
 
-            <p class="version">VERSION 1.0.0</p>
+            <button id="startButton" class="start-button">
+                <span class="menu-arrow">《</span>
+                GAME START
+                <span class="menu-arrow">》</span>
+            </button>
+
+            <button id="settingButton" class="setting-button">
+                OPTIONS
+            </button>
+
+            <button class="setting-button" onclick="alert('CREDIT / NULL ROUTE')">
+                CREDIT
+            </button>
+
+            <button class="setting-button" onclick="window.close()">
+                QUIT
+            </button>
 
         </div>
 
-    </main>
+    </div>
+
+    <!-- 左下：アクセスログ -->
+    <div class="access-log">
+        <h3>ACCESS LOG</h3>
+        <p>[00:00:01] System initialized...</p>
+        <p>[00:00:02] Scanning network...</p>
+        <p>[00:00:03] Ready.</p>
+        <span class="log-cursor">_</span>
+    </div>
+
+    <!-- 右下：キャッチコピー -->
+    <div class="title-message">
+        <p>Break into the network.</p>
+        <p>Uncover the truth.</p>
+    </div>
+
+    <!-- 下部バージョン -->
+    <div class="version">
+        NULL ROUTE / CYBER MISSION
+    </div>
+
+</main>
+
 <!-- ミッション選択画面 -->
 <main class="mission-screen" id="missionScreen" style="display: none;">
 
