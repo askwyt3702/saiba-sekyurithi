@@ -376,40 +376,7 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
     _validate_timed_action(db, player, action_type, node)
 
 
-# E01：追加条件の達成チェック
-    if action_type == "breach" and node.id in SECURITY_RULES:
-        rule = SECURITY_RULES[node.id]
 
-        info_done = _security_event_done(
-            db, player, node.id, "INFO_CONFIRMED"
-        )
-
-        analysis_done = _security_event_done(
-            db, player, node.id, "ANALYSIS_COMPLETED"
-        )
-
-        if not info_done or not analysis_done:
-            cost = ACTION_COSTS[action_type]
-
-            player.analysis_resource -= cost["resource"]
-
-            # 失敗時は設定された警戒度上昇量を適用
-            _advance_time(
-                player,
-                cost["time"],
-                rule["failure_alert"]
-            )
-
-            add_log(
-                db,
-                player,
-                "warning",
-                f"{node.name} の攻略条件を満たしていません。"
-            )
-
-            _check_game_over(db, player)
-            db.commit()
-            return
         
     cost = ACTION_COSTS[action_type]
     player.analysis_resource -= cost["resource"]
