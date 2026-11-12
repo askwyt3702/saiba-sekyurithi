@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ActionRequest, ActionResult, GameClient, GameState, ServerEvent } from '../model/types';
 import { MockGameClient } from '../client/mockGameClient';
 import { HttpGameClient } from '../client/httpGameClient';
+import { DEFAULT_STAGE_ID } from '../data/stageData';
 
 function applyEvent(prev: GameState | null, event: ServerEvent): GameState | null {
   if (event.type === 'state_snapshot') return event.state;
@@ -22,7 +23,7 @@ function applyEvent(prev: GameState | null, event: ServerEvent): GameState | nul
 }
 
 // enabled が true になるまでバックエンドに接続しない(タイトル画面を開いただけでゲームが作られないように)
-export function useGameClient(enabled: boolean) {
+export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_ID) {
   const clientRef = useRef<GameClient | null>(null);
   const [state, setState] = useState<GameState | null>(null);
 
@@ -37,7 +38,7 @@ export function useGameClient(enabled: boolean) {
 
     // まず実バックエンド(HttpGameClient)へ接続を試み、
     // バックエンド未起動の場合は MockGameClient にフォールバックする。
-    const httpClient = new HttpGameClient();
+    const httpClient = new HttpGameClient('http://localhost:8000', stageId);
     clientRef.current = httpClient;
 
     httpClient
@@ -49,7 +50,7 @@ export function useGameClient(enabled: boolean) {
         if (cancelled) return;
         console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
         httpClient.disconnect();
-        const mockClient = new MockGameClient('mock');
+        const mockClient = new MockGameClient('mock', stageId);
         clientRef.current = mockClient;
         void mockClient.connect(handleEvent).then((initial) => {
           if (!cancelled) setState(initial);
@@ -61,7 +62,7 @@ export function useGameClient(enabled: boolean) {
       clientRef.current?.disconnect();
       clientRef.current = null;
     };
-  }, [enabled]);
+  }, [enabled, stageId]);
 
   const sendAction = (action: ActionRequest): Promise<ActionResult> => {
     if (!clientRef.current) return Promise.resolve({ accepted: false, reason: 'invalid_state' });

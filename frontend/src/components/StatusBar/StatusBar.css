@@ -46,8 +46,15 @@
   overflow: hidden;
 }
 
-.status-bar__reset {
+.status-bar__actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-bar__mission,
+.status-bar__reset {
   padding: 4px 12px;
   background: transparent;
   border: 1px solid #3a3f4b;
@@ -57,6 +64,11 @@
   font-size: 11px;
   letter-spacing: 1px;
   cursor: pointer;
+}
+
+.status-bar__mission:hover {
+  border-color: #c084fc;
+  color: #c084fc;
 }
 
 .status-bar__reset:hover {

@@ -19,16 +19,26 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
         <h1>ミッション選択</h1>
 
         <p className="mission-description">
-          調査するミッションを選択してください。
+          調査するミッションを選択してください。初めてプレイする方はチュートリアルから始めるのがおすすめです。
         </p>
 
         <div className="mission-list">
+          <div className="mission-card" onClick={() => onSelectMission(0)}>
+            <div className="mission-number">チュートリアル / TRAINING</div>
+            <h2>基礎侵入訓練</h2>
+            <p>5ノードの小規模ネットワークで、スキャン・侵入・データ回収の基本操作を習得せよ。</p>
+            <div className="mission-bottom">
+              <span>訓練 (5ノード)</span>
+              <span>選択可能 →</span>
+            </div>
+          </div>
+
           <div className="mission-card" onClick={() => onSelectMission(1)}>
             <div className="mission-number">ミッション 01</div>
             <h2>消えた機密データ</h2>
-            <p>不正アクセスの侵入経路を特定せよ。</p>
+            <p>不正アクセスの侵入経路を特定し、24ノードの本編ネットワークから極秘研究データを回収せよ。</p>
             <div className="mission-bottom">
-              <span>初級</span>
+              <span>初級 (24ノード)</span>
               <span>選択可能 →</span>
             </div>
           </div>

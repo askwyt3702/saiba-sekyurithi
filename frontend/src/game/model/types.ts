@@ -92,6 +92,7 @@ export interface LogEntry {
 
 export interface GameState {
   gameId: string;
+  stageId?: number;
   status: GameStatus;
   elapsedSeconds: number;    // backend DBでは player_status.game_time
   alertLevel: number;        // backend DBでは player_status.alert_level

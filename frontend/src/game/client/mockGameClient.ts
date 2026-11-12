@@ -11,15 +11,13 @@ import type {
 import { balanceConfig } from '../data/balanceConfig';
 import { createMockGameState } from '../data/mockGameState';
 import {
+  DEFAULT_STAGE_ID,
+  getStageData,
   isExtractTarget,
   MAX_ANALYSIS_RESOURCE,
   RESOURCE_RECOVERY_AMOUNT,
   RECOVERY_COST,
   RESOURCE_REWARDS,
-  ENTRY_LAYERS,
-  KEY_FRAGMENT_NODE_IDS,
-  NODE_EFFECTS,
-  STAGE_VULNERABILITIES,
 } from '../data/stageData';
 
 function nextId(): string {
@@ -55,10 +53,12 @@ type TimedActionType = 'scan' | 'remoteScan' | 'breach' | 'dataExtract';
 // GameClient のダミー実装。HttpGameClient と同じインターフェースを満たす。
 export class MockGameClient implements GameClient {
   private state: GameState;
+  private readonly stageId: number;
   private onEvent: ((event: ServerEvent) => void) | null = null;
 
-  constructor(gameId: string) {
-    this.state = createMockGameState(gameId);
+  constructor(gameId: string, stageId: number = DEFAULT_STAGE_ID) {
+    this.stageId = stageId;
+    this.state = createMockGameState(gameId, stageId);
   }
 
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState> {
@@ -68,7 +68,7 @@ export class MockGameClient implements GameClient {
   }
 
   reset(): Promise<void> {
-    this.state = createMockGameState(this.state.gameId);
+    this.state = createMockGameState(this.state.gameId, this.stageId);
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
     return Promise.resolve();
   }
@@ -142,21 +142,22 @@ export class MockGameClient implements GameClient {
     const cost = balanceConfig[type];
     if (this.state.analysisResource < cost.resource) return 'insufficient_resource';
 
+    const stage = getStageData(this.stageId);
     if (type === 'scan' || type === 'remoteScan') {
       if (node.status !== 'unscanned') return 'invalid_state';
-      if (type === 'scan' && node.layer !== 'External' && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
+      if (type === 'scan' && !stage.entryLayers.includes(node.layer) && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
     } else if (type === 'breach') {
       if (node.status === 'hacked') return 'invalid_state';
 
       // 入口(External)以外は、隣接ノードのどれかを侵入済みにしていないと届かない
-      if (!ENTRY_LAYERS.includes(node.layer) && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
+      if (!stage.entryLayers.includes(node.layer) && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
       if (node.status !== 'scanned') return 'node_not_scanned';
       if (privilegeIndex(this.state.privilege) < layerRequirement(node.layer)) {
         return 'insufficient_privilege';
       }
     } else {
       if (node.layer !== 'Core' || node.status !== 'hacked') return 'invalid_state';
-      if (!isExtractTarget(node)) return 'invalid_state';
+      if (!isExtractTarget(node, this.stageId)) return 'invalid_state';
     }
     return undefined;
   }
@@ -171,9 +172,10 @@ export class MockGameClient implements GameClient {
   }
 
   private resolveAction(type: TimedActionType, node: NetworkNode, silentExtract: boolean): void {
+    const stage = getStageData(this.stageId);
     if (type === 'scan' || type === 'remoteScan') {
       node.status = 'scanned';
-      node.vulnerability = STAGE_VULNERABILITIES[node.id] ?? null;
+      node.vulnerability = stage.vulnerabilities[node.id] ?? null;
       this.log('success', `${node.name} のスキャンが完了しました。脆弱性: ${node.vulnerability ?? '不明'}`);
     } else if (type === 'breach') {
       node.status = 'hacked';
@@ -199,7 +201,8 @@ export class MockGameClient implements GameClient {
 
   // backend/game_logic.py の _apply_node_effect と同じ: 侵入成功時のステージ固有の効果
   private applyNodeEffect(node: NetworkNode): void {
-    const effect = NODE_EFFECTS[node.id];
+    const stage = getStageData(this.stageId);
+    const effect = stage.nodeEffects[node.id];
     if (!effect) {
       const reward = RESOURCE_REWARDS[node.id] ?? 0;
       this.state.analysisResource = Math.min(MAX_ANALYSIS_RESOURCE, this.state.analysisResource + reward);
@@ -214,15 +217,16 @@ export class MockGameClient implements GameClient {
     }
     if (effect.log) this.log('info', effect.log);
 
-    if (KEY_FRAGMENT_NODE_IDS.includes(node.id) && this.hasAllKeyFragments()) {
+    if (stage.keyFragmentNodeIds.includes(node.id) && this.hasAllKeyFragments()) {
       this.log('success', 'すべての暗号鍵断片が揃いました！最終目標のデータ回収時に警戒度上昇を完全に抑えられます。');
     }
   }
 
   private hasAllKeyFragments(): boolean {
+    const stage = getStageData(this.stageId);
     return (
-      KEY_FRAGMENT_NODE_IDS.length > 0 &&
-      KEY_FRAGMENT_NODE_IDS.every((id) => this.state.nodes.some((n) => n.id === id && n.status === 'hacked'))
+      stage.keyFragmentNodeIds.length > 0 &&
+      stage.keyFragmentNodeIds.every((id) => this.state.nodes.some((n) => n.id === id && n.status === 'hacked'))
     );
   }
 

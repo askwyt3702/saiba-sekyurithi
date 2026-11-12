@@ -9,6 +9,7 @@ interface StatusBarProps {
   canRecover: boolean;
   onRecover: () => void;
   onReset: () => void;
+  onSelectMission?: () => void;
 }
 
 function formatTime(totalSeconds: number): string {
@@ -31,6 +32,7 @@ export function StatusBar({
   canRecover,
   onRecover,
   onReset,
+  onSelectMission,
 }: StatusBarProps) {
   return (
     <header className="status-bar">
@@ -78,13 +80,24 @@ export function StatusBar({
         </span>
       </div>
 
-      <button
-        type="button"
-        className="status-bar__reset"
-        onClick={onReset}
-      >
-        RESET
-      </button>
+      <div className="status-bar__actions">
+        {onSelectMission && (
+          <button
+            type="button"
+            className="status-bar__mission"
+            onClick={onSelectMission}
+          >
+            MISSIONS
+          </button>
+        )}
+        <button
+          type="button"
+          className="status-bar__reset"
+          onClick={onReset}
+        >
+          RESET
+        </button>
+      </div>
     </header>
   );
 }
