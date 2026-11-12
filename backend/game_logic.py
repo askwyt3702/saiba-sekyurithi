@@ -477,6 +477,16 @@ def _validate_timed_action(
 
     
     if action_type in ("scan", "remoteScan"):
+        # ノードごとのスキャン方式を確認
+        rule = SECURITY_RULES.get(node.id, {})
+        allowed_scan_types = rule.get(
+            "allowed_scan_types",
+            ["scan", "remoteScan"]
+        )
+
+        if action_type not in allowed_scan_types:
+            raise ActionRejected("invalid_state")
+
         if status != "unscanned":
             raise ActionRejected("invalid_state")
 
@@ -490,7 +500,6 @@ def _validate_timed_action(
 
             if node.id not in entry_ids and not has_hacked_neighbor:
                 raise ActionRejected("node_unreachable")
-
 
     elif action_type == "breach":
         if status == "hacked":
