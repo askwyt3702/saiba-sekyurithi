@@ -22,20 +22,24 @@ function applyEvent(prev: GameState | null, event: ServerEvent): GameState | nul
   }
 }
 
+// どちらにつながっているか。'mock' のときはバックエンドに届いておらず、画面に目印を出す。
+export type ConnectionMode = 'backend' | 'mock';
+
 // enabled が true になるまでバックエンドに接続しない(タイトル画面を開いただけでゲームが作られないように)
 export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_ID) {
   const clientRef = useRef<GameClient | null>(null);
   const connection = useMemo(() => ({ enabled, stageId }), [enabled, stageId]);
-  const [snapshot, setSnapshot] = useState<{ connection: object; state: GameState } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ connection: object; state: GameState; mode: ConnectionMode } | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    let mode: ConnectionMode = 'backend';
     const handleEvent = (event: ServerEvent) => {
       if (!cancelled) {
         setSnapshot((prev) => {
           const state = applyEvent(prev?.connection === connection ? prev.state : null, event);
-          return state ? { connection, state } : null;
+          return state ? { connection, state, mode } : null;
         });
       }
     };
@@ -48,16 +52,17 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
     httpClient
       .connect(handleEvent)
       .then((initial) => {
-        if (!cancelled) setSnapshot({ connection, state: initial });
+        if (!cancelled) setSnapshot({ connection, state: initial, mode });
       })
       .catch((err) => {
         if (cancelled) return;
         console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
         httpClient.disconnect();
+        mode = 'mock';
         const mockClient = new MockGameClient('mock', stageId);
         clientRef.current = mockClient;
         void mockClient.connect(handleEvent).then((initial) => {
-          if (!cancelled) setSnapshot({ connection, state: initial });
+          if (!cancelled) setSnapshot({ connection, state: initial, mode });
         });
       });
 
@@ -76,5 +81,6 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
   const reset = (): Promise<void> => clientRef.current?.reset() ?? Promise.resolve();
 
   const state = enabled && snapshot?.connection === connection && snapshot.state.stageId === stageId ? snapshot.state : null;
-  return { state, sendAction, reset };
+  const connectionMode: ConnectionMode | null = state ? snapshot?.mode ?? null : null;
+  return { state, connectionMode, sendAction, reset };
 }

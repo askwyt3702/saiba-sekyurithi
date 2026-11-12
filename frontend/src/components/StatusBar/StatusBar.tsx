@@ -10,6 +10,8 @@ interface StatusBarProps {
   alertLevel: number;
   analysisResource: number;
   privilege: string;
+  // バックエンドにつながらず Mock で動いているとき true
+  offline?: boolean;
   canRecover: boolean;
   onRecover: () => void;
   onReset: () => void;
@@ -33,6 +35,7 @@ export function StatusBar({
   alertLevel,
   analysisResource,
   privilege,
+  offline = false,
   canRecover,
   onRecover,
   onReset,
@@ -41,6 +44,16 @@ export function StatusBar({
   return (
     <header className="status-bar">
       <div className="status-bar__title">NULL ROUTE</div>
+
+      {offline && (
+        <span
+          className="status-bar__offline"
+          role="status"
+          title="バックエンド(localhost:8000)に接続できないため、ブラウザ内のMockで動いています。進行状況はサーバーに保存されません。"
+        >
+          OFFLINE (Mock)
+        </span>
+      )}
 
       <div className="status-bar__item">
         <span className="status-bar__label">TIME</span>
