@@ -43,10 +43,22 @@ export function NodeDetailPanel({
 }: NodeDetailPanelProps) {
   const stage = getStageData(stageId);
   const [passcode, setPasscode] = useState('');
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   useEffect(() => {
     setPasscode('');
   }, [node?.id, stageId]);
+
+  useEffect(() => {
+    if (!isInfoOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsInfoOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isInfoOpen]);
 
   if (!node) {
     return (
@@ -211,7 +223,142 @@ export function NodeDetailPanel({
         >
           データ回収 (R{extractResourceCost})
         </button>
+
+        <button
+          type="button"
+          className="node-detail__info-button"
+          onClick={() => setIsInfoOpen(true)}
+        >
+          情報確認
+        </button>
       </div>
+
+      {isInfoOpen && (
+        <div
+          className="node-info-modal__backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="node-info-modal-title"
+          onClick={() => setIsInfoOpen(false)}
+        >
+          <div
+            className="node-info-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="node-info-modal__header">
+              <div>
+                <div className="node-info-modal__eyebrow">
+                  NODE INTELLIGENCE // {node.id}
+                </div>
+                <h3 id="node-info-modal-title" className="node-info-modal__title">
+                  {isUnscanned ? '不明ノード' : node.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="node-info-modal__close"
+                aria-label="閉じる"
+                onClick={() => setIsInfoOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="node-info-modal__badges">
+              <span className="node-info-modal__badge">
+                階層: {node.layer}（必要権限: {privileges[layers.indexOf(node.layer)] ?? 'GUEST'}）
+              </span>
+              <span className={`node-info-modal__badge node-info-modal__badge--${node.status}`}>
+                状態: {node.status === 'hacked' ? 'HACKED (侵入済み)' : node.status === 'scanned' ? 'SCANNED (スキャン済み)' : 'UNKNOWN (未スキャン)'}
+              </span>
+              {stage.entryNodeIds.includes(node.id) && (
+                <span className="node-info-modal__badge node-info-modal__badge--highlight">
+                  初期侵入口
+                </span>
+              )}
+              {isExtractTarget(node, stageId) && (
+                <span className="node-info-modal__badge node-info-modal__badge--target">
+                  最終目標（データ回収対象）
+                </span>
+              )}
+            </div>
+
+            <div className="node-info-modal__body">
+              <section className="node-info-modal__section">
+                <h4>詳細情報 (INFO)</h4>
+                <p className="node-info-modal__text">
+                  {isUnscanned
+                    ? '未スキャン（スキャンを実行するとノードの詳細情報が開示されます）'
+                    : node.info ?? '詳細情報なし'}
+                </p>
+              </section>
+
+              <section className="node-info-modal__section">
+                <h4>脆弱性 (VULNERABILITY)</h4>
+                <p className="node-info-modal__code">
+                  {isUnscanned
+                    ? '未スキャン（スキャンを実行すると脆弱性情報が開示されます）'
+                    : node.vulnerability ?? '検出された脆弱性なし'}
+                </p>
+              </section>
+
+              {(!isUnscanned && effect) || (monitored && monitor) || required ? (
+                <section className="node-info-modal__section">
+                  <h4>ギミック・侵入効果 (MECHANICS &amp; EFFECTS)</h4>
+                  {!isUnscanned && effect && (
+                    <div className="node-info-modal__item">
+                      <strong>初回侵入効果：</strong>
+                      資源 {effect.resourceBonus >= 0 ? '+' : ''}{effect.resourceBonus}（上限{MAX_ANALYSIS_RESOURCE}） ／ 警戒度 {effect.alertDelta >= 0 ? '+' : ''}{effect.alertDelta}%
+                    </div>
+                  )}
+                  {monitored && monitor && (
+                    <div className="node-info-modal__item">
+                      <strong>{isMonitoringActive(nodes, stage) ? '監視対象（有効）' : '監視対象（解除済み）'}：</strong>
+                      侵入時の追加警戒度 +{extraAlert}%（解除条件：{monitor.disabledByNodeId}攻略）
+                      {node.status !== 'hacked' && (
+                        <div>
+                          侵入時の予測警戒度：{detectionAlert.toFixed(2)}%
+                          {detectionAlert >= 100 ? '（検知され敗北します）' : ''}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {required && (
+                    <div className="node-info-modal__item">
+                      <strong>ゲート条件（{node.status === 'hacked' ? '攻略済み' : locked ? 'ロック中' : '解除済み'}）：</strong>
+                      侵入には {required.join('・')} の攻略が必要
+                      {locked && <div>未達成：{missing.join('・')}</div>}
+                    </div>
+                  )}
+                </section>
+              ) : null}
+
+              {stage.keyFragmentNodeIds.length > 0 && (
+                <section className="node-info-modal__section">
+                  <h4>暗号鍵の断片 (CIPHER FRAGMENTS)</h4>
+                  <div className="node-info-modal__cipher-grid">
+                    <div>断片A: <strong>{fragA ?? '未入手'}</strong></div>
+                    <div>断片B: <strong>{fragB ?? '未入手'}</strong></div>
+                    <div className="node-info-modal__cipher-combined">
+                      結合暗号キー: <strong>{fragA && fragB ? `${fragA}${fragB}` : '未完成（A・B両方を入手してください）'}</strong>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <footer className="node-info-modal__footer">
+              <button
+                type="button"
+                className="node-info-modal__close-btn"
+                onClick={() => setIsInfoOpen(false)}
+              >
+                閉じる
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {playing &&
         isExtractTarget(node, stageId) &&
