@@ -37,6 +37,7 @@ function render(state) {
   return renderToStaticMarkup(createElement(ToolPanel, {
     stageId: state.stageId ?? 1, nodes: state.nodes, edges: state.edges, privilege: state.privilege,
     keyFragments: state.keyFragments, log: state.log, selectedNodeId: null, onSelectNode() {},
+    securityEvents: state.securityEvents,
   }));
 }
 
@@ -51,9 +52,11 @@ test('vulnerability tab lists only scanned nodes and the scannable entry node', 
 
   await client.sendAction({ type: 'scan', nodeId: entry });
   const scanned = render(client.state);
-  assert.ok(scanned.includes('侵入可能'));
+  assert.ok(scanned.includes('確認条件未達'));
   assert.ok(scanned.includes(client.state.nodes.find((node) => node.id === entry).vulnerability));
 
+  await client.sendAction({ type: 'confirmInfo', nodeId: entry });
+  await client.sendAction({ type: 'completeAnalysis', nodeId: entry });
   await client.sendAction({ type: 'breach', nodeId: entry });
   assert.ok(render(client.state).includes('侵入済み'));
 });

@@ -1,0 +1,97 @@
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
+import test from 'node:test';
+import ts from 'typescript';
+
+const require = createRequire(import.meta.url);
+let hookValues = [];
+let hookCursor = 0;
+const overrides = {
+  react: { useEffect() {}, useMemo: (callback) => callback(), useRef: (value) => ({ current: value }), useState: (initial) => { const index = hookCursor++; if (!(index in hookValues)) hookValues[index] = initial; return [hookValues[index], (value) => { hookValues[index] = value; }]; } },
+  '@xyflow/react': { ReactFlow: 'Flow', ReactFlowProvider: 'Provider', Background: 'Background', Controls: 'Controls',
+    PanOnScrollMode: { Vertical: 'vertical' }, Position: { Top: 'top', Bottom: 'bottom' }, Handle: 'Handle', useReactFlow: () => ({ setViewport() {} }) },
+};
+function load(url) {
+  const module = { exports: {} };
+  const { outputText } = ts.transpileModule(readFileSync(url, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+  });
+  const localRequire = (id) => {
+    if (id.endsWith('.css')) return {};
+    if (id in overrides) return overrides[id];
+    if (id.startsWith('.')) {
+      const target = new URL(id + '.ts', url);
+      if (!existsSync(target)) target.pathname += 'x';
+      return load(target);
+    }
+    return require(id);
+  };
+  runInNewContext('(function(require,module,exports){' + outputText + '\n})', { console })(localRequire, module, module.exports);
+  return module.exports;
+}
+function elements(tree, type) {
+  if (!tree || typeof tree !== 'object') return [];
+  return [...(tree.type === type ? [tree] : []), ...[tree.props?.children].flat(Infinity).flatMap((child) => elements(child, type))];
+}
+
+const { NodeDetailPanel } = load(new URL('../src/components/NodeDetailPanel/NodeDetailPanel.tsx', import.meta.url));
+const { MockGameClient } = load(new URL('../src/game/client/mockGameClient.ts', import.meta.url));
+function textOf(tree) {
+  if (typeof tree === 'string' || typeof tree === 'number') return String(tree);
+  return tree && typeof tree === 'object' ? [tree.props?.children].flat(Infinity).map(textOf).join('') : '';
+}
+
+test('E01 allows normal scan and disables remote scan before scanning', async () => {
+  hookValues = []; hookCursor = 0;
+  const client = new MockGameClient('scan-method', 1);
+  await client.connect(() => {});
+  const tree = NodeDetailPanel({ node: client.state.nodes.find((n) => n.id === 'E01'), nodes: client.state.nodes,
+    edges: client.state.edges, analysisResource: 25, notice: null, onAction() {} });
+  const buttons = elements(tree, 'button');
+  assert.equal(buttons[0].props.disabled, false);
+  assert.equal(buttons[1].props.disabled, true);
+  assert.ok(textOf(tree).includes('通常スキャンのみ'));
+});
+
+for (const id of ['E01', 'E02', 'E03']) {
+  test(`info modal performs real confirmation and updates breach readiness: ${id}`, async () => {
+    hookValues = []; hookCursor = 0;
+    const client = new MockGameClient('security-panel', 1);
+    await client.connect(() => {});
+    if (id !== 'E01') client.state.nodes.find((node) => node.id === 'E01').status = 'hacked';
+    await client.sendAction({ type: 'scan', nodeId: id });
+    let pending;
+    const panel = () => {
+      hookCursor = 0;
+      return NodeDetailPanel({ node: client.state.nodes.find((node) => node.id === id),
+        nodes: client.state.nodes, edges: client.state.edges, stageId: 1,
+        gameStatus: client.state.status, analysisResource: client.state.analysisResource,
+        privilege: client.state.privilege, alertLevel: client.state.alertLevel,
+        securityEvents: client.state.securityEvents, notice: null,
+        onAction(type) { pending = client.sendAction({ type, nodeId: id }); },
+      });
+    };
+    const button = (label) => elements(panel(), 'button').find((b) => textOf(b) === label);
+    if (id === 'E03') assert.equal(elements(panel(), 'button')[2].props.disabled, true);
+    else assert.ok(textOf(panel()).includes('警戒度実増4%を消費'));
+    button('情報確認').props.onClick();
+    assert.ok(elements(panel(), 'div').some((d) => d.props.role === 'dialog'));
+    const before = JSON.stringify(client.state);
+    assert.equal(client.state.securityEvents[id], undefined, 'opening a modal alone must not confirm');
+    if (id === 'E01') assert.equal(button('解析を完了する').props.disabled, true);
+    button('情報を確認した').props.onClick();
+    assert.equal((await pending).accepted, true);
+    assert.equal(button('情報確認済み').props.disabled, true);
+    if (id === 'E01') {
+      assert.equal(button('解析を完了する').props.disabled, false);
+      button('解析を完了する').props.onClick();
+      assert.equal((await pending).accepted, true);
+    }
+    assert.notEqual(JSON.stringify(client.state), before);
+    assert.equal(elements(panel(), 'button')[2].props.disabled, false);
+    assert.equal(client.state.elapsedSeconds, 10, 'confirmation and analysis must not spend time');
+  });
+}
+

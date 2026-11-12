@@ -49,6 +49,11 @@ export const EVALUATION_CONFIG = {
 } as const;
 
 export const INITIAL_ANALYSIS_RESOURCE = 25;
+export const INITIAL_PRIVILEGE = 'GUEST';
+export const PRIVILEGE_LADDER = ["GUEST", "USER", "ADMIN", "ROOT"];
+export const LAYER_ORDER = ["External", "DMZ", "Internal", "Core"];
+export const ALERT_GAME_OVER_THRESHOLD = 100;
+export const SECURITY_RULES = {"E01": {"allowed_scan_types": ["scan"], "vulnerability": "弱いSSHパスワード", "risk_level": "MEDIUM", "required_scan": true, "required_info": true, "required_analysis": true, "failure_mode": "consume", "failure_alert": 5, "success_resource": 3, "required_privilege": "GUEST"}, "E02": {"vulnerability": "DNS設定情報の漏洩", "risk_level": "MEDIUM", "required_scan": true, "required_info": true, "failure_mode": "consume", "failure_alert": 5, "success_resource": 3, "required_privilege": "GUEST"}, "E03": {"vulnerability": "古い公開ファイルのアクセス制御不備", "risk_level": "LOW", "required_scan": true, "required_info": true, "failure_mode": "reject", "failure_alert": 3, "success_resource": 0, "required_privilege": "GUEST"}};
 export const MAX_ANALYSIS_RESOURCE = 30;
 export const RESOURCE_RECOVERY_AMOUNT = 5;
 export const RECOVERY_COST = { time: 30, alertDelta: 12 };
@@ -167,7 +172,7 @@ export interface NodeEffect {
 
 // 侵入(breach)成功時に発動する特殊効果。
 export const NODE_EFFECTS: Record<string, NodeEffect> = {
-  'E03': { resourceBonus: 0, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
+  'E03': { resourceBonus: 5, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
   'D06': { resourceBonus: 0, alertDelta: -8, log: 'プロキシサーバーで通信経路を偽装。警戒度が低下しました。' },
   'I03': { resourceBonus: 0, alertDelta: -15, log: 'ログ管理サーバーの監査ログを改ざんし、侵入痕跡を削減しました（警戒度 -15%）。' },
   'I04': { resourceBonus: 0, alertDelta: -20, log: 'ARGUS監視制御を妨害！監視AIの警戒レベルを大幅に引き下げました（警戒度 -20%）。' },
@@ -339,7 +344,7 @@ export const STAGES: Record<number, StageDefinition> = {
     targetNodeIds: ['C03'],
     keyFragmentNodeIds: ['I06', 'I07'],
     nodeEffects: {
-      'E03': { resourceBonus: 0, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
+      'E03': { resourceBonus: 5, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
       'D06': { resourceBonus: 0, alertDelta: -8, log: 'プロキシサーバーで通信経路を偽装。警戒度が低下しました。' },
       'I03': { resourceBonus: 0, alertDelta: -15, log: 'ログ管理サーバーの監査ログを改ざんし、侵入痕跡を削減しました（警戒度 -15%）。' },
       'I04': { resourceBonus: 0, alertDelta: -20, log: 'ARGUS監視制御を妨害！監視AIの警戒レベルを大幅に引き下げました（警戒度 -20%）。' },

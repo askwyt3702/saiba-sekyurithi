@@ -1,4 +1,5 @@
 // フロント/バック間のデータ契約 (docs/api-contract.md) に対応する型定義。
+export type { GameMapDefinition } from './mapDefinition';
 // 契約を変更したら、まず api-contract.md を更新してからここを同期させること。
 
 // ===== 確定: GET /api/network が実際に返す形 (backend/main.py: get_network_map) =====
@@ -97,6 +98,7 @@ export interface KeyFragments {
 }
 
 export interface GameState {
+  securityEvents?: Record<string, ('INFO_CONFIRMED' | 'ANALYSIS_COMPLETED')[]>;
   gameId: string;
   stageId?: number;
   evaluation?: MissionEvaluation | null;
@@ -120,6 +122,8 @@ export interface MissionEvaluation {
  
 
 export type ActionType =
+  | 'confirmInfo'
+  | 'completeAnalysis'
   | 'scan'
   | 'remoteScan'
   | 'breach'
@@ -137,6 +141,7 @@ export interface ActionRequest {
 }
 
 export type ActionRejectReason =
+  | 'security_requirements_unmet'
   | 'insufficient_resource'
   | 'insufficient_privilege'
   | 'node_not_scanned'

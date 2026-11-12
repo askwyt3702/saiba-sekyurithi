@@ -1,5 +1,11 @@
 import type { ApiNetworkEdge, NetworkNode } from './types';
 import type { StageDefinition } from '../data/stageData';
+import type { SecurityRule } from './mapDefinition';
+
+export function securityRequirementsMet(rule: SecurityRule | undefined, events: readonly string[] = []): boolean {
+  return (!rule?.required_info || events.includes('INFO_CONFIRMED')) &&
+    (!rule?.required_analysis || events.includes('ANALYSIS_COMPLETED'));
+}
 
 export function hasFoothold(nodes: NetworkNode[]): boolean {
   return nodes.some((node) => node.status === 'hacked');

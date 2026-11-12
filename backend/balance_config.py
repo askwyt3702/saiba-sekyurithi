@@ -1,3 +1,4 @@
+
 # バランス数値（暫定値）
 # 変えたらリポジトリのルートで `python scripts/gen_stage_data.py` を実行し、
 # 生成された frontend/src/game/data/stageData.ts も同じコミットに含めること。
@@ -61,38 +62,6 @@ MAX_ANALYSIS_RESOURCE = 30
 # 旧APIが使用する最初のゲームは削除対象外
 STALE_GAME_DAYS = 7
 
-# ノードごとのセキュリティルール
-SECURITY_RULES = {
-    "E01": {
-        "vulnerability": "弱いSSHパスワード",
-        "risk_level": "MEDIUM",
-        "required_scan": True,
-        "allowed_scan_types": ["scan"],
-        "failure_alert": 5,
-        "success_resource": 3,
-        "required_privilege": "GUEST",
-    },
-    "E02": {
-        "vulnerability": "DNS設定情報の漏洩",
-        "risk_level": "MEDIUM",
-        "required_scan": True,
-        "required_info": True,
-        "failure_alert": 5,
-        "success_resource": 3,
-        "required_privilege": "GUEST",
-    },
-
-    "E03": {
-        "vulnerability": "古い公開ファイルのアクセス制御不備",
-        "risk_level": "LOW",
-        "required_scan": True,
-        "required_info": True,
-        "failure_alert": 3,
-        "success_resource": 5,
-        "required_privilege": "GUEST",
-    },
-}
-
 # API・ログ・Mock・リザルトで共有（gen_stage_data.pyでフロントへ生成）。
 # 回復は最大+50点に対して警戒度コスト52.5点以上で、得点稼ぎにならない。
 EVALUATION_CONFIG = {
@@ -109,4 +78,40 @@ EVALUATION_CONFIG = {
         {"rank": "C", "minimum": 350, "title": "強行突破による生還 (LOUD BREACHER)"},
         {"rank": "D", "minimum": 0, "title": "作戦完遂・改善の余地あり (SURVIVOR)"},
     ],
+}
+
+SECURITY_RULES = {
+    "E01": {
+        "allowed_scan_types": ["scan"],
+        "vulnerability": "弱いSSHパスワード",
+        "risk_level": "MEDIUM",
+        "required_scan": True,
+        "required_info": True,
+        "required_analysis": True,
+        "failure_mode": "consume",
+        "failure_alert": 5,
+        "success_resource": 3,
+        "required_privilege": "GUEST",
+    },
+    "E02": {
+        "vulnerability": "DNS設定情報の漏洩",
+        "risk_level": "MEDIUM",
+        "required_scan": True,
+        "required_info": True,
+        "failure_mode": "consume",
+        "failure_alert": 5,
+        "success_resource": 3,
+        "required_privilege": "GUEST",
+    },
+
+    "E03": {
+        "vulnerability": "古い公開ファイルのアクセス制御不備",
+        "risk_level": "LOW",
+        "required_scan": True,
+        "required_info": True,
+        "failure_mode": "reject",
+        "failure_alert": 3,
+        "success_resource": 0,
+        "required_privilege": "GUEST",
+    }
 }

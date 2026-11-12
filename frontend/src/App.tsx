@@ -20,6 +20,7 @@ import './App.css';
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
 
 const REJECT_MESSAGES: Record<ActionRejectReason, string> = {
+  security_requirements_unmet: '侵入前に情報確認が必要です。ノード詳細の情報確認を完了してください。',
   insufficient_resource: '解析資源が足りません。',
   insufficient_privilege:
     '権限が足りません。より手前の階層のノードに侵入して権限を上げてください。',
@@ -222,6 +223,7 @@ function App() {
       )}
       <div className="app-body">
         <ToolPanel
+          securityEvents={state.securityEvents}
           stageId={state.stageId ?? stageId}
           nodes={state.nodes}
           edges={state.edges}
@@ -241,6 +243,7 @@ function App() {
         />
 
         <NodeDetailPanel
+          securityEvents={state.securityEvents}
           alertLevel={state.alertLevel}
           stageId={state.stageId ?? stageId}
           gameStatus={state.status}

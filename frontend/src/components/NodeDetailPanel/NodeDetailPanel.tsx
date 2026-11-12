@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData, isExtractTarget } from '../../game/data/stageData';
+import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, SECURITY_RULES, getStageData, isExtractTarget } from '../../game/data/stageData';
+import type { SecurityRule } from '../../game/model/mapDefinition';
+import { securityRequirementsMet } from '../../game/model/actionRules';
 import { canReachNode, canRemoteScanNode, isMonitoringActive, missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
@@ -24,6 +26,7 @@ interface NodeDetailPanelProps {
   keyFragments?: KeyFragments;
   analysisResource: number;
   alertLevel?: number;
+  securityEvents?: Record<string, string[]>;
   notice: string | null;
   onAction: (type: TimedActionType, passcode?: string) => void;
 }
@@ -38,6 +41,7 @@ export function NodeDetailPanel({
   keyFragments,
   analysisResource,
   alertLevel = 0,
+  securityEvents = {},
   notice,
   onAction,
 }: NodeDetailPanelProps) {
@@ -72,6 +76,10 @@ export function NodeDetailPanel({
 
   const reachable = canReachNode(node.id, nodes, edges, stage);
   const playing = gameStatus === 'playing';
+  const securityRule = (SECURITY_RULES as Record<string, SecurityRule>)[node.id];
+  const confirmed = securityEvents[node.id]?.includes('INFO_CONFIRMED') ?? false;
+  const analyzed = securityEvents[node.id]?.includes('ANALYSIS_COMPLETED') ?? false;
+  const securityReady = securityRequirementsMet(securityRule, securityEvents[node.id]);
   const effect = stage.nodeEffects[node.id];
   const required = stage.breachRequirements[node.id];
   const missing = missingGateRequirements(node.id, nodes, stage);
@@ -87,12 +95,14 @@ export function NodeDetailPanel({
 
   // 通常スキャンはExternal層か、侵入済みノードの隣接先のみ
   const canScan =
+    (securityRule?.allowed_scan_types?.includes('scan') ?? true) &&
     isUnscanned &&
     playing && reachable &&
     analysisResource >= balanceConfig.scan.resource;
 
   // リモートスキャンは未スキャンならどこでも可能
   const canRemoteScan =
+    (securityRule?.allowed_scan_types?.includes('remoteScan') ?? true) &&
     isUnscanned &&
     playing && canRemoteScanNode(node.id, nodes, stage) &&
     analysisResource >= balanceConfig.remoteScan.resource;
@@ -100,6 +110,7 @@ export function NodeDetailPanel({
   const canBreach =
     node.status === 'scanned' &&
     !locked &&
+    !(securityRule?.failure_mode === 'reject' && !securityReady) &&
     playing && reachable && privileges.indexOf(privilege) >= layers.indexOf(node.layer) &&
     analysisResource >= balanceConfig.breach.resource;
 
@@ -132,6 +143,16 @@ export function NodeDetailPanel({
     <aside className="node-detail">
       <h2>{isUnscanned ? '不明ノード' : node.name}</h2>
       {stage.entryNodeIds.includes(node.id) && <p>初期侵入口：{node.id}</p>}
+      {securityRule && node.status !== 'hacked' && (
+        <section className="node-detail__mechanics" aria-label="侵入前の確認条件">
+          {securityRule.allowed_scan_types && <p>このノードは通常スキャンのみ使用できます。</p>}
+          <p>情報確認：{confirmed ? '完了' : '未完了'}{securityRule.required_analysis && ` ／ 解析：${analyzed ? '完了' : '未完了'}`}</p>
+          {!securityReady && <p role="status">{securityRule.failure_mode === 'consume'
+            ? `条件未達で侵入を実行すると、資源${balanceConfig.breach.resource}・${balanceConfig.breach.time}秒・警戒度実増${securityRule.failure_alert - balanceConfig.alertDecayPerSecond * balanceConfig.breach.time}%を消費し、侵入は未完了になります。`
+            : '情報未確認の侵入は無消費で拒否されます。情報確認を完了してください。'}</p>}
+          <p>情報確認ボタンから説明を読み、確認操作を完了してください。</p>
+        </section>
+      )}
       {monitored && monitor && (
         <section className="node-detail__mechanics" aria-label="監視情報">
           <p><strong>{isMonitoringActive(nodes, stage) ? '監視対象：追加警戒度あり' : '監視解除済み：追加警戒度なし'}</strong></p>
@@ -348,6 +369,16 @@ export function NodeDetailPanel({
             </div>
 
             <footer className="node-info-modal__footer">
+              {securityRule && node.status === 'scanned' && (
+                <>
+                  <button type="button" className="node-info-modal__close-btn" disabled={!playing || confirmed} onClick={() => onAction('confirmInfo')}>
+                    {confirmed ? '情報確認済み' : '情報を確認した'}
+                  </button>
+                  {securityRule.required_analysis && <button type="button" className="node-info-modal__close-btn" disabled={!playing || !confirmed || analyzed} onClick={() => onAction('completeAnalysis')}>
+                    {analyzed ? '解析完了済み' : '解析を完了する'}
+                  </button>}
+                </>
+              )}
               <button
                 type="button"
                 className="node-info-modal__close-btn"

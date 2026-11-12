@@ -20,6 +20,26 @@ import main
 import models
 
 
+@pytest.fixture
+def ready_act(act, client):
+    """旧来の通常攻略テスト用。侵入前の新確認操作を明示的に完了する。
+
+    条件未達・拒否・ペナルティの試験は生のactを使う。
+    """
+    def perform(game_id, type_, node=None, passcode=None):
+        if type_ == "breach" and node in ("E01", "E02", "E03"):
+            state = client.get(f"/api/games/{game_id}").json()
+            target = next((n for n in state["nodes"] if n["id"] == node), None)
+            if state["status"] == "playing" and target and target["data"]["status"] == "scanned":
+                events = state.get("securityEvents", {}).get(node, [])
+                if "INFO_CONFIRMED" not in events:
+                    assert act(game_id, "confirmInfo", node)["accepted"]
+                if node == "E01" and "ANALYSIS_COMPLETED" not in events:
+                    assert act(game_id, "completeAnalysis", node)["accepted"]
+        return act(game_id, type_, node, passcode)
+    return perform
+
+
 @pytest.fixture(scope="session")
 def client():
     return TestClient(main.app)

@@ -56,6 +56,7 @@ function summary(state) {
     analysisResource: state.analysisResource, privilege: state.privilege, evaluation: state.evaluation ?? null,
     nodes: Object.fromEntries(state.nodes.map((node) => [node.id, node.status])),
     successLogged: state.log.some((entry) => entry.message.includes('目的達成')),
+    securityEvents: state.securityEvents ?? {},
     mechanicsLogs: state.log.filter((entry) => ['監視解除:', 'ゲート解除:', '条件付き監視:'].some((prefix) => entry.message.startsWith(prefix))).map((entry) => entry.message),
   }));
 }
@@ -69,7 +70,11 @@ ${parityFailure}`);
     await client.connect((event) => events.push(event));
     // Test-only seeding mirrors the backend fixture; production clients expose no mutation API.
     const fieldMap = { alert_level: 'alertLevel', analysis_resource: 'analysisResource', current_privilege: 'privilege', game_time: 'elapsedSeconds' };
-    for (const [field, value] of Object.entries(scenario.seed ?? {})) client.state[fieldMap[field]] = value;
+    for (const [field, value] of Object.entries(scenario.seed ?? {})) {
+      if (field === 'key_fragment_a') client.fragmentA = value;
+      else if (field === 'key_fragment_b') client.fragmentB = value;
+      else client.state[fieldMap[field]] = value;
+    }
     for (const status of ['hacked', 'scanned']) {
       for (const id of scenario[status] ?? []) client.state.nodes.find((node) => node.id === id).status = status;
     }
@@ -106,6 +111,8 @@ test('node panel disables all E02/E03 operations until E01 is hacked, then permi
   }));
   for (const id of ['E02', 'E03']) assert.equal((markup(id).match(/disabled=""/g) ?? []).length, 4);
   await client.sendAction({ type: 'scan', nodeId: 'E01' });
+  await client.sendAction({ type: 'confirmInfo', nodeId: 'E01' });
+  await client.sendAction({ type: 'completeAnalysis', nodeId: 'E01' });
   await client.sendAction({ type: 'breach', nodeId: 'E01' });
   for (const id of ['E02', 'E03']) assert.equal((markup(id).match(/disabled=""/g) ?? []).length, 2);
   await client.sendAction({ type: 'scan', nodeId: 'E02' });

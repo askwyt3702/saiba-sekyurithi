@@ -17,6 +17,7 @@ import { DEFAULT_STAGE_ID } from '../data/stageData';
 
 // バックエンドが返す GameState（nodes が ApiNetworkNode[] の形）
 interface ApiGameState {
+  securityEvents?: GameState['securityEvents'];
   gameId: string;
   stageId?: number;
   evaluation: MissionEvaluation | null;

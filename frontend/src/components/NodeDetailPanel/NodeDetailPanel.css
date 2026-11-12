@@ -334,6 +334,8 @@
 
 .node-info-modal__footer {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-end;
   padding: 12px 20px;
   background: #161d2b;
@@ -354,4 +356,9 @@
 .node-info-modal__close-btn:hover {
   background: #334155;
   border-color: #93c5fd;
+}
+
+.node-info-modal__close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

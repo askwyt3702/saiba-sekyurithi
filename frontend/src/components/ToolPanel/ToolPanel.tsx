@@ -17,6 +17,7 @@ type Tab = 'vuln' | 'mission' | 'log';
 type LogFilter = 'all' | LogSeverity;
 
 interface ToolPanelProps {
+  securityEvents?: Record<string, readonly string[]>;
   stageId: number;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
@@ -34,6 +35,7 @@ function formatTimestamp(seconds: number): string {
 }
 
 export function ToolPanel({
+  securityEvents = {},
   stageId,
   nodes,
   edges,
@@ -88,6 +90,7 @@ export function ToolPanel({
       <div className="tool-panel__body">
         {tab === 'vuln' && (
           <VulnerabilityTab
+            securityEvents={securityEvents}
             stage={stage}
             nodes={nodes}
             edges={edges}
@@ -113,6 +116,7 @@ export function ToolPanel({
 }
 
 function VulnerabilityTab({
+  securityEvents,
   stage,
   nodes,
   edges,
@@ -120,6 +124,7 @@ function VulnerabilityTab({
   selectedNodeId,
   onSelectNode,
 }: {
+  securityEvents: Record<string, readonly string[]>;
   stage: StageDefinition;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
@@ -134,7 +139,7 @@ function VulnerabilityTab({
   // 侵入できるものを上に、侵入済みを下に並べる
   const order = { ready: 0, blocked: 1, done: 2 };
   const rows = scanned
-    .map((node) => ({ node, status: breachStatus(node, nodes, edges, privilege, stage) }))
+    .map((node) => ({ node, status: breachStatus(node, nodes, edges, privilege, stage, securityEvents) }))
     .sort((a, b) => order[a.status.tone] - order[b.status.tone]
       || LAYERS.indexOf(a.node.layer) - LAYERS.indexOf(b.node.layer));
 

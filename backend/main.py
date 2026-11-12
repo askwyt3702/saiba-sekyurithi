@@ -105,7 +105,6 @@ class ResetGameRequest(BaseModel):
 class ActionRequest(BaseModel):
     type: Literal[
         "scan",
-        "scan",
         "remoteScan",
         "breach",
         "dataExtract",
