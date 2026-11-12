@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData, isExtractTarget } from '../../game/data/stageData';
+import { getSecurityChallenge } from '../../game/data/securityLearningData';
 import { canReachNode, canRemoteScanNode, isMonitoringActive, missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
@@ -44,21 +45,26 @@ export function NodeDetailPanel({
   const stage = getStageData(stageId);
   const [passcode, setPasscode] = useState('');
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isExploitOpen, setIsExploitOpen] = useState(false);
+  const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
 
   useEffect(() => {
     setPasscode('');
+    setIsExploitOpen(false);
+    setSelectedExploitId(null);
   }, [node?.id, stageId]);
 
   useEffect(() => {
-    if (!isInfoOpen) return;
+    if (!isInfoOpen && !isExploitOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsInfoOpen(false);
+        setIsExploitOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isInfoOpen]);
+  }, [isInfoOpen, isExploitOpen]);
 
   if (!node) {
     return (
@@ -127,6 +133,9 @@ export function NodeDetailPanel({
 
   const fragA = keyFragments?.a ?? null;
   const fragB = keyFragments?.b ?? null;
+  const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
+  const selectedChoice =
+    challenge.choices.find((c) => c.id === selectedExploitId) ?? null;
 
   return (
     <aside className="node-detail">
@@ -209,7 +218,10 @@ export function NodeDetailPanel({
         <button
           type="button"
           disabled={!canBreach}
-          onClick={() => onAction('breach', showPasscodeInput ? passcode : undefined)}
+          onClick={() => {
+            setSelectedExploitId(null);
+            setIsExploitOpen(true);
+          }}
         >
           {showPasscodeInput && passcode.trim() !== ''
             ? `暗号キーで隠密侵入 (R${balanceConfig.breach.resource})`
@@ -232,6 +244,166 @@ export function NodeDetailPanel({
           情報確認
         </button>
       </div>
+
+      {isExploitOpen && (
+        <div
+          className="node-info-modal__backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="exploit-modal-title"
+          onClick={() => setIsExploitOpen(false)}
+        >
+          <div
+            className="node-info-modal exploit-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="node-info-modal__header exploit-modal__header">
+              <div>
+                <div className="node-info-modal__eyebrow">
+                  EXPLOIT TERMINAL // root@null-route:~# target {node.id}
+                </div>
+                <h3 id="exploit-modal-title" className="node-info-modal__title">
+                  攻撃手法（エクスプロイト）の選択：{node.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="node-info-modal__close"
+                aria-label="閉じる"
+                onClick={() => setIsExploitOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="node-info-modal__body">
+              <div className="exploit-terminal-box">
+                <div className="exploit-terminal-box__line">
+                  <span className="exploit-terminal-box__tag">[TARGET]</span> {node.id} ({node.name}) ／ 階層: {node.layer}
+                </div>
+                <div className="exploit-terminal-box__line">
+                  <span className="exploit-terminal-box__tag exploit-terminal-box__tag--vuln">[VULN]</span>{' '}
+                  <strong>{node.vulnerability ?? '不明'}</strong>（{challenge.category}）
+                </div>
+                <div className="exploit-terminal-box__log">
+                  {challenge.scanTerminalLog}
+                </div>
+                <div className="exploit-terminal-box__prompt">
+                  &gt; 検出された脆弱性とスキャン解析ログを読み取り、有効な攻撃ペイロードを1つ選択してください：
+                </div>
+              </div>
+
+              <div className="exploit-choices" role="radiogroup" aria-label="攻撃手法の選択肢">
+                {challenge.choices.map((choice, idx) => {
+                  const isSelected = selectedExploitId === choice.id;
+                  const stateClass = isSelected
+                    ? choice.isCorrect
+                      ? 'exploit-choice--correct'
+                      : 'exploit-choice--wrong'
+                    : '';
+                  return (
+                    <button
+                      key={choice.id}
+                      type="button"
+                      className={`exploit-choice ${stateClass}`}
+                      onClick={() => setSelectedExploitId(choice.id)}
+                    >
+                      <div className="exploit-choice__head">
+                        <span className="exploit-choice__title">
+                          [{idx + 1}] {choice.title}
+                        </span>
+                        {isSelected && (
+                          <span className={`exploit-choice__badge ${choice.isCorrect ? 'exploit-choice__badge--ok' : 'exploit-choice__badge--ng'}`}>
+                            {choice.isCorrect ? '有効 (MATCH)' : '無効 (MISMATCH)'}
+                          </span>
+                        )}
+                      </div>
+                      <code className="exploit-choice__cmd">{choice.command}</code>
+                      <p className="exploit-choice__desc">{choice.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedChoice && (
+                <div
+                  className={`exploit-feedback ${selectedChoice.isCorrect ? 'exploit-feedback--ok' : 'exploit-feedback--ng'}`}
+                  role="status"
+                >
+                  <div className="exploit-feedback__title">
+                    {selectedChoice.isCorrect
+                      ? '[+] EXPLOIT READY — 脆弱性に合致する攻撃手法を確認しました'
+                      : '[!] EXPLOIT MISMATCH — この攻撃手法では突破できません'}
+                  </div>
+                  <p className="exploit-feedback__text">{selectedChoice.feedback}</p>
+                  {selectedChoice.isCorrect && (
+                    <p className="exploit-feedback__defense">{challenge.defenseMeasure}</p>
+                  )}
+                </div>
+              )}
+
+              {showPasscodeInput && (
+                <div className="exploit-passcode-box">
+                  <div className="exploit-passcode-box__head">
+                    <span>最終目標 暗号キー入力（断片A+Bで侵入時の警戒度上昇を0%に抑制）</span>
+                    {fragA && fragB && (
+                      <button
+                        type="button"
+                        className="exploit-passcode-box__autofill"
+                        onClick={() => setPasscode(`${fragA}${fragB}`)}
+                      >
+                        入手済みの暗号キー({fragA}{fragB})を自動入力
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    className="node-detail__cipher-input"
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    placeholder="断片A+Bを入力（空欄のままでも強行突破可能）"
+                  />
+                </div>
+              )}
+            </div>
+
+            <footer className="node-info-modal__footer exploit-modal__footer">
+              <button
+                type="button"
+                className="node-info-modal__close-btn"
+                onClick={() => {
+                  setIsExploitOpen(false);
+                  setIsInfoOpen(true);
+                }}
+              >
+                情報確認・解説を見る
+              </button>
+              <div className="exploit-modal__footer-right">
+                <button
+                  type="button"
+                  className="node-info-modal__close-btn"
+                  onClick={() => setIsExploitOpen(false)}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  className="exploit-modal__execute-btn"
+                  disabled={!selectedChoice?.isCorrect || !canBreach}
+                  onClick={() => {
+                    setIsExploitOpen(false);
+                    onAction('breach', showPasscodeInput ? passcode : undefined);
+                  }}
+                >
+                  {showPasscodeInput && passcode.trim() !== ''
+                    ? `暗号キーで隠密侵入実行 (R${balanceConfig.breach.resource})`
+                    : `侵入を実行する (R${balanceConfig.breach.resource})`}
+                </button>
+              </div>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {isInfoOpen && (
         <div
@@ -294,13 +466,35 @@ export function NodeDetailPanel({
               </section>
 
               <section className="node-info-modal__section">
-                <h4>脆弱性 (VULNERABILITY)</h4>
+                <h4>脆弱性 &amp; スキャン解析ログ (VULNERABILITY &amp; SCAN LOG)</h4>
                 <p className="node-info-modal__code">
                   {isUnscanned
                     ? '未スキャン（スキャンを実行すると脆弱性情報が開示されます）'
                     : node.vulnerability ?? '検出された脆弱性なし'}
                 </p>
+                {!isUnscanned && (
+                  <p className="node-info-modal__scanlog">
+                    {challenge.scanTerminalLog}
+                  </p>
+                )}
               </section>
+
+              {!isUnscanned && (
+                <section className="node-info-modal__section node-info-modal__section--security">
+                  <h4>サイバーセキュリティ解説 (SECURITY BRIEFING)</h4>
+                  <div className="node-info-modal__item">
+                    <strong>分類：</strong>{challenge.category}
+                  </div>
+                  <div className="node-info-modal__item">
+                    <strong>なぜ危険なのか（攻撃の仕組み）：</strong>
+                    <div>{challenge.whyDangerous}</div>
+                  </div>
+                  <div className="node-info-modal__item node-info-modal__item--defense">
+                    <strong>現実のセキュリティ対策（防衛側の視点）：</strong>
+                    <div>{challenge.defenseMeasure}</div>
+                  </div>
+                </section>
+              )}
 
               {(!isUnscanned && effect) || (monitored && monitor) || required ? (
                 <section className="node-info-modal__section">
@@ -348,6 +542,19 @@ export function NodeDetailPanel({
             </div>
 
             <footer className="node-info-modal__footer">
+              {canBreach && (
+                <button
+                  type="button"
+                  className="exploit-modal__execute-btn"
+                  onClick={() => {
+                    setIsInfoOpen(false);
+                    setSelectedExploitId(null);
+                    setIsExploitOpen(true);
+                  }}
+                >
+                  ハッキング端末（侵入）へ進む →
+                </button>
+              )}
               <button
                 type="button"
                 className="node-info-modal__close-btn"
