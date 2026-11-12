@@ -79,10 +79,22 @@ export function NodeDetailPanel({
     playing && reachable && privileges.indexOf(privilege) >= layers.indexOf(node.layer) &&
     analysisResource >= balanceConfig.breach.resource;
 
+  const hasAllKeyFragments =
+    stage.keyFragmentNodeIds.length > 0 &&
+    stage.keyFragmentNodeIds.every((id) =>
+      nodes.some((n) => n.id === id && n.status === 'hacked')
+    );
+
+  const extractResourceCost =
+    hasAllKeyFragments &&
+    (Boolean(keyFragments?.unlocked) || analysisResource < balanceConfig.dataExtract.resource)
+      ? 0
+      : balanceConfig.dataExtract.resource;
+
   const canExtract =
     playing && isExtractTarget(node, stageId) &&
     node.status === 'hacked' &&
-    analysisResource >= balanceConfig.dataExtract.resource;
+    analysisResource >= extractResourceCost;
 
   const showPasscodeInput =
     stage.keyFragmentNodeIds.length > 0 &&
@@ -159,7 +171,9 @@ export function NodeDetailPanel({
           disabled={!canBreach}
           onClick={() => onAction('breach', showPasscodeInput ? passcode : undefined)}
         >
-          {showPasscodeInput && passcode.trim() !== '' ? '暗号キーで隠密侵入' : '侵入'}
+          {showPasscodeInput && passcode.trim() !== ''
+            ? `暗号キーで隠密侵入 (R${balanceConfig.breach.resource})`
+            : `侵入 (R${balanceConfig.breach.resource})`}
         </button>
 
         <button
@@ -167,9 +181,18 @@ export function NodeDetailPanel({
           disabled={!canExtract}
           onClick={() => onAction('dataExtract')}
         >
-          データ回収
+          データ回収 (R{extractResourceCost})
         </button>
       </div>
+
+      {playing &&
+        isExtractTarget(node, stageId) &&
+        node.status === 'hacked' &&
+        analysisResource < extractResourceCost && (
+          <p className="node-detail__notice" role="status">
+            データ回収には解析資源が {extractResourceCost} 必要です（現在: {analysisResource}）。上部の「回復 +5」または補給ノードから資源を確保してください。
+          </p>
+        )}
 
       {notice && (
         <p className="node-detail__notice" role="alert">

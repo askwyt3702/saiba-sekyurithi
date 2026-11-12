@@ -93,6 +93,7 @@ export interface LogEntry {
 export interface KeyFragments {
   a: string | null;
   b: string | null;
+  unlocked?: boolean;
 }
 
 export interface GameState {

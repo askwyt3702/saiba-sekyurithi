@@ -164,11 +164,19 @@ export class MockGameClient implements GameClient {
     }
 
     const cost = balanceConfig[type];
-    this.state.analysisResource -= cost.resource;
-    // 暗号鍵の断片がすべて揃っていればデータ回収時、または正しい暗号を入力した侵入時の警戒度上昇を0に抑える
     const silentExtract = type === 'dataExtract' && this.hasAllKeyFragments();
+    const freeExtract =
+      silentExtract &&
+      (Boolean(this.state.keyFragments?.unlocked) || this.state.analysisResource < cost.resource);
+    this.state.analysisResource -= freeExtract ? 0 : cost.resource;
+    // 暗号鍵の断片がすべて揃っていればデータ回収時、または正しい暗号を入力した侵入時の警戒度上昇を0に抑える
     this.advanceTime(cost.time, silentExtract || silentBreach ? 0 : cost.alertDelta);
-    if (this.state.alertLevel < 100) this.resolveAction(type, node, silentExtract, silentBreach);
+    if (this.state.alertLevel < 100) {
+      if (silentBreach && this.state.keyFragments) {
+        this.state.keyFragments = { ...this.state.keyFragments, unlocked: true };
+      }
+      this.resolveAction(type, node, silentExtract, silentBreach);
+    }
     this.checkGameOver();
 
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
@@ -180,7 +188,8 @@ export class MockGameClient implements GameClient {
     node: NetworkNode,
   ): ActionRejectReason | undefined {
     const cost = balanceConfig[type];
-    if (this.state.analysisResource < cost.resource) return 'insufficient_resource';
+    const requiredResource = type === 'dataExtract' && this.hasAllKeyFragments() ? 0 : cost.resource;
+    if (this.state.analysisResource < requiredResource) return 'insufficient_resource';
 
     const stage = getStageData(this.stageId);
     if (type !== 'dataExtract' && !canRemoteScanNode(node.id, this.state.nodes, stage)) return 'node_unreachable';

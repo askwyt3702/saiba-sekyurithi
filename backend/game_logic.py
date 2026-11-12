@@ -373,6 +373,11 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
 
     collected_a = frag_a if len(ordered_key_ids) >= 1 and statuses.get(ordered_key_ids[0]) == "hacked" else None
     collected_b = frag_b if len(ordered_key_ids) >= 2 and statuses.get(ordered_key_ids[1]) == "hacked" else None
+    has_all_keys = bool(ordered_key_ids) and all(statuses.get(kid) == "hacked" for kid in ordered_key_ids)
+    cipher_unlocked = has_all_keys and (
+        any("暗号キー認証に成功" in l.message for l in logs)
+        or player.analysis_resource < ACTION_COSTS["dataExtract"]["resource"]
+    )
 
     return {
         "gameId": str(player.id),
@@ -385,6 +390,7 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
         "keyFragments": {
             "a": collected_a,
             "b": collected_b,
+            "unlocked": cipher_unlocked,
         },
         "evaluation": evaluate_mission_result(player) if player.game_status == "won" else None,
         "nodes": nodes,
@@ -435,11 +441,14 @@ def _validate_timed_action(
         raise ActionRejected("invalid_state")
 
     cost = ACTION_COSTS[action_type]
+    statuses = _node_statuses(db, player)
+    key_ids = stage["key_fragment_node_ids"]
+    has_all_keys = bool(key_ids) and all(statuses.get(kid) == "hacked" for kid in key_ids)
+    required_resource = 0 if (action_type == "dataExtract" and has_all_keys) else cost["resource"]
 
-    if player.analysis_resource < cost["resource"]:
+    if player.analysis_resource < required_resource:
         raise ActionRejected("insufficient_resource")
 
-    statuses = _node_statuses(db, player)
     status = statuses.get(node.id, "unscanned")
     entry_ids = stage["entry_node_ids"]
     has_foothold = any(statuses.get(nid) == "hacked" for nid in stage_node_ids)
@@ -685,8 +694,15 @@ def apply_action(
 
     if action_type == "dataExtract" and key_ids and has_all_keys:
         alert_delta = 0.0
+        cipher_authenticated = db.query(models.GameLog).filter(
+            models.GameLog.player_id == player.id,
+            models.GameLog.message.like("%暗号キー認証に成功%"),
+        ).first() is not None
+        resource_cost = 0 if (cipher_authenticated or player.analysis_resource < cost["resource"]) else cost["resource"]
+    else:
+        resource_cost = cost["resource"]
 
-    player.analysis_resource -= cost["resource"]
+    player.analysis_resource -= resource_cost
 
     _advance_time(
         player,
