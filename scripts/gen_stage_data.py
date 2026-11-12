@@ -72,6 +72,10 @@ def format_action_costs(cost_map, indent="  ") -> str:
 
 
 def format_stage_entry(stage_id: int, stage: dict) -> str:
+    monitor = stage.get("conditional_breach_alert")
+    monitor_ts = json.dumps({"disabledByNodeId": monitor["disabled_by_node_id"],
+                             "targetNodeIds": monitor["target_node_ids"],
+                             "alertDelta": monitor["alert_delta"]} if monitor else None, ensure_ascii=False)
     nodes_ts = format_nodes(stage["nodes"], indent="      ")
     edges_ts = format_edges(stage["edges"], indent="      ")
     vuln_ts = format_vulnerabilities(stage["nodes"], indent="      ")
@@ -87,7 +91,8 @@ def format_stage_entry(stage_id: int, stage: dict) -> str:
         f"    difficulty: {ts_str(stage['difficulty'])},\n"
         f"    startMessage: {ts_str(stage.get('start_message', ''))},\n"
         f"    prototypeNotice: {ts_str(stage.get('prototype_notice', ''))},\n"
-        f"    plannedMechanics: {json.dumps(stage.get('planned_mechanics'), ensure_ascii=False)},\n"
+        f"    conditionalBreachAlert: {monitor_ts},\n"
+        f"    breachRequirements: {json.dumps(stage.get('breach_requirements', {}), ensure_ascii=False)},\n"
         f"    nodes: {nodes_block},\n"
         f"    edges: {edges_block},\n"
         f"    vulnerabilities: {vuln_block},\n"
@@ -165,11 +170,10 @@ export interface StageDefinition {{
   difficulty: string;
   startMessage: string;
   prototypeNotice: string;
-  // 第2段階用の設定案。現在のゲーム判定には作用しない。
-  plannedMechanics: {{
-    conditionalBreachAlert: {{ disabledByNodeId: string; targetNodeIds: string[]; alertDelta: number }};
-    breachRequirements: Record<string, string[]>;
+  conditionalBreachAlert: {{
+    disabledByNodeId: string; targetNodeIds: string[]; alertDelta: number;
   }} | null;
+  breachRequirements: Record<string, string[]>;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   vulnerabilities: Record<string, string>;

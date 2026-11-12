@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData, isExtractTarget } from '../../game/data/stageData';
-import { canReachNode, canRemoteScanNode } from '../../game/model/actionRules';
+import { canReachNode, canRemoteScanNode, isMonitoringActive, missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
   ActionType,
@@ -23,6 +23,7 @@ interface NodeDetailPanelProps {
   privilege?: string;
   keyFragments?: KeyFragments;
   analysisResource: number;
+  alertLevel?: number;
   notice: string | null;
   onAction: (type: TimedActionType, passcode?: string) => void;
 }
@@ -36,6 +37,7 @@ export function NodeDetailPanel({
   privilege = 'GUEST',
   keyFragments,
   analysisResource,
+  alertLevel = 0,
   notice,
   onAction,
 }: NodeDetailPanelProps) {
@@ -59,6 +61,15 @@ export function NodeDetailPanel({
   const reachable = canReachNode(node.id, nodes, edges, stage);
   const playing = gameStatus === 'playing';
   const effect = stage.nodeEffects[node.id];
+  const required = stage.breachRequirements[node.id];
+  const missing = missingGateRequirements(node.id, nodes, stage);
+  const locked = node.status !== 'hacked' && missing.length > 0;
+  const monitor = stage.conditionalBreachAlert;
+  const monitored = monitor?.targetNodeIds.includes(node.id);
+  const extraAlert = monitoringExtra(node.id, nodes, stage);
+  const decay = balanceConfig.alertDecayPerSecond * balanceConfig.breach.time;
+  const breachAlertChange = balanceConfig.breach.alertDelta + extraAlert - decay;
+  const detectionAlert = Math.max(0, Math.min(100, alertLevel + breachAlertChange));
   const layers = ['External', 'DMZ', 'Internal', 'Core'];
   const privileges = ['GUEST', 'USER', 'ADMIN', 'ROOT'];
 
@@ -76,6 +87,7 @@ export function NodeDetailPanel({
 
   const canBreach =
     node.status === 'scanned' &&
+    !locked &&
     playing && reachable && privileges.indexOf(privilege) >= layers.indexOf(node.layer) &&
     analysisResource >= balanceConfig.breach.resource;
 
@@ -96,6 +108,22 @@ export function NodeDetailPanel({
     <aside className="node-detail">
       <h2>{isUnscanned ? '不明ノード' : node.name}</h2>
       {stage.entryNodeIds.includes(node.id) && <p>初期侵入口：{node.id}</p>}
+      {monitored && monitor && (
+        <section className="node-detail__mechanics" aria-label="監視情報">
+          <p><strong>{isMonitoringActive(nodes, stage) ? '監視対象：追加警戒度あり' : '監視解除済み：追加警戒度なし'}</strong></p>
+          <p>侵入時の追加警戒度：+{extraAlert}% ／ 解除条件：{monitor.disabledByNodeId}攻略</p>
+          <p>基本+{balanceConfig.breach.alertDelta}% ＋ 監視{extraAlert}% − 自然減衰{decay}% ＝ +{breachAlertChange}%</p>
+          {node.status !== 'hacked' && <p>侵入時の予測警戒度（ノード効果前）：{detectionAlert.toFixed(2)}%
+            {detectionAlert >= 100 ? ' — 検知され敗北します' : ''}</p>}
+        </section>
+      )}
+      {required && (
+        <section className="node-detail__mechanics" aria-label="ゲート条件">
+          <p><strong>ゲート：{node.status === 'hacked' ? '攻略済み' : locked ? 'ロック中' : '解除済み'}</strong></p>
+          <p>侵入条件：{required.join('・')}を攻略</p>
+          {locked && <p>未達成：{missing.join('・')}。スキャンは通常のルールで可能です。</p>}
+        </section>
+      )}
 
       <dl className="node-detail__fields">
         <dt>階層</dt>

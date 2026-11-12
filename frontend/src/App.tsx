@@ -12,6 +12,7 @@ import { EventLog } from './components/EventLog/EventLog';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { MissionResult } from './components/MissionResult/MissionResult';
+import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import './App.css';
 
@@ -24,6 +25,7 @@ const REJECT_MESSAGES: Record<ActionRejectReason, string> = {
   node_not_scanned: '先にスキャンが必要です。',
   node_unreachable:
     '隣接するノードを先に侵入済みにする必要があります。',
+  node_locked: 'ゲートがロックされています。詳細に表示された前提ノードを先に攻略してください。',
   invalid_passcode:
     '暗号キーが一致しません（断片A+Bが未入手か入力ミスです。空欄のまま侵入すると強行突破になります）。',
   invalid_state: '現在この操作は実行できません。',
@@ -205,6 +207,7 @@ function App() {
       {getStageData(state.stageId ?? stageId).prototypeNotice && (
         <div className="app-banner" role="note">{getStageData(state.stageId ?? stageId).prototypeNotice}</div>
       )}
+      <StageMechanicsStatus stageId={state.stageId ?? stageId} nodes={state.nodes} />
       {state.status === 'won' && (
         <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
       )}
@@ -225,6 +228,7 @@ function App() {
         />
 
         <NodeDetailPanel
+          alertLevel={state.alertLevel}
           stageId={state.stageId ?? stageId}
           gameStatus={state.status}
           privilege={state.privilege}

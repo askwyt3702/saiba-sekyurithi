@@ -132,3 +132,14 @@
   border-radius: 4px;
   background: rgba(234, 179, 8, 0.08);
 }
+.node-detail__mechanics {
+  padding: 10px;
+  margin: 12px 0;
+  border: 1px solid #876131;
+  border-radius: 4px;
+  background: #251e16;
+  color: #f6d296;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

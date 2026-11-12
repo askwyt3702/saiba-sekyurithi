@@ -126,3 +126,13 @@
 .network-node--hacked .network-node__status-dot {
   background: #22c55e;
 }
+.network-node__mechanic {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #526071;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #c2e5e3;
+}
+.network-node--monitored .network-node__mechanic { color: #f5c57d; }
+.network-node--locked .network-node__mechanic { color: #fda4af; }

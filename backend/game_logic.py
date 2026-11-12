@@ -480,6 +480,9 @@ def _validate_timed_action(
         if status != "scanned":
             raise ActionRejected("node_not_scanned")
 
+        if any(statuses.get(required) != "hacked" for required in stage.get("breach_requirements", {}).get(node.id, [])):
+            raise ActionRejected("node_locked")
+
         # 必要な権限を確認
         if (
             _privilege_index(player.current_privilege)
@@ -587,6 +590,24 @@ def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.No
             )
 
 
+def _monitoring_extra(stage: dict, statuses: dict[str, str], node_id: str) -> float:
+    monitor = stage.get("conditional_breach_alert")
+    if monitor and node_id in monitor["target_node_ids"] and statuses.get(monitor["disabled_by_node_id"]) != "hacked":
+        return monitor["alert_delta"]
+    return 0
+
+
+def _log_mechanics_unlocked(db: Session, player: models.PlayerStatus, node_id: str) -> None:
+    stage = _player_stage(player)
+    statuses = _node_statuses(db, player)
+    monitor = stage.get("conditional_breach_alert")
+    if monitor and node_id == monitor["disabled_by_node_id"]:
+        add_log(db, player, "success", f"監視解除: {node_id}攻略により対象ノードの追加警戒度+{monitor['alert_delta']}%が無効になりました。")
+    for gate, required in stage.get("breach_requirements", {}).items():
+        if node_id in required and statuses.get(gate) != "hacked" and all(statuses.get(n) == "hacked" for n in required):
+            add_log(db, player, "success", f"ゲート解除: {gate} の侵入条件を満たしました（前提: {', '.join(sorted(required))}）。")
+
+
 def apply_action(
     db: Session,
     player: models.PlayerStatus,
@@ -686,6 +707,9 @@ def apply_action(
     if action_type == "dataExtract" and key_ids and has_all_keys:
         alert_delta = 0.0
 
+    monitoring_extra = _monitoring_extra(stage, _node_statuses(db, player), node.id) if action_type == "breach" else 0
+    alert_delta += monitoring_extra
+
     player.analysis_resource -= cost["resource"]
 
     _advance_time(
@@ -693,6 +717,9 @@ def apply_action(
         cost["time"],
         alert_delta,
     )
+
+    if monitoring_extra:
+        add_log(db, player, "warning", f"条件付き監視: {node.id} 侵入の追加警戒度 +{monitoring_extra}%。")
 
     # 検知はノード効果・鍵以外の事後軽減・勝利より優先する。
     # 鍵による回収の軽減は上のalert_delta計算で既に適用済み。
@@ -749,6 +776,7 @@ def apply_action(
         else:
             add_log(db, player, "success", f"{node.name} への侵入に成功しました。")
         _apply_node_effect(db, player, node)
+        _log_mechanics_unlocked(db, player, node.id)
 
     elif action_type == "dataExtract":
         if has_all_keys:
