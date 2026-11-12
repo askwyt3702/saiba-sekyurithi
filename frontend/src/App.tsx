@@ -11,6 +11,7 @@ import { NodeDetailPanel } from './components/NodeDetailPanel/NodeDetailPanel';
 import { EventLog } from './components/EventLog/EventLog';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
+import { MissionResult } from './components/MissionResult/MissionResult';
 import { MAX_ANALYSIS_RESOURCE } from './game/data/stageData';
 import './App.css';
 
@@ -138,6 +139,18 @@ function App() {
     );
   };
 
+  // クリア後も既存のリセット処理で同じミッションを最初から開始する
+  const restartMission = async () => {
+    await reset();
+    setSelectedNodeId(null);
+    setNotice(null);
+  };
+
+  const returnToTitle = async () => {
+    await restartMission();
+    setScreen('title');
+  };
+
   // タイトル画面
   if (screen === 'title') {
     return (
@@ -178,7 +191,9 @@ function App() {
         onRecover={handleRecover}
         onReset={handleReset}
       />
-      {state.status === 'won' && <div className="app-banner app-banner--won">目的達成：データ回収に成功しました。</div>}
+      {state.status === 'won' && (
+        <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
+      )}
       {state.status === 'lost' && (
         <div className="app-banner app-banner--lost">
           {state.alertLevel < 100
