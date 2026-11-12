@@ -147,12 +147,17 @@ def test_breach_requires_scan(game, act):
 
 def test_breach_promotes_privilege(game, act):
     act(game, "scan", ENTRY)
+
+    # E01の攻略条件
+    act(game, "confirmInfo", ENTRY)
+    act(game, "completeAnalysis", ENTRY)
+
     result = act(game, "breach", ENTRY)
     assert result["accepted"] is True
     assert node_of(result["state"], ENTRY)["status"] == "hacked"
     assert result["state"]["privilege"] == "USER"
     assert result["state"]["analysisResource"] == (
-        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"]
+        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] + 3
     )
 
 
@@ -180,6 +185,11 @@ def test_breach_without_required_privilege_is_rejected(game, act, set_player):
     target = dmz_neighbors[0]
 
     act(game, "scan", ENTRY)
+
+    # E01の攻略条件
+    act(game, "confirmInfo", ENTRY)
+    act(game, "completeAnalysis", ENTRY)
+
     act(game, "breach", ENTRY)                   # USER に昇格
     act(game, "scan", target)
     set_player(game, current_privilege="GUEST")  # DMZ は USER 以上が必要
@@ -187,19 +197,24 @@ def test_breach_without_required_privilege_is_rejected(game, act, set_player):
     assert result["accepted"] is False
     assert result["reason"] == "insufficient_privilege"
 
-
 def test_privilege_never_goes_down(game, act, set_player):
     dmz_neighbors = [n for n in neighbors(ENTRY) if n in nodes_in_layer("DMZ")]
     if len(dmz_neighbors) < 2:
         pytest.skip("入口に隣接するDMZノードが2つ未満")
     set_player(game, analysis_resource=1000)
     privileges = []
+
     for node in [ENTRY, *dmz_neighbors[:2]]:
         act(game, "scan", node)
-        privileges.append(act(game, "breach", node)["state"]["privilege"])
-    # 入口 → USER、1つ目のDMZ → ADMIN、2つ目のDMZ でも ADMIN のまま（USER に戻らない）
-    assert privileges == ["USER", "ADMIN", "ADMIN"]
 
+        if node == ENTRY:
+            act(game, "confirmInfo", ENTRY)
+            act(game, "completeAnalysis", ENTRY)
+
+        privileges.append(act(game, "breach", node)["state"]["privilege"])
+
+    # 入口 → USER、1つ目のDMZ → ADMIN、2つ目のDMZ でも ADMIN のまま
+    assert privileges == ["USER", "ADMIN", "ADMIN"]
 
 # ---------- dataExtract ----------
 
