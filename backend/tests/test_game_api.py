@@ -20,9 +20,14 @@ def clear_stage(act, game, set_player):
     set_player(game, analysis_resource=1000)   # 資源の量ではなくルールのほうを試したいので十分に与える
     path = shortest_path_to_core()
     for node in path:
-        assert act(game, "scan", node)["accepted"] is True, ("scan", node)
-        assert act(game, "breach", node)["accepted"] is True, ("breach", node)
-    return path
+       assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+
+    if node == "E01":
+        assert act(game, "confirmInfo", node)["accepted"] is True
+        assert act(game, "completeAnalysis", node)["accepted"] is True
+
+    assert act(game, "breach", node)["accepted"] is True, ("breach", node)
+
 
 
 # ---------- ゲームの作成・取得・リセット ----------
