@@ -1,4 +1,4 @@
-
+import { MAX_ANALYSIS_RESOURCE } from '../../game/data/stageData';
 import './StatusBar.css';
 
 interface StatusBarProps {
@@ -59,7 +59,7 @@ export function StatusBar({
       <div className="status-bar__item">
         <span className="status-bar__label">RESOURCE</span>
         <span className="status-bar__value">
-          {analysisResource} / 30
+          {analysisResource} / {MAX_ANALYSIS_RESOURCE}
         </span>
         <button
           type="button"
