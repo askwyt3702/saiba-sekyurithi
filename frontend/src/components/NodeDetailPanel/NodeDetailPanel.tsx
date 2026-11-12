@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData, isExtractTarget } from '../../game/data/stageData';
 import { canReachNode, canRemoteScanNode } from '../../game/model/actionRules';
 
@@ -6,6 +7,7 @@ import type {
   NetworkNode,
   ApiNetworkEdge,
   GameStatus,
+  KeyFragments,
 } from '../../game/model/types';
 import { balanceConfig } from '../../game/data/balanceConfig';
 import './NodeDetailPanel.css';
@@ -19,9 +21,10 @@ interface NodeDetailPanelProps {
   stageId?: number;
   gameStatus?: GameStatus;
   privilege?: string;
+  keyFragments?: KeyFragments;
   analysisResource: number;
   notice: string | null;
-  onAction: (type: TimedActionType) => void;
+  onAction: (type: TimedActionType, passcode?: string) => void;
 }
 
 export function NodeDetailPanel({
@@ -31,11 +34,18 @@ export function NodeDetailPanel({
   stageId = DEFAULT_STAGE_ID,
   gameStatus = 'playing',
   privilege = 'GUEST',
+  keyFragments,
   analysisResource,
   notice,
   onAction,
 }: NodeDetailPanelProps) {
   const stage = getStageData(stageId);
+  const [passcode, setPasscode] = useState('');
+
+  useEffect(() => {
+    setPasscode('');
+  }, [node?.id, stageId]);
+
   if (!node) {
     return (
       <aside className="node-detail node-detail--empty">
@@ -74,6 +84,14 @@ export function NodeDetailPanel({
     node.status === 'hacked' &&
     analysisResource >= balanceConfig.dataExtract.resource;
 
+  const showPasscodeInput =
+    stage.keyFragmentNodeIds.length > 0 &&
+    isExtractTarget(node, stageId) &&
+    node.status !== 'hacked';
+
+  const fragA = keyFragments?.a ?? null;
+  const fragB = keyFragments?.b ?? null;
+
   return (
     <aside className="node-detail">
       <h2>{isUnscanned ? '不明ノード' : node.name}</h2>
@@ -95,7 +113,28 @@ export function NodeDetailPanel({
       {!isUnscanned && effect && (
         <p>初回侵入効果：資源 {effect.resourceBonus >= 0 ? '+' : ''}{effect.resourceBonus}（上限{MAX_ANALYSIS_RESOURCE}）、警戒度 {effect.alertDelta >= 0 ? '+' : ''}{effect.alertDelta}%</p>
       )}
-      {!isUnscanned && stage.keyFragmentNodeIds.includes(node.id) && <p>暗号鍵の断片：2個揃うとデータ回収時の警戒度上昇を無効化します。</p>}
+      {stage.keyFragmentNodeIds.length > 0 && (
+        <div className="node-detail__cipher-box">
+          <div className="node-detail__cipher-title">暗号鍵の断片（A+Bで隠密侵入）</div>
+          <div className="node-detail__cipher-fragments">
+            <span>断片A: <strong>{fragA ?? '未入手'}</strong></span>
+            <span>断片B: <strong>{fragB ?? '未入手'}</strong></span>
+          </div>
+          {showPasscodeInput && (
+            <label className="node-detail__cipher-input-label">
+              <span>最終目標 暗号キー入力（任意）</span>
+              <input
+                type="text"
+                className="node-detail__cipher-input"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="断片A+Bを入力（空欄で強行突破）"
+                disabled={!canBreach}
+              />
+            </label>
+          )}
+        </div>
+      )}
       <p>警戒度100%に到達すると、侵入効果やデータ回収成功より先に敗北します。</p>
 
       <div className="node-detail__actions">
@@ -118,9 +157,9 @@ export function NodeDetailPanel({
         <button
           type="button"
           disabled={!canBreach}
-          onClick={() => onAction('breach')}
+          onClick={() => onAction('breach', showPasscodeInput ? passcode : undefined)}
         >
-          侵入
+          {showPasscodeInput && passcode.trim() !== '' ? '暗号キーで隠密侵入' : '侵入'}
         </button>
 
         <button

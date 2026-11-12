@@ -32,6 +32,20 @@ function clampAlert(value: number): number {
   return Math.min(100, Math.max(0, value));
 }
 
+const KEY_FRAGMENT_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateKeyFragment(): string {
+  let out = '';
+  for (let i = 0; i < 4; i++) {
+    out += KEY_FRAGMENT_ALPHABET[Math.floor(Math.random() * KEY_FRAGMENT_ALPHABET.length)];
+  }
+  return out;
+}
+
+function normalizePasscode(value: string): string {
+  return value.replace(/[\s-]/g, '').toUpperCase();
+}
+
 // 権限の値一覧は backend でまだ定義されていない(確認できているのは "GUEST" のみ)ため、
 // プロトタイプとして layer の並びに対応させた仮の序列を置いている。backendが決まり次第差し替える。
 const PRIVILEGE_LADDER = ['GUEST', 'USER', 'ADMIN', 'ROOT'] as const;
@@ -56,11 +70,16 @@ type TimedActionType = 'scan' | 'remoteScan' | 'breach' | 'dataExtract';
 export class MockGameClient implements GameClient {
   private state: GameState;
   private readonly stageId: number;
+  private fragmentA: string;
+  private fragmentB: string;
   private onEvent: ((event: ServerEvent) => void) | null = null;
 
   constructor(gameId: string, stageId: number = DEFAULT_STAGE_ID) {
     this.stageId = stageId;
+    this.fragmentA = generateKeyFragment();
+    this.fragmentB = generateKeyFragment();
     this.state = createMockGameState(gameId, stageId);
+    this.state.keyFragments = { a: null, b: null };
   }
 
   connect(onEvent: (event: ServerEvent) => void): Promise<GameState> {
@@ -70,7 +89,10 @@ export class MockGameClient implements GameClient {
   }
 
   reset(): Promise<void> {
+    this.fragmentA = generateKeyFragment();
+    this.fragmentB = generateKeyFragment();
     this.state = createMockGameState(this.state.gameId, this.stageId);
+    this.state.keyFragments = { a: null, b: null };
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
     return Promise.resolve();
   }
@@ -125,12 +147,28 @@ export class MockGameClient implements GameClient {
     const rejection = this.validate(type, node);
     if (rejection) return { accepted: false, reason: rejection };
 
+    const stage = getStageData(this.stageId);
+    let silentBreach = false;
+    if (type === 'breach' && action.passcode !== undefined && action.passcode.trim() !== '') {
+      const expected = normalizePasscode(this.fragmentA + this.fragmentB);
+      const submitted = normalizePasscode(action.passcode);
+      if (
+        !isExtractTarget(node, this.stageId) ||
+        stage.keyFragmentNodeIds.length === 0 ||
+        !this.hasAllKeyFragments() ||
+        submitted !== expected
+      ) {
+        return { accepted: false, reason: 'invalid_passcode' };
+      }
+      silentBreach = true;
+    }
+
     const cost = balanceConfig[type];
     this.state.analysisResource -= cost.resource;
-    // 暗号鍵の断片がすべて揃っていれば、データ回収時の警戒度上昇を0に抑える
+    // 暗号鍵の断片がすべて揃っていればデータ回収時、または正しい暗号を入力した侵入時の警戒度上昇を0に抑える
     const silentExtract = type === 'dataExtract' && this.hasAllKeyFragments();
-    this.advanceTime(cost.time, silentExtract ? 0 : cost.alertDelta);
-    if (this.state.alertLevel < 100) this.resolveAction(type, node, silentExtract);
+    this.advanceTime(cost.time, silentExtract || silentBreach ? 0 : cost.alertDelta);
+    if (this.state.alertLevel < 100) this.resolveAction(type, node, silentExtract, silentBreach);
     this.checkGameOver();
 
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
@@ -174,7 +212,7 @@ export class MockGameClient implements GameClient {
     );
   }
 
-  private resolveAction(type: TimedActionType, node: NetworkNode, silentExtract: boolean): void {
+  private resolveAction(type: TimedActionType, node: NetworkNode, silentExtract: boolean, silentBreach = false): void {
     const stage = getStageData(this.stageId);
     if (type === 'scan' || type === 'remoteScan') {
       node.status = 'scanned';
@@ -187,6 +225,8 @@ export class MockGameClient implements GameClient {
       if (granted > privilegeIndex(this.state.privilege)) {
         this.state.privilege = PRIVILEGE_LADDER[granted];
         this.log('success', `${node.name} への侵入に成功。権限が ${this.state.privilege} に昇格しました。`);
+      } else if (silentBreach) {
+        this.log('success', `暗号キー認証に成功！${node.name} へ隠密侵入しました（警戒度上昇なし）。`);
       } else {
         this.log('success', `${node.name} への侵入に成功しました。`);
       }
@@ -221,10 +261,24 @@ export class MockGameClient implements GameClient {
     if (effect.alertDelta) {
       this.state.alertLevel = clampAlert(this.state.alertLevel + effect.alertDelta);
     }
-    if (effect.log) this.log('info', effect.log);
+    const orderedKeyIds = [...stage.keyFragmentNodeIds].sort();
+    let logMessage = effect.log;
+    if (orderedKeyIds[0] === node.id) {
+      this.state.keyFragments = { a: this.fragmentA, b: this.state.keyFragments?.b ?? null };
+      node.info = `${node.info ?? ''} 【入手済み断片A: ${this.fragmentA}】`.trim();
+      logMessage = `【重要】${node.name}から「暗号鍵の断片A: ${this.fragmentA}」を入手しました。`;
+    } else if (orderedKeyIds[1] === node.id) {
+      this.state.keyFragments = { a: this.state.keyFragments?.a ?? null, b: this.fragmentB };
+      node.info = `${node.info ?? ''} 【入手済み断片B: ${this.fragmentB}】`.trim();
+      logMessage = `【重要】${node.name}から「暗号鍵の断片B: ${this.fragmentB}」を入手しました。`;
+    }
+    if (logMessage) this.log('info', logMessage);
 
     if (stage.keyFragmentNodeIds.includes(node.id) && this.hasAllKeyFragments()) {
-      this.log('success', 'すべての暗号鍵断片が揃いました！最終目標のデータ回収時に警戒度上昇を完全に抑えられます。');
+      this.log(
+        'success',
+        `すべての暗号鍵断片が揃いました！断片A「${this.fragmentA}」と断片B「${this.fragmentB}」を繋げた暗号を最終目標の侵入時に入力すると、警戒度上昇を0に抑えられます。`,
+      );
     }
   }
 

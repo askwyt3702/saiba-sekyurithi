@@ -67,6 +67,62 @@
   border-color: #c084fc;
 }
 
+.node-detail__cipher-box {
+  margin: 10px 0 12px;
+  padding: 10px;
+  background: #1b2029;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.node-detail__cipher-title {
+  color: #93c5fd;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.node-detail__cipher-fragments {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #cbd5e1;
+}
+
+.node-detail__cipher-fragments strong {
+  color: #4ade80;
+  letter-spacing: 1px;
+}
+
+.node-detail__cipher-input-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  color: #e2e8f0;
+}
+
+.node-detail__cipher-input {
+  padding: 6px 8px;
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+.node-detail__cipher-input:focus {
+  outline: none;
+  border-color: #c084fc;
+}
+
+.node-detail__cipher-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .node-detail__notice {
   margin: 12px 0 0;
   padding: 8px;

@@ -7,7 +7,7 @@ import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
 const overrides = {
-  react: { useEffect() {}, useMemo: (callback) => callback(), useRef: (value) => ({ current: value }) },
+  react: { useEffect() {}, useMemo: (callback) => callback(), useRef: (value) => ({ current: value }), useState: (value) => [value, () => {}] },
   '@xyflow/react': { ReactFlow: 'Flow', ReactFlowProvider: 'Provider', Background: 'Background', Controls: 'Controls',
     PanOnScrollMode: { Vertical: 'vertical' }, Position: { Top: 'top', Bottom: 'bottom' }, Handle: 'Handle', useReactFlow: () => ({ setViewport() {} }) },
 };

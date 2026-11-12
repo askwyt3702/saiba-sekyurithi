@@ -5,6 +5,8 @@ API層(main.py)からは「状態の取得」と「アクションの適用」�
 """
 from datetime import datetime, timedelta
 from math import floor
+import re
+import secrets
 from typing import Optional
 
 from sqlalchemy import bindparam, func, inspect, text
@@ -51,6 +53,37 @@ class ActionRejected(Exception):
 
 
 # ---------- 小さなヘルパー ----------
+
+KEY_FRAGMENT_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+KEY_FRAGMENT_LENGTH = 4
+
+
+def _generate_key_fragment() -> str:
+    return "".join(secrets.choice(KEY_FRAGMENT_ALPHABET) for _ in range(KEY_FRAGMENT_LENGTH))
+
+
+def _normalize_passcode(value: str) -> str:
+    return re.sub(r"[\s\-]", "", value).upper()
+
+
+def _ensure_player_fragments(player: models.PlayerStatus) -> tuple[str, str]:
+    if not player.key_fragment_a:
+        player.key_fragment_a = _generate_key_fragment()
+    if not player.key_fragment_b:
+        player.key_fragment_b = _generate_key_fragment()
+    return player.key_fragment_a, player.key_fragment_b
+
+
+def ensure_key_fragments(db: Session) -> None:
+    """既存の全プレイヤー行に暗号鍵断片が設定されていることを保証する。"""
+    changed = False
+    for player in db.query(models.PlayerStatus).all():
+        if not player.key_fragment_a or not player.key_fragment_b:
+            _ensure_player_fragments(player)
+            changed = True
+    if changed:
+        db.commit()
+
 
 def _clamp_alert(value: float) -> float:
     return max(0.0, min(100.0, value))
@@ -172,6 +205,8 @@ def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID) -> models.PlayerS
         current_privilege=INITIAL_PRIVILEGE,
         game_status="playing",
         stage_id=stage["id"],
+        key_fragment_a=_generate_key_fragment(),
+        key_fragment_b=_generate_key_fragment(),
     )
 
     db.add(player)
@@ -206,6 +241,8 @@ def reset_game(
     player.analysis_resource = INITIAL_ANALYSIS_RESOURCE
     player.current_privilege = INITIAL_PRIVILEGE
     player.game_status = "playing"
+    player.key_fragment_a = _generate_key_fragment()
+    player.key_fragment_b = _generate_key_fragment()
 
     add_log(
         db,
@@ -284,10 +321,17 @@ def cleanup_stale_games(
 
 def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
     """api-contract.md 2.2 の GameState の形に組み立てる。"""
+    frag_a, frag_b = _ensure_player_fragments(player)
     stage = _player_stage(player)
     stage_nodes = stage["nodes"]
     stage_node_ids = {n["id"] for n in stage_nodes}
     order = {n["id"]: i for i, n in enumerate(stage_nodes)}
+    ordered_key_ids = sorted(stage.get("key_fragment_node_ids", set()))
+    frag_by_node_id = {}
+    if len(ordered_key_ids) >= 1:
+        frag_by_node_id[ordered_key_ids[0]] = ("断片A", frag_a)
+    if len(ordered_key_ids) >= 2:
+        frag_by_node_id[ordered_key_ids[1]] = ("断片B", frag_b)
 
     statuses = _node_statuses(db, player)
     db_nodes = sorted(
@@ -299,6 +343,10 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
     for node in db_nodes:
         status = statuses.get(node.id, "unscanned")
         revealed = status != "unscanned"
+        info_text = node.info if revealed else "不明（スキャンが必要です）"
+        if status == "hacked" and node.id in frag_by_node_id:
+            label_name, frag_val = frag_by_node_id[node.id]
+            info_text = f"{node.info or ''} 【入手済み{label_name}: {frag_val}】".strip()
 
         nodes.append({
             "id": node.id,
@@ -309,11 +357,7 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
             "data": {
                 "label": node.name,
                 "layer": node.layer,
-                "info": (
-                    node.info
-                    if revealed
-                    else "不明（スキャンが必要です）"
-                ),
+                "info": info_text,
                 "vulnerability": (
                     node.vulnerability
                     if revealed
@@ -327,6 +371,9 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
         models.GameLog.player_id == player.id
     ).order_by(models.GameLog.id).all()
 
+    collected_a = frag_a if len(ordered_key_ids) >= 1 and statuses.get(ordered_key_ids[0]) == "hacked" else None
+    collected_b = frag_b if len(ordered_key_ids) >= 2 and statuses.get(ordered_key_ids[1]) == "hacked" else None
+
     return {
         "gameId": str(player.id),
         "stageId": stage["id"],
@@ -335,6 +382,10 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
         "alertLevel": round(player.alert_level, 2),
         "analysisResource": player.analysis_resource,
         "privilege": player.current_privilege,
+        "keyFragments": {
+            "a": collected_a,
+            "b": collected_b,
+        },
         "evaluation": evaluate_mission_result(player) if player.game_status == "won" else None,
         "nodes": nodes,
         "edges": stage["edges"],
@@ -493,8 +544,10 @@ def _check_game_over(db: Session, player: models.PlayerStatus) -> None:
 
 def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.NodeMaster) -> None:
     """侵入成功時の資源補給・警戒度変化・鍵断片取得を適用する。"""
+    frag_a, frag_b = _ensure_player_fragments(player)
     stage = _player_stage(player)
     key_ids = stage["key_fragment_node_ids"]
+    ordered_key_ids = sorted(key_ids)
     effect = stage["node_effects"].get(node.id)
     if effect:
         # 同一ノードの補給は RESOURCE_REWARDS と二重加算しない。
@@ -509,6 +562,10 @@ def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.No
         if alert_delta:
             player.alert_level = _clamp_alert(player.alert_level + alert_delta)
         msg = effect.get("log")
+        if len(ordered_key_ids) >= 1 and node.id == ordered_key_ids[0]:
+            msg = f"【重要】{node.name}から「暗号鍵の断片A: {frag_a}」を入手しました。"
+        elif len(ordered_key_ids) >= 2 and node.id == ordered_key_ids[1]:
+            msg = f"【重要】{node.name}から「暗号鍵の断片B: {frag_b}」を入手しました。"
         if msg:
             add_log(db, player, "info", msg)
     else:
@@ -522,10 +579,21 @@ def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.No
         statuses = _node_statuses(db, player)
         statuses[node.id] = "hacked"
         if all(statuses.get(kid) == "hacked" for kid in key_ids):
-            add_log(db, player, "success", "すべての暗号鍵断片が揃いました！最終目標のデータ回収時に警戒度上昇を完全に抑えられます。")
+            add_log(
+                db,
+                player,
+                "success",
+                f"すべての暗号鍵断片が揃いました！断片A「{frag_a}」と断片B「{frag_b}」を繋げた暗号を最終目標の侵入時に入力すると、警戒度上昇を0に抑えられます。",
+            )
 
 
-def apply_action(db: Session, player: models.PlayerStatus, action_type: str, node_id: Optional[str]) -> None:
+def apply_action(
+    db: Session,
+    player: models.PlayerStatus,
+    action_type: str,
+    node_id: Optional[str],
+    passcode: Optional[str] = None,
+) -> None:
     """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
 
     if action_type == "pause":
@@ -595,15 +663,28 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
 
     stage = _player_stage(player)
     key_ids = stage["key_fragment_node_ids"]
+    target_ids = stage["target_node_ids"]
     cost = ACTION_COSTS[action_type]
-    # 鍵が揃っていればデータ回収の警戒度増加を打ち消す。
+    # 鍵が揃っていればデータ回収時、または最終目標への暗号付き侵入時の警戒度増加を打ち消す。
     alert_delta = cost["alert_delta"]
     has_all_keys = False
-    if action_type == "dataExtract" and key_ids:
+    silent_breach = False
+    if key_ids:
         statuses = _node_statuses(db, player)
         has_all_keys = all(statuses.get(kid) == "hacked" for kid in key_ids)
-        if has_all_keys:
-            alert_delta = 0.0
+
+    if action_type == "breach" and passcode is not None and passcode.strip() != "":
+        frag_a, frag_b = _ensure_player_fragments(player)
+        expected_cipher = _normalize_passcode(frag_a + frag_b)
+        submitted_cipher = _normalize_passcode(passcode)
+        is_target = (not target_ids and node.layer == "Core") or (node.id in target_ids)
+        if not is_target or not key_ids or not has_all_keys or submitted_cipher != expected_cipher:
+            raise ActionRejected("invalid_passcode")
+        silent_breach = True
+        alert_delta = 0.0
+
+    if action_type == "dataExtract" and key_ids and has_all_keys:
+        alert_delta = 0.0
 
     player.analysis_resource -= cost["resource"]
 
@@ -657,6 +738,13 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
                 player,
                 "success",
                 f"{node.name} への侵入に成功。権限が {player.current_privilege} に昇格しました。",
+            )
+        elif silent_breach:
+            add_log(
+                db,
+                player,
+                "success",
+                f"暗号キー認証に成功！{node.name} へ隠密侵入しました（警戒度上昇なし）。",
             )
         else:
             add_log(db, player, "success", f"{node.name} への侵入に成功しました。")

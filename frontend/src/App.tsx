@@ -24,6 +24,8 @@ const REJECT_MESSAGES: Record<ActionRejectReason, string> = {
   node_not_scanned: '先にスキャンが必要です。',
   node_unreachable:
     '隣接するノードを先に侵入済みにする必要があります。',
+  invalid_passcode:
+    '暗号キーが一致しません（断片A+Bが未入手か入力ミスです。空欄のまま侵入すると強行突破になります）。',
   invalid_state: '現在この操作は実行できません。',
 };
 
@@ -78,14 +80,14 @@ function App() {
   };
 
   // ノードに対するアクション
-  const handleAction = async (type: TimedActionType) => {
+  const handleAction = async (type: TimedActionType, passcode?: string) => {
     if (!selectedNode) return;
 
     const nodeId = selectedNode.id;
     setNotice(null);
 
     try {
-      const result = await sendAction({ type, nodeId });
+      const result = await sendAction({ type, nodeId, passcode });
 
       if (!result.accepted) {
         setNotice({
@@ -226,6 +228,7 @@ function App() {
           stageId={state.stageId ?? stageId}
           gameStatus={state.status}
           privilege={state.privilege}
+          keyFragments={state.keyFragments}
           node={selectedNode}
           nodes={state.nodes}
           edges={state.edges}

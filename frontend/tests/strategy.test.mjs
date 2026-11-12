@@ -37,8 +37,17 @@ const root = new URL('../../', import.meta.url);
 const candidates = ['backend/.venv/Scripts/python.exe', 'backend/.venv/bin/python', '.venv/bin/python'];
 const python = process.env.NULL_ROUTE_TEST_PYTHON ?? candidates.map((candidate) => fileURLToPath(new URL(candidate, root))).find(existsSync) ?? 'python';
 const actual = spawnSync(python, ['scripts/simulate_stage_routes.py'], { cwd: fileURLToPath(root), encoding: 'utf8' });
-assert.equal(actual.status, 0, actual.stderr);
-const backend = JSON.parse(actual.stdout);
+// Pythonやバックエンドのライブラリを入れていない手元の環境では、比較テストだけスキップする(他のテストは実行する)。
+// CI(CI=true)とPythonを明示した場合(NULL_ROUTE_TEST_PYTHON)は、スキップせず失敗させる。
+const pythonMissing = Boolean(actual.error) || actual.status === 9009
+  || /ModuleNotFoundError|No module named/.test(actual.stderr ?? '');
+const requirePython = process.env.CI === 'true' || process.env.NULL_ROUTE_TEST_PYTHON !== undefined;
+const backend = actual.status === 0 ? JSON.parse(actual.stdout) : null;
+const parityFailure = actual.error?.message ?? actual.stderr;
+const paritySkip = !backend && pythonMissing && !requirePython
+  ? 'Python環境が無いためスキップ(backend/requirements-dev.txt を入れると実行される。CIでは必ず実行)'
+  : false;
+if (paritySkip) console.warn(`[strategy.test] backend/Mock比較テストを${paritySkip}`);
 
 function summary(state) {
   return JSON.parse(JSON.stringify({
@@ -51,7 +60,9 @@ function summary(state) {
 }
 
 for (const scenario of scenarios) {
-  test(`backend/Mock parity: ${scenario.name}`, async () => {
+  test(`backend/Mock parity: ${scenario.name}`, { skip: paritySkip }, async () => {
+    assert.ok(backend, `scripts/simulate_stage_routes.py の実行に失敗しました:
+${parityFailure}`);
     const client = new MockGameClient('strategy-test', scenario.stageId ?? 1);
     const events = [];
     await client.connect((event) => events.push(event));

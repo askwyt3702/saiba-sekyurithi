@@ -69,16 +69,18 @@ S2-C03で99%から回収すると100%・lost・評価nullとなることも確�
 - テスト：`backend/tests/test_stage2.py`、`backend/tests/fixtures/stage_routes.json`、`frontend/tests/missionResult.test.mjs`、`frontend/tests/httpStageSaves.test.mjs`、`frontend/tests/gameConnection.test.mjs`、`frontend/tests/stage2Ui.test.mjs`
 - 文書：`docs/api-contract.md`、`docs/stage2-level-design.md`、この文書
 
-Mockのゲーム判定は既存のステージ別ルールを再利用。main.pyの作成API・DB同期も既存実装を再利用し変更不要。
+Mockのゲーム判定は既存のステージ別ルールを再利用。ステージ2専用のmain.py・DBスキーマ変更は不要。
+統合時にはチームの暗号鍵入力機能と、Python未導入時の比較テスト扱いの更新を保持した。この更新に伴うmain.py・models.py・型・Mock・鍵入力UIも統合済み。
+チームのDB更新はバックエンド再起動時に既存マイグレーションで適用される。ステージ2自体には鍵断片を設定していない。
 新しい拒否理由やGameStateレスポンス項目は追加していない。StageDefinitionの試作説明・開始文言・計画メタデータは生成側で型定義する。
 
 ## 検証
 
-- Python 3.12でpytest 188件成功。ステージ1/訓練の回帰と、独立作成・リセット・DB同期・ID衝突なし・設計書との接続一致を確認。
+- Python 3.12でpytest 189件成功（チーム更新統合後）。ステージ1/訓練の回帰と、独立作成・リセット・DB同期・ID衝突なし・設計書との接続一致を確認。
 - npm test 47件成功。ステージ別セーブ/旧キー移行/同時作成/古い応答の拒否/切り替えイベント/Mockへのフォールバック/カード選択を検証。
 - React Flowへ16ノード・21接続とS2-E01の入口情報が渡ることを検証。実ブラウザの画面操作を行うE2Eではない。
 - 共有27シナリオをBackend/Mockで一手ずつ比較。今回のステージ2は3ルート、入口制限、回収敗北、資源0回復、回収対象、未実装ゲートを含む。
-- typecheck・lint・buildを実行。lintは既存public/script.jsの未使用関数警告5件を除き問題なし。
+- typecheck・lint・build成功。lintはpublic/script.jsの未使用関数5件と、統合した鍵入力UIのset-state-in-effect 1件の警告がある（エラーなし）。
 - `backend/.venv/Scripts/python.exe scripts/gen_stage_data.py`で再生成。3ステージ・45ノード。`--check`で同期確認。
 - 依存追加なし。dockerのnode_modules更新は該当なし。バックエンド再起動でステージ2ノードをDBへ同期する。
 
