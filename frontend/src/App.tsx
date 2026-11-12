@@ -12,7 +12,7 @@ import { EventLog } from './components/EventLog/EventLog';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { MissionResult } from './components/MissionResult/MissionResult';
-import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE } from './game/data/stageData';
+import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -166,7 +166,7 @@ function App() {
     return (
       <MissionScreen
         onSelectMission={(id) => {
-          if (id === 0 || id === 1) {
+          if (id === 0 || id === 1 || id === 2) {
             setStageId(id);
             setSelectedNodeId(null);
             setNotice(null);
@@ -179,7 +179,7 @@ function App() {
   }
 
   // ゲームデータ読み込み中
-  if (!state) {
+  if (!state || (state.stageId ?? DEFAULT_STAGE_ID) !== stageId) {
     return <div className="app-loading">接続中...</div>;
   }
 
@@ -200,6 +200,9 @@ function App() {
           setScreen('mission');
         }}
       />
+      {getStageData(state.stageId ?? stageId).prototypeNotice && (
+        <div className="app-banner" role="note">{getStageData(state.stageId ?? stageId).prototypeNotice}</div>
+      )}
       {state.status === 'won' && (
         <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
       )}
@@ -212,6 +215,7 @@ function App() {
       )}
       <div className="app-body">
         <MapView
+          stageId={state.stageId ?? stageId}
           nodes={state.nodes}
           edges={state.edges}
           selectedNodeId={selectedNodeId}

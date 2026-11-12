@@ -154,7 +154,7 @@ function mountApp(gameState, reset) {
   const dependencies = {
     react,
     './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction: async () => ({ accepted: true }) }) },
-    './game/data/stageData': { MAX_ANALYSIS_RESOURCE: 30 },
+    './game/data/stageData': { MAX_ANALYSIS_RESOURCE: 30, DEFAULT_STAGE_ID: 1, getStageData: () => ({ prototypeNotice: '' }) },
     './components/MissionResult/MissionResult': { MissionResult },
   };
   for (const name of ['MapView', 'StatusBar', 'NodeDetailPanel', 'EventLog', 'TitleScreen', 'MissionScreen']) {
@@ -184,4 +184,16 @@ test('App reuses reset for retry and title, changing screen only after success',
   const failing = mountApp(state, async () => { throw new Error('offline'); });
   await assert.rejects(findElements(failing.render(), MissionResult)[0].props.onTitle, /offline/);
   assert.equal(failing.values[0], 'game');
+});
+
+test('selecting stage2 routes to its game and does not render a stale stage1 result', () => {
+  const app = mountApp({ ...state, stageId: 1 }, async () => {});
+  app.values[0] = 'mission';
+  const mission = app.render();
+  mission.props.onSelectMission(2);
+  assert.equal(app.values[0], 'game');
+  assert.equal(app.values[1], 2);
+  const loading = app.render();
+  assert.equal(loading.props.className, 'app-loading');
+  assert.equal(findElements(loading, MissionResult).length, 0);
 });

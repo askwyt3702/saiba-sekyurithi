@@ -12,6 +12,7 @@ import './NetworkNodeView.css';
 export interface NetworkNodeData {
   node: NetworkNode;
   selected: boolean;
+  isEntry?: boolean;
   [key: string]: unknown;
 }
 
@@ -26,11 +27,11 @@ const STATUS_LABELS: Record<string, string> = {
 export function NetworkNodeView({
   data,
 }: NodeProps<NetworkFlowNode>) {
-  const { node, selected } = data;
+  const { node, selected, isEntry } = data;
 
   const displayName =
     node.status === 'unscanned'
-      ? node.id === 'E01' ? 'E01 / 初期侵入口' : node.id === 'external-1' ? '訓練の入口' : '不明ノード'
+      ? isEntry ? `${node.id} / 初期侵入口` : '不明ノード'
       : node.name;
 
   const statusLabel =

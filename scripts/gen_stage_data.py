@@ -85,6 +85,9 @@ def format_stage_entry(stage_id: int, stage: dict) -> str:
         f"    id: {stage['id']},\n"
         f"    name: {ts_str(stage['name'])},\n"
         f"    difficulty: {ts_str(stage['difficulty'])},\n"
+        f"    startMessage: {ts_str(stage.get('start_message', ''))},\n"
+        f"    prototypeNotice: {ts_str(stage.get('prototype_notice', ''))},\n"
+        f"    plannedMechanics: {json.dumps(stage.get('planned_mechanics'), ensure_ascii=False)},\n"
         f"    nodes: {nodes_block},\n"
         f"    edges: {edges_block},\n"
         f"    vulnerabilities: {vuln_block},\n"
@@ -160,6 +163,13 @@ export interface StageDefinition {{
   id: number;
   name: string;
   difficulty: string;
+  startMessage: string;
+  prototypeNotice: string;
+  // 第2段階用の設定案。現在のゲーム判定には作用しない。
+  plannedMechanics: {{
+    conditionalBreachAlert: {{ disabledByNodeId: string; targetNodeIds: string[]; alertDelta: number }};
+    breachRequirements: Record<string, string[]>;
+  }} | null;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   vulnerabilities: Record<string, string>;

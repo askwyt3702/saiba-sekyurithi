@@ -70,9 +70,11 @@ def _player_stage(player: models.PlayerStatus) -> dict:
 
 
 def _start_message(stage: dict) -> str:
+    if stage.get("start_message"):
+        return stage["start_message"]
     if stage["id"] == 1:
         return "侵入作戦を開始しました。唯一の初期侵入口E01をスキャンして侵入してください。ターン制のため操作時だけ時間が進みます。"
-    return "基礎侵入訓練を開始しました。公開サーバーが入口です。本編の初期侵入口はE01のみです。"
+    return "基礎侵入訓練を開始しました。公開サーバーが入口です。ステージ1の初期侵入口はE01のみです。"
 
 
 def _neighbors(node_id: str, edges: list[dict]) -> set[str]:

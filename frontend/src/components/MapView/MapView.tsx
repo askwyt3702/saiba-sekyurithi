@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
+import { DEFAULT_STAGE_ID, getStageData } from '../../game/data/stageData';
 
 import type {
   ApiNetworkEdge,
@@ -35,6 +36,7 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
 ];
 
 interface MapViewProps {
+  stageId?: number;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   selectedNodeId: string | null;
@@ -42,11 +44,13 @@ interface MapViewProps {
 }
 
 function MapContent({
+  stageId = DEFAULT_STAGE_ID,
   nodes,
   edges,
   selectedNodeId,
   onSelectNode,
 }: MapViewProps) {
+  const stage = getStageData(stageId);
   const { setViewport } = useReactFlow();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +95,7 @@ function MapContent({
         data: {
           node,
           selected: node.id === selectedNodeId,
+          isEntry: stage.entryNodeIds.includes(node.id),
         },
         draggable: false,
         className:
@@ -99,7 +104,7 @@ function MapContent({
             ? 'map-node--reachable'
             : '',
       })),
-    [nodes, selectedNodeId, reachableNodeIds],
+    [nodes, selectedNodeId, reachableNodeIds, stage],
   );
 
   // 接続線
@@ -157,7 +162,7 @@ function MapContent({
     if (nodes.length === 0) return;
 
     const entryNode =
-      nodes.find((node) => node.id === 'E01') ??
+      nodes.find((node) => stage.entryNodeIds.includes(node.id)) ??
       nodes.find((node) => node.layer === 'External') ??
       nodes[0];
     const container = containerRef.current;
@@ -183,7 +188,7 @@ function MapContent({
     );
 
     initializedEntryId.current = entryNode.id;
-  }, [nodes, setViewport]);
+  }, [nodes, setViewport, stage]);
 
   return (
     <div className="map-view" ref={containerRef}>

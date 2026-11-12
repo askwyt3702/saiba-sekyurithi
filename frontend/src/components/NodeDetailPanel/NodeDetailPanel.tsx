@@ -35,17 +35,17 @@ export function NodeDetailPanel({
   notice,
   onAction,
 }: NodeDetailPanelProps) {
+  const stage = getStageData(stageId);
   if (!node) {
     return (
       <aside className="node-detail node-detail--empty">
-        {stageId === 1 ? 'E01が唯一の初期侵入口です。スキャンして侵入後、隣接ノードへ進んでください。' : '訓練の公開サーバーを選択してスキャンしてください。本編の初期侵入口はE01のみです。'}
+        {stage.entryNodeIds.join('・')}が初期侵入口です。スキャンして侵入後、隣接ノードへ進んでください。
       </aside>
     );
   }
 
   const isUnscanned = node.status === 'unscanned';
 
-  const stage = getStageData(stageId);
   const reachable = canReachNode(node.id, nodes, edges, stage);
   const playing = gameStatus === 'playing';
   const effect = stage.nodeEffects[node.id];

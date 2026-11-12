@@ -175,6 +175,7 @@ interface GameClient {
 ```
 
 - `HttpGameClient`（`frontend/src/game/client/httpGameClient.ts`）：REST(8節のAPI)でバックエンドと通信する本番用の実装。作成したゲームの `gameId` を `localStorage` に保存し、リロード後も同じゲームを続ける（保存済みのゲームが404なら新規作成）。
+- 保存キーは`nullroute.gameId.<stageId>`でステージ別。旧`nullroute.gameId`は実際のstageIdを確認して移行し、新しい保存先がある場合は上書きしない。ミッション選択で別ステージのゲームをリセットしない。選択したstageIdと異なる応答はロードしない。
 - `MockGameClient`：バックエンドに接続できないときに `useGameClient` が自動で切り替えるブラウザ内のダミー実装。ルールは `backend/game_logic.py` に合わせてあるので、ルールを変えたら両方を更新すること。
 
 ## 7. まだ決まっていないこと
@@ -256,9 +257,14 @@ pytest
 - **ステージ一覧取得**: `GET /api/stages` → `{ stages: [{ id, name, difficulty, nodeCount }] }`
   - `stageId = 0`: `TRAINING: 基礎侵入訓練`（チュートリアル5ノード）
   - `stageId = 1`: `OPERATION SILENT TRACE: 消えた機密データ`（本編24ノード・既定）
+  - `stageId = 2`: `偽装された通信記録（第1段階試作）`（16ノード・21接続、入口S2-E01、目標S2-C03）
+    - 初期資源25・上限30・共通コスト。静的な補給・警戒度低減は有効。
+    - 条件付き監視と解除条件付きゲートは未実装。追加警戒度やロックは発生しない。生成データの`prototypeNotice`と説明で明示する。
+    - `plannedMechanics`は第2段階用のメタデータだけであり、現在のAPI判定には作用しない。監視加算+12は維持する。
 - **ステージ指定作成 / 切り替え**:
   - `POST /api/games` に `{"stageId": 0}` などを渡すと指定ステージで作成（ボディ省略時は `stageId = 1`）。
   - `POST /api/games/{gameId}/reset` に `{"stageId": 0}` などを渡すと指定ステージに切り替えてリセット。
+  - この明示的なreset APIは同じgameIdの内容を置き換える。通常のミッション選択ではこれを別ステージへ呼ばず、ステージごとに新規作成/再開し、他の進行を保持する。
   - `GameState` に `stageId: number` を追加。
 - **クリア時の作戦評価（`GameState.evaluation`）**:
   - クリア（`status === "won"`）時、`evaluation: { rank: "S" | "A" | "B" | "C" | "D", score: number, title: string }` が返り、イベントログ・Mock・リザルトにも同じ評価を使う（未クリア時は `null`）。

@@ -26,7 +26,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           <div className="mission-card" onClick={() => onSelectMission(0)}>
             <div className="mission-number">チュートリアル / TRAINING</div>
             <h2>基礎侵入訓練</h2>
-            <p>5ノードの小規模ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。本編の初期侵入口はE01のみ。</p>
+            <p>5ノードの小規模ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。ステージ1の初期侵入口はE01のみ。</p>
             <div className="mission-bottom">
               <span>訓練 (5ノード)</span>
               <span>選択可能 →</span>
@@ -43,15 +43,15 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
             </div>
           </div>
 
-          <div className="mission-card locked">
+          <button type="button" className="mission-card" onClick={() => onSelectMission(2)}>
             <div className="mission-number">ミッション 02</div>
             <h2>偽装された通信記録</h2>
-            <p>通信ログに隠された異常を発見せよ。</p>
+            <p>S2-E01から侵入し、S2-C03で原本通信証跡を回収せよ。第1段階試作：条件付き監視・ゲート解除条件は未実装。</p>
             <div className="mission-bottom">
-              <span>中級</span>
-              <span>未解放</span>
+              <span>中級〜上級向け・基礎試作 (16ノード)</span>
+              <span>試作を開始 →</span>
             </div>
-          </div>
+          </button>
 
           <div className="mission-card locked">
             <div className="mission-number">ミッション 03</div>

@@ -455,6 +455,8 @@ TUTORIAL_EDGES = [
     {"id": "e5", "source": "internal-1", "target": "core-1", "animated": True},
 ]
 
+from stage2_data import STAGE2
+
 DEFAULT_STAGE_ID = 1
 
 STAGES = {
@@ -482,6 +484,7 @@ STAGES = {
         "key_fragment_node_ids": KEY_FRAGMENT_NODE_IDS,
         "node_effects": NODE_EFFECTS,
     },
+    2: STAGE2,
 }
 
 # 全ステージの全ノード（DBの node_master 同期用）

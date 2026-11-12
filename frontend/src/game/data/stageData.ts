@@ -154,7 +154,7 @@ export const STAGE_VULNERABILITIES: Record<string, string> = {
 
 // データ回収でクリアになるノード。空のときはCore層のすべてのノードが対象。
 export const TARGET_NODE_IDS: string[] = ['C03'];
-export const ALL_TARGET_NODE_IDS: string[] = ['C03', 'core-1'];
+export const ALL_TARGET_NODE_IDS: string[] = ['C03', 'S2-C03', 'core-1'];
 
 // すべて侵入済みにしてから最終目標でデータ回収すると、回収時の警戒度上昇が0になる。
 export const KEY_FRAGMENT_NODE_IDS: string[] = ['I06', 'I07'];
@@ -182,6 +182,13 @@ export interface StageDefinition {
   id: number;
   name: string;
   difficulty: string;
+  startMessage: string;
+  prototypeNotice: string;
+  // 第2段階用の設定案。現在のゲーム判定には作用しない。
+  plannedMechanics: {
+    conditionalBreachAlert: { disabledByNodeId: string; targetNodeIds: string[]; alertDelta: number };
+    breachRequirements: Record<string, string[]>;
+  } | null;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   vulnerabilities: Record<string, string>;
@@ -197,6 +204,9 @@ export const STAGES: Record<number, StageDefinition> = {
     id: 0,
     name: 'TRAINING: 基礎侵入訓練',
     difficulty: 'tutorial',
+    startMessage: '',
+    prototypeNotice: '',
+    plannedMechanics: null,
     nodes: [
       { id: 'external-1', layer: 'External', name: 'External (公開サーバー)', position: { x: 600, y: 100 }, status: 'unscanned', info: '最初の侵入口。SSHポート(22)が開いている。', vulnerability: null },
       { id: 'dmz-1', layer: 'DMZ', name: 'DMZ (Webサーバー)', position: { x: 380, y: 340 }, status: 'unscanned', info: '古いバージョンのApacheが稼働中。', vulnerability: null },
@@ -228,6 +238,9 @@ export const STAGES: Record<number, StageDefinition> = {
     id: 1,
     name: 'OPERATION SILENT TRACE: 消えた機密データ',
     difficulty: 'beginner',
+    startMessage: '',
+    prototypeNotice: '',
+    plannedMechanics: null,
     nodes: [
       { id: 'E01', layer: 'External', name: '公開ゲートウェイ', position: { x: 600, y: 100 }, status: 'unscanned', info: 'ステージ1の唯一の初期侵入口。E01をスキャンして侵入すると、他のノードを探索できる。', vulnerability: null },
       { id: 'E02', layer: 'External', name: 'DNS情報サーバー', position: { x: 300, y: 330 }, status: 'unscanned', info: '内部の接続先に関する手がかりが残っている。', vulnerability: null },
@@ -334,6 +347,84 @@ export const STAGES: Record<number, StageDefinition> = {
       'I07': { resourceBonus: 0, alertDelta: 0, log: '【重要】管理端末から「暗号鍵の断片B」を入手しました。' },
       'I09': { resourceBonus: 3, alertDelta: -10, log: 'セキュリティ管理サーバーを掌握。Core領域の防衛設定を弱体化させました（資源 +3 / 警戒度 -10%）。' },
       'C04': { resourceBonus: 0, alertDelta: -15, log: '緊急防衛システムを無効化！ARGUSの緊急遮断プロトコルを停止しました（警戒度 -15%）。' },
+    },
+  },
+  2: {
+    id: 2,
+    name: '偽装された通信記録（第1段階試作）',
+    difficulty: 'intermediate-advanced',
+    startMessage: 'ステージ2の試作を開始。S2-E01から侵入し、S2-C03で原本通信証跡を回収してください。条件付き監視・解除条件付きゲートは未実装です。',
+    prototypeNotice: '第1段階試作：条件付き監視・解除条件付きゲートは未実装です。現在は追加警戒度・前提ロックなし。設計上の中〜上級難度は第2段階で検証します。',
+    plannedMechanics: {"conditionalBreachAlert": {"disabledByNodeId": "S2-I07", "targetNodeIds": ["S2-I01", "S2-C01", "S2-C03"], "alertDelta": 12}, "breachRequirements": {"S2-C02": ["S2-I04"], "S2-C04": ["S2-I07"]}},
+    nodes: [
+      { id: 'S2-E01', layer: 'External', name: '調査用中継点', position: { x: 600, y: 100 }, status: 'unscanned', info: '唯一の初期侵入口。スキャンして侵入後、接続先を調査する。目標はS2-C03。', vulnerability: null },
+      { id: 'S2-D01', layer: 'DMZ', name: '公開通信リレー', position: { x: 250, y: 450 }, status: 'unscanned', info: '高速側への入口。第1段階では条件付き監視は未実装。', vulnerability: null },
+      { id: 'S2-D02', layer: 'DMZ', name: '認証窓口', position: { x: 1000, y: 450 }, status: 'unscanned', info: '管理プロキシ経由で補給・制御側へ進める。', vulnerability: null },
+      { id: 'S2-D03', layer: 'DMZ', name: 'トラフィック集約装置', position: { x: 250, y: 800 }, status: 'unscanned', info: '通信交換ハブへの接続点。監視の追加警戒度は第2段階で実装予定で、現在は加算されない。', vulnerability: null },
+      { id: 'S2-D04', layer: 'DMZ', name: '管理プロキシ', position: { x: 1000, y: 800 }, status: 'unscanned', info: '証明書管理サーバーと監査ログ中継への分岐。', vulnerability: null },
+      { id: 'S2-I01', layer: 'Internal', name: '通信交換ハブ', position: { x: 350, y: 1200 }, status: 'unscanned', info: '途中で攻略方針を変更できる接続点。条件付き監視は未実装。', vulnerability: null },
+      { id: 'S2-I02', layer: 'Internal', name: '内部ルーター', position: { x: 350, y: 1900 }, status: 'unscanned', info: '直接転送・迂回ゲートと補給拠点へ接続する。', vulnerability: null },
+      { id: 'S2-I03', layer: 'Internal', name: '予備解析基盤', position: { x: 1050, y: 2200 }, status: 'unscanned', info: '初回侵入で解析資源+7（上限30）。', vulnerability: null },
+      { id: 'S2-I04', layer: 'Internal', name: '証明書管理サーバー', position: { x: 1100, y: 1200 }, status: 'unscanned', info: '証跡バックアップへの接続点。証明書によるゲート解除は第2段階で実装予定で、現在は不要。', vulnerability: null },
+      { id: 'S2-I05', layer: 'Internal', name: '監査ログ中継', position: { x: 700, y: 1400 }, status: 'unscanned', info: '初回侵入で警戒度-8%。', vulnerability: null },
+      { id: 'S2-I06', layer: 'Internal', name: '証跡バックアップ', position: { x: 1250, y: 1750 }, status: 'unscanned', info: '初回侵入で解析資源+5（上限30）。', vulnerability: null },
+      { id: 'S2-I07', layer: 'Internal', name: '監視制御端末', position: { x: 700, y: 1750 }, status: 'unscanned', info: '初回侵入で警戒度-15%、解析資源+5。条件付き監視の無効化・ゲート解除は未実装。', vulnerability: null },
+      { id: 'S2-C01', layer: 'Core', name: '直接転送ゲート', position: { x: 150, y: 2600 }, status: 'unscanned', info: '原本通信証跡DBへの直接接続。第1段階では追加監視なし。', vulnerability: null },
+      { id: 'S2-C02', layer: 'Core', name: '証明書認証ゲート', position: { x: 1150, y: 2700 }, status: 'unscanned', info: '原本通信証跡DBへの接続。第1段階では証明書の前提条件なし。', vulnerability: null },
+      { id: 'S2-C03', layer: 'Core', name: '原本通信証跡DB', position: { x: 650, y: 3200 }, status: 'unscanned', info: 'ステージ2の最終目標。侵入後のデータ回収で勝利。回収時も警戒度100%で敗北。', vulnerability: null },
+      { id: 'S2-C04', layer: 'Core', name: '監視迂回ゲート', position: { x: 650, y: 2650 }, status: 'unscanned', info: '初回侵入で警戒度-10%。第1段階では監視制御端末による解除条件なし。', vulnerability: null },
+    ],
+    edges: [
+      { id: 'S2-e1', source: 'S2-E01', target: 'S2-D01' },
+      { id: 'S2-e2', source: 'S2-E01', target: 'S2-D02' },
+      { id: 'S2-e3', source: 'S2-D01', target: 'S2-D03' },
+      { id: 'S2-e4', source: 'S2-D03', target: 'S2-I01' },
+      { id: 'S2-e5', source: 'S2-I01', target: 'S2-I02' },
+      { id: 'S2-e6', source: 'S2-I02', target: 'S2-C01' },
+      { id: 'S2-e7', source: 'S2-C01', target: 'S2-C03' },
+      { id: 'S2-e8', source: 'S2-D02', target: 'S2-D04' },
+      { id: 'S2-e9', source: 'S2-D04', target: 'S2-I04' },
+      { id: 'S2-e10', source: 'S2-D04', target: 'S2-I05' },
+      { id: 'S2-e11', source: 'S2-I05', target: 'S2-I07' },
+      { id: 'S2-e12', source: 'S2-I07', target: 'S2-I02' },
+      { id: 'S2-e13', source: 'S2-I02', target: 'S2-C04' },
+      { id: 'S2-e14', source: 'S2-C04', target: 'S2-C03' },
+      { id: 'S2-e15', source: 'S2-I04', target: 'S2-I06' },
+      { id: 'S2-e16', source: 'S2-I06', target: 'S2-I03' },
+      { id: 'S2-e17', source: 'S2-I03', target: 'S2-C02' },
+      { id: 'S2-e18', source: 'S2-C02', target: 'S2-C03' },
+      { id: 'S2-e19', source: 'S2-I04', target: 'S2-I01' },
+      { id: 'S2-e20', source: 'S2-I01', target: 'S2-I05' },
+      { id: 'S2-e21', source: 'S2-I02', target: 'S2-I03' },
+    ],
+    vulnerabilities: {
+      'S2-E01': '調査用アカウントの弱い認証',
+      'S2-D01': '中継サービスの設定不備',
+      'S2-D02': '認証窓口のアクセス制御不備',
+      'S2-D03': '集約サービスの権限設定不備',
+      'S2-D04': '管理プロキシの認証不備',
+      'S2-I01': '交換ハブの管理権限不備',
+      'S2-I02': '内部ルーティング設定の不備',
+      'S2-I03': '解析基盤のアクセス制御不備',
+      'S2-I04': '証明書管理APIの保護不足',
+      'S2-I05': '監査ログ管理の権限不備',
+      'S2-I06': 'バックアップ領域の設定不備',
+      'S2-I07': '制御端末の認証不備',
+      'S2-C01': '転送ゲートの権限設定不備',
+      'S2-C02': '認証ゲートの設定不備',
+      'S2-C03': '証跡DBの権限設定不備',
+      'S2-C04': '迂回ゲートの管理設定不備',
+    },
+    entryLayers: ['External'],
+    entryNodeIds: ['S2-E01'],
+    targetNodeIds: ['S2-C03'],
+    keyFragmentNodeIds: [],
+    nodeEffects: {
+      'S2-I03': { resourceBonus: 7, alertDelta: 0, log: '予備解析基盤から資源を最大7補給（上限30）。' },
+      'S2-I06': { resourceBonus: 5, alertDelta: 0, log: '証跡バックアップから資源を最大5補給（上限30）。' },
+      'S2-I05': { resourceBonus: 0, alertDelta: -8, log: '監査ログの痕跡を削減。警戒度-8%。' },
+      'S2-I07': { resourceBonus: 5, alertDelta: -15, log: '解析ツールを最大5回収し、痕跡を削減（警戒度-15%）。監視無効化・ゲート解除は未実装。' },
+      'S2-C04': { resourceBonus: 0, alertDelta: -10, log: '迂回ゲートの痕跡を削減。警戒度-10%。' },
     },
   },
 };

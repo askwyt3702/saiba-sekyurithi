@@ -19,9 +19,9 @@ export function createMockGameState(gameId: string, stageId: number = DEFAULT_ST
       {
         id: 'init-log',
         timestamp: 0,
-        message: stage.id === 1
+        message: stage.startMessage || (stage.id === 1
           ? '唯一の初期侵入口E01をスキャンして侵入してください。操作時だけ時間が進みます。'
-          : '訓練は公開サーバーから開始します。本編の初期侵入口はE01のみです。',
+          : '訓練は公開サーバーから開始します。ステージ1の初期侵入口はE01のみです。'),
         severity: 'info',
       },
     ],

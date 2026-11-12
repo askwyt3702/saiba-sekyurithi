@@ -39,17 +39,22 @@ function toGameState(raw: ApiGameState): GameState {
 // リロードしても同じゲームを続けられるよう、作成したゲームのIDを保存しておく。
 const GAME_ID_STORAGE_KEY = 'nullroute.gameId';
 
-function readStoredGameId(): string | null {
+function stageStorageKey(stageId: number): string {
+  return `${GAME_ID_STORAGE_KEY}.${stageId}`;
+}
+
+function readStoredGameId(stageId: number): string | null {
   try {
-    return localStorage.getItem(GAME_ID_STORAGE_KEY);
+    return localStorage.getItem(stageStorageKey(stageId)) ?? localStorage.getItem(GAME_ID_STORAGE_KEY);
   } catch {
     return null;
   }
 }
 
-function storeGameId(gameId: string): void {
+function storeGameId(gameId: string, stageId: number, onlyIfEmpty = false): void {
   try {
-    localStorage.setItem(GAME_ID_STORAGE_KEY, gameId);
+    const key = stageStorageKey(stageId);
+    if (!onlyIfEmpty || localStorage.getItem(key) === null) localStorage.setItem(key, gameId);
   } catch {
     // 保存できない環境(プライベートモード等)では、リロード時に新しいゲームになるだけ
   }
@@ -57,9 +62,11 @@ function storeGameId(gameId: string): void {
 
 // 開発時はReactのStrictModeでeffectが2回走り、ゲーム作成リクエストが同時に2回飛ぶ。
 // 進行中の作成リクエストを共有して、ゲームが2つ作られないようにする。
-let pendingCreate: Promise<ApiGameState> | null = null;
+const pendingCreates = new Map<string, Promise<ApiGameState>>();
 
 function createGameOnce(apiBase: string, stageId: number): Promise<ApiGameState> {
+  const key = `${apiBase}:${stageId}`;
+  let pendingCreate = pendingCreates.get(key);
   if (!pendingCreate) {
     pendingCreate = fetch(`${apiBase}/api/games`, {
       method: 'POST',
@@ -71,8 +78,9 @@ function createGameOnce(apiBase: string, stageId: number): Promise<ApiGameState>
         return (await res.json()) as ApiGameState;
       })
       .finally(() => {
-        pendingCreate = null;
+        pendingCreates.delete(key);
       });
+    pendingCreates.set(key, pendingCreate);
   }
   return pendingCreate;
 }
@@ -129,6 +137,7 @@ export class HttpGameClient implements GameClient {
     });
     if (!res.ok) throw new Error(`Failed to reset game: ${res.status}`);
     const raw = (await res.json()) as ApiGameState;
+    if (raw.stageId !== this.stageId) throw new Error('リセット先のステージが一致しません。');
     this.onEvent?.({ type: 'state_snapshot', state: toGameState(raw) });
   }
 
@@ -137,29 +146,24 @@ export class HttpGameClient implements GameClient {
   }
 
   private async ensureGame(): Promise<GameState> {
-    const storedId = readStoredGameId();
+    const storedId = readStoredGameId(this.stageId);
     if (storedId) {
       const res = await fetch(`${this.apiBase}/api/games/${storedId}`);
       if (res.ok) {
         const raw = (await res.json()) as ApiGameState;
-        // 別のステージ（例: 本編 → チュートリアル）が選択された場合はステージを切り替えてリセットする
-        if (raw.stageId !== undefined && raw.stageId !== this.stageId) {
-          const resetRes = await fetch(`${this.apiBase}/api/games/${storedId}/reset`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stageId: this.stageId }),
-          });
-          if (resetRes.ok) {
-            return toGameState((await resetRes.json()) as ApiGameState);
-          }
+        if (raw.stageId === this.stageId) {
+          storeGameId(raw.gameId, this.stageId);
+          return toGameState(raw);
         }
-        return toGameState(raw);
+        // 旧共有キーが別ミッションを指していても、その進行をリセットしない。
+        if (raw.stageId !== undefined) storeGameId(raw.gameId, raw.stageId, true);
       }
       // 404 はDBが作り直された等で保存済みのゲームが無いだけなので、新規作成に進む
-      if (res.status !== 404) throw new Error(`Failed to load game: ${res.status}`);
+      if (!res.ok && res.status !== 404) throw new Error(`Failed to load game: ${res.status}`);
     }
     const raw = await createGameOnce(this.apiBase, this.stageId);
-    storeGameId(raw.gameId);
+    if (raw.stageId !== this.stageId) throw new Error('指定ステージを開始できません。バックエンドの更新を確認してください。');
+    storeGameId(raw.gameId, this.stageId);
     return toGameState(raw);
   }
 }
