@@ -39,6 +39,10 @@ def migrate_db():
         if "stage_id" not in columns:
             conn.execute(text("ALTER TABLE player_status ADD COLUMN stage_id INTEGER DEFAULT 1"))
             conn.execute(text("UPDATE player_status SET stage_id = 1 WHERE stage_id IS NULL"))
+        if "key_fragment_a" not in columns:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_a VARCHAR"))
+        if "key_fragment_b" not in columns:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_b VARCHAR"))
         if "last_accessed_at" not in columns:
             conn.execute(text("ALTER TABLE player_status ADD COLUMN last_accessed_at TIMESTAMP"))
         # 既存のゲームには「今触った」扱いで猶予期間を与える（いきなり全部消えないように）
@@ -62,6 +66,8 @@ def init_db():
         # テスト用プレイヤーデータの初期化（/api/network・/api/scan が使う既定のゲーム）
         if db.query(models.PlayerStatus).count() == 0:
             game_logic.create_game(db)
+        else:
+            game_logic.ensure_key_fragments(db)
 
         # 長期間使われていないゲームを掃除する
         removed = game_logic.cleanup_stale_games(db)
@@ -107,6 +113,7 @@ class ActionRequest(BaseModel):
         "resume",
     ]
     nodeId: Optional[str] = None
+    passcode: Optional[str] = None
 
 
 
@@ -163,7 +170,7 @@ def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_d
 
     player = _get_game_or_404(db, game_id)
     try:
-        game_logic.apply_action(db, player, action.type, action.nodeId)
+        game_logic.apply_action(db, player, action.type, action.nodeId, passcode=action.passcode)
     except game_logic.ActionRejected as e:
         db.rollback()
         return {"accepted": False, "reason": e.reason, "state": game_logic.build_game_state(db, player)}

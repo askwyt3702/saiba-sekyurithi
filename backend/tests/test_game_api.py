@@ -366,6 +366,39 @@ def test_collecting_key_fragments_enables_stealth_data_extract(game, act, set_pl
     assert any("暗号鍵を使用" in entry["message"] for entry in final_state["log"])
 
 
+def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passcode(game, act, set_player):
+    set_player(game, analysis_resource=1000)
+    # 最初は断片A・Bとも未入手なので None
+    initial = act(game, "scan", "E01")["state"]
+    assert initial["keyFragments"] == {"a": None, "b": None}
+
+    # I06(断片A)とI07(断片B)を回収しつつ C04 まで進める
+    act(game, "breach", "E01")
+    for nid in ("D02", "D05", "I06", "I07", "I09", "C04"):
+        assert act(game, "scan", nid)["accepted"] is True
+        state = act(game, "breach", nid)["state"]
+
+    frag_a = state["keyFragments"]["a"]
+    frag_b = state["keyFragments"]["b"]
+    assert isinstance(frag_a, str) and len(frag_a) == 4
+    assert isinstance(frag_b, str) and len(frag_b) == 4
+
+    # C03 をスキャン後、誤った暗号を入力すると invalid_passcode で却下され、資源や警戒度は消費されない
+    assert act(game, "scan", "C03")["accepted"] is True
+    set_player(game, alert_level=40.0, analysis_resource=10)
+    wrong = act(game, "breach", "C03", passcode="WRONGCODE")
+    assert wrong["accepted"] is False
+    assert wrong["reason"] == "invalid_passcode"
+    assert wrong["state"]["analysisResource"] == 10
+    assert wrong["state"]["alertLevel"] == 40.0
+
+    # 正しい暗号 (断片A + 断片B) を入力して侵入すると、breach の警戒度上昇(+5)が 0 になる
+    correct = act(game, "breach", "C03", passcode=f"{frag_a}{frag_b}")
+    assert correct["accepted"] is True
+    assert correct["state"]["alertLevel"] <= 40.0
+    assert any("暗号キー認証に成功" in entry["message"] for entry in correct["state"]["log"])
+
+
 # ---------- クリア時のスコア・ランク判定 & 複数ステージ ----------
 
 def test_winning_game_includes_evaluation_and_rank_log(game, act, set_player):

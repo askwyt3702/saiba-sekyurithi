@@ -90,10 +90,16 @@ export interface LogEntry {
   severity: LogSeverity;
 }
 
+export interface KeyFragments {
+  a: string | null;
+  b: string | null;
+}
+
 export interface GameState {
   gameId: string;
   stageId?: number;
   evaluation?: MissionEvaluation | null;
+  keyFragments?: KeyFragments;
   status: GameStatus;
   elapsedSeconds: number;    // backend DBでは player_status.game_time
   alertLevel: number;        // backend DBでは player_status.alert_level
@@ -126,6 +132,7 @@ export type ActionType =
 export interface ActionRequest {
   type: ActionType;
   nodeId?: string;
+  passcode?: string;
 }
 
 export type ActionRejectReason =
@@ -133,6 +140,7 @@ export type ActionRejectReason =
   | 'insufficient_privilege'
   | 'node_not_scanned'
   | 'node_unreachable'
+  | 'invalid_passcode'
   | 'invalid_state';
 
 export interface ActionResult {

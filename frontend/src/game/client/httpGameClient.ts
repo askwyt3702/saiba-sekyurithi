@@ -8,6 +8,7 @@ import {
   type GameClient,
   type GameState,
   type GameStatus,
+  type KeyFragments,
   type LogEntry,
   type MissionEvaluation,
   type ServerEvent,
@@ -19,6 +20,7 @@ interface ApiGameState {
   gameId: string;
   stageId?: number;
   evaluation: MissionEvaluation | null;
+  keyFragments?: KeyFragments;
   status: GameStatus;
   elapsedSeconds: number;
   alertLevel: number;

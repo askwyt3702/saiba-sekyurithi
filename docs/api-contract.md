@@ -66,11 +66,16 @@ interface LogEntry {
 
 interface GameState {
   gameId: string;
+  stageId?: number;
   status: GameStatus;
   elapsedSeconds: number;    // DBでは player_status.game_time
   alertLevel: number;        // DBでは player_status.alert_level (0-100)
   analysisResource: number;  // DBでは player_status.analysis_resource
   privilege: string;         // DBでは player_status.current_privilege。値の一覧は未定義（確認できるのは "GUEST" のみ）
+  keyFragments?: {           // 入手済みの暗号鍵の断片（未入手は null）
+    a: string | null;
+    b: string | null;
+  };
   nodes: ApiNetworkNode[]    // 2.1 と同じ形
   edges: ApiNetworkEdge[];
   log: LogEntry[];
@@ -110,7 +115,8 @@ type ActionType = 'scan' | 'breach' | 'dataExtract' | 'pause' | 'resume';
 
 interface ActionRequest {
   type: ActionType;
-  nodeId?: string; // pause / resume では不要
+  nodeId?: string;   // pause / resume / recover では不要
+  passcode?: string; // 最終目標ノード侵入時の暗号キー入力（任意）
 }
 ```
 
@@ -123,7 +129,7 @@ interface ActionResult {
 }
 ```
 
-却下理由の例：`insufficient_resource` / `insufficient_privilege` / `node_not_scanned` / `invalid_state`
+却下理由の例：`insufficient_resource` / `insufficient_privilege` / `node_not_scanned` / `node_unreachable` / `invalid_passcode` / `invalid_state`
 
 ## 4. サーバー → クライアント push（WebSocket）※未実装・v0.4でターン制に決定したため当面使わない想定
 
