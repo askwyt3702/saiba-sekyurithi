@@ -1,182 +1,262 @@
-/* タイトル画面 */
-.title-screen {
-    width: 100%;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    background:
-        radial-gradient(ellipse at center, #151515 0%, #080808 55%, #000000 100%);
-    overflow: hidden;
+/* =============================================
+   NULL ROUTE — タイトル画面（軽量版）
+   ============================================= */
+
+.ts-root {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: #010a06;
+  font-family: ui-monospace, 'Courier New', Consolas, monospace;
 }
 
-/* タイトル全体 */
-.title-content {
-    text-align: center;
-    width: 90%;
-    max-width: 900px;
-    animation: ts-fadeIn 1.5s ease;
+/* ---- 背景レイヤー ---- */
+
+.ts-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.45;
 }
 
-/* 上部ラベル */
-.title-game-label {
-    color: #777777;
-    font-size: 12px;
-    letter-spacing: 6px;
-    margin-bottom: 30px;
-    font-family: ui-monospace, Consolas, monospace;
+.ts-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 100% 50% at 50% 110%, rgba(0,70,35,0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 70% at -5%  50%,  rgba(0,15,60,0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 70% at 105% 50%,  rgba(0,30,15,0.30) 0%, transparent 55%),
+    linear-gradient(180deg, #000d05 0%, #000a08 100%);
+  pointer-events: none;
 }
 
-/* ゲームタイトル */
-.title-game-title {
-    font-size: clamp(48px, 8vw, 100px);
-    font-weight: 300;
-    letter-spacing: 12px;
-    color: #ffffff;
-    margin: 0;
-    font-family: ui-monospace, Consolas, monospace;
+/* スキャンライン（軽量：アニメなし） */
+.ts-scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,0.06) 3px,
+    rgba(0,0,0,0.06) 4px
+  );
+  pointer-events: none;
 }
 
-.title-game-title span {
-    color: #999999;
+/* ---- サイドレイアウト ---- */
+
+.ts-side {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-/* タイトル下の線 */
-.title-line {
-    width: 70%;
-    height: 1px;
-    margin: 25px auto;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        #ffffff,
-        transparent
-    );
+.ts-side-left  { left: 16px;  }
+.ts-side-right { right: 16px; }
+
+/* ---- ターミナルパネル ---- */
+
+.ts-term {
+  background: rgba(0, 8, 4, 0.88);
+  border: 1px solid rgba(0, 200, 80, 0.22);
+  border-radius: 4px;
+  overflow: hidden;
+  /* box-shadowをシンプルに */
+  box-shadow: 0 0 12px rgba(0,180,70,0.08);
 }
 
-/* サブタイトル */
-.title-game-subtitle {
-    color: #888888;
-    font-size: 13px;
-    letter-spacing: 9px;
-    margin-bottom: 65px;
-    font-family: ui-monospace, Consolas, monospace;
+.ts-thead {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: rgba(0, 15, 8, 0.95);
+  border-bottom: 1px solid rgba(0, 200, 80, 0.18);
 }
 
-/* メニュー */
-.title-menu {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 25px;
+.ts-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.ts-dot.r { background: #ff5f57; }
+.ts-dot.y { background: #febc2e; }
+.ts-dot.g { background: #28c840; }
+
+.ts-ttitle {
+  font-size: 10px;
+  color: #00bb48;
+  margin-left: 5px;
+  letter-spacing: 1px;
 }
 
-/* STARTボタン */
-.title-start-button {
-    width: 340px;
-    max-width: 90%;
-    padding: 20px;
-    background: transparent;
-    border: 1px solid #aaaaaa;
-    color: white;
-    font-size: 16px;
-    letter-spacing: 6px;
-    cursor: pointer;
-    transition: 0.3s;
-    position: relative;
-    font-family: ui-monospace, Consolas, monospace;
+.ts-tbody {
+  padding: 6px 10px;
+  height: 220px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #00cc50;
 }
 
-.title-start-button span {
-    margin-left: 15px;
-    font-size: 12px;
+.ts-tline {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.title-start-button:hover {
-    background: #ffffff;
-    color: #000000;
-    box-shadow: 0 0 25px #ffffff33;
+/* ---- 中央コンテンツ ---- */
+
+.ts-center {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 左右のターミナル幅を考慮してマージン確保 */
+  padding: 0 310px;
 }
 
-/* SETTINGボタン */
-.title-setting-button {
-    background: transparent;
-    border: none;
-    color: #777777;
-    font-size: 13px;
-    letter-spacing: 6px;
-    padding: 12px 25px;
-    cursor: pointer;
-    transition: 0.3s;
-    font-family: ui-monospace, Consolas, monospace;
+/* ボタン・タイトルを包む半透明パネル（背景と明確に分離） */
+.ts-panel {
+  width: 100%;
+  max-width: 520px;
+  background: rgba(0, 5, 2, 0.80);
+  border: 1px solid rgba(0, 255, 100, 0.18);
+  border-radius: 6px;
+  padding: 40px 48px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+  /* 枠の光彩 */
+  box-shadow:
+    0 0 30px rgba(0, 0, 0, 0.8),
+    0 0 1px rgba(0, 255, 100, 0.3) inset;
+  animation: ts-fadein 1.2s ease both;
 }
 
-.title-setting-button:hover {
-    color: white;
-    letter-spacing: 9px;
+.ts-label {
+  font-size: 10px;
+  letter-spacing: 6px;
+  color: rgba(0, 255, 100, 0.45);
+  margin: 0 0 18px;
 }
 
-/* バージョン表記 */
-.title-version {
-    position: absolute;
-    bottom: 25px;
-    left: 0;
-    width: 100%;
-    color: #444444;
-    font-size: 10px;
-    letter-spacing: 3px;
-    font-family: ui-monospace, Consolas, monospace;
-    text-align: center;
+.ts-title {
+  margin: 0 0 4px;
+  font-size: clamp(40px, 6vw, 80px);
+  font-weight: 300;
+  letter-spacing: 10px;
+  line-height: 1;
 }
 
-/* 角の装飾 */
-.title-corner-decoration {
-    position: absolute;
-    width: 180px;
-    height: 180px;
-    opacity: 0.12;
-    pointer-events: none;
+.ts-t-null {
+  color: #e8e8e8;
+  text-shadow: 0 0 18px rgba(255,255,255,0.4);
 }
 
-.title-corner-decoration.top-left {
-    top: 0;
-    left: 0;
-    border-top: 2px solid white;
-    border-left: 2px solid white;
+.ts-t-route {
+  color: #00ff64;
+  text-shadow:
+    0 0 16px rgba(0,255,100,0.7),
+    0 0 40px rgba(0,255,100,0.3);
 }
 
-.title-corner-decoration.bottom-right {
-    bottom: 0;
-    right: 0;
-    border-bottom: 2px solid white;
-    border-right: 2px solid white;
+.ts-divider {
+  width: 70%;
+  height: 1px;
+  margin: 18px auto;
+  background: linear-gradient(90deg, transparent, rgba(0,255,100,0.5), transparent);
+}
+
+.ts-subtitle {
+  font-size: 11px;
+  letter-spacing: 5px;
+  color: rgba(0, 255, 100, 0.45);
+  margin: 0 0 36px;
+}
+
+/* ---- ボタン（背景と明確に異なる色） ---- */
+
+.ts-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* START GAMEボタン：緑ベース塗りつぶし */
+.ts-btn-start {
+  width: 100%;
+  padding: 14px 0;
+  background: rgba(0, 180, 70, 0.18);
+  border: 1px solid #00cc55;
+  color: #00ff70;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  letter-spacing: 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.2s, box-shadow 0.2s, letter-spacing 0.2s;
+  box-shadow: 0 0 8px rgba(0,200,80,0.25);
+}
+
+.ts-btn-start:hover {
+  background: rgba(0, 220, 90, 0.30);
+  box-shadow: 0 0 20px rgba(0,255,100,0.45);
+  letter-spacing: 6px;
+  color: #fff;
+}
+
+/* SETTINGボタン：グレー系で START と差別化 */
+.ts-btn-setting {
+  width: 100%;
+  padding: 11px 0;
+  background: rgba(60, 60, 60, 0.35);
+  border: 1px solid rgba(140, 140, 140, 0.4);
+  color: rgba(180, 180, 180, 0.7);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.ts-btn-setting:hover {
+  background: rgba(80, 80, 80, 0.45);
+  color: #ddd;
+  border-color: rgba(180,180,180,0.6);
+}
+
+/* バージョン */
+.ts-ver {
+  margin: 24px 0 0;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgba(0, 255, 100, 0.2);
 }
 
 /* フェードイン */
-@keyframes ts-fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(15px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+@keyframes ts-fadein {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* スマートフォン対応 */
-@media (max-width: 600px) {
-    .title-game-title {
-        letter-spacing: 5px;
-    }
+/* ---- レスポンシブ ---- */
+/* 画面幅が狭い場合はターミナルを非表示 */
+@media (max-width: 1100px) {
+  .ts-side { display: none; }
+  .ts-center { padding: 0 20px; }
+}
 
-    .title-game-subtitle {
-        letter-spacing: 4px;
-    }
-
-    .title-game-label {
-        letter-spacing: 3px;
-    }
+@media (max-width: 540px) {
+  .ts-panel { padding: 30px 24px; }
+  .ts-title { letter-spacing: 6px; }
+  .ts-btn-start { font-size: 13px; letter-spacing: 3px; }
 }
