@@ -375,7 +375,32 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
 
     _validate_timed_action(db, player, action_type, node)
 
+    # E02：情報確認が完了しているかチェック
+    if action_type == "breach" and node.id == "E02":
+        info_done = _security_event_done(
+            db, player, node.id, "INFO_CONFIRMED"
+        )
 
+        if not info_done:
+            cost = ACTION_COSTS[action_type]
+            player.analysis_resource -= cost["resource"]
+
+            _advance_time(
+                player,
+                cost["time"],
+                SECURITY_RULES[node.id]["failure_alert"]
+            )
+
+            add_log(
+                db,
+                player,
+                "warning",
+                f"{node.name} の情報確認が完了していません。"
+            )
+
+            _check_game_over(db, player)
+            db.commit()
+            return
 
         
     cost = ACTION_COSTS[action_type]

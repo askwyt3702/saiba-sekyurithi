@@ -35,5 +35,14 @@ SECURITY_RULES = {
         "failure_alert": 5,
         "success_resource": 3,
         "required_privilege": "GUEST",
-    }
+    },
+    "E02": {
+        "vulnerability": "DNS設定情報の漏洩",
+        "risk_level": "MEDIUM",
+        "required_scan": True,
+        "required_info": True,
+        "failure_alert": 5,
+        "success_resource": 3,
+        "required_privilege": "GUEST",
+    },
 }
