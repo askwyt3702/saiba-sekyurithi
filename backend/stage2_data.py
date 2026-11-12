@@ -1,38 +1,38 @@
-"""ステージ2第1段階。条件付き監視・ゲートはplanned_mechanicsに保存するだけ。"""
+"""ステージ2：条件付き監視と解除条件付きゲート。"""
 
 STAGE2_NODES = [
     {"id": "S2-E01", "name": "調査用中継点", "layer": "External", "pos_x": 600, "pos_y": 100,
      "vulnerability": "調査用アカウントの弱い認証", "info": "唯一の初期侵入口。スキャンして侵入後、接続先を調査する。目標はS2-C03。"},
     {"id": "S2-D01", "name": "公開通信リレー", "layer": "DMZ", "pos_x": 250, "pos_y": 450,
-     "vulnerability": "中継サービスの設定不備", "info": "高速側への入口。第1段階では条件付き監視は未実装。"},
+     "vulnerability": "中継サービスの設定不備", "info": "高速側への入口。監視対象への侵入はS2-I07攻略まで警戒度が追加で+12%。"},
     {"id": "S2-D02", "name": "認証窓口", "layer": "DMZ", "pos_x": 1000, "pos_y": 450,
      "vulnerability": "認証窓口のアクセス制御不備", "info": "管理プロキシ経由で補給・制御側へ進める。"},
     {"id": "S2-D03", "name": "トラフィック集約装置", "layer": "DMZ", "pos_x": 250, "pos_y": 800,
-     "vulnerability": "集約サービスの権限設定不備", "info": "通信交換ハブへの接続点。監視の追加警戒度は第2段階で実装予定で、現在は加算されない。"},
+     "vulnerability": "集約サービスの権限設定不備", "info": "監視対象はS2-I01・S2-C01・S2-C03。侵入時の警戒度+12%はS2-I07攻略で解除できる。"},
     {"id": "S2-D04", "name": "管理プロキシ", "layer": "DMZ", "pos_x": 1000, "pos_y": 800,
      "vulnerability": "管理プロキシの認証不備", "info": "証明書管理サーバーと監査ログ中継への分岐。"},
     {"id": "S2-I01", "name": "通信交換ハブ", "layer": "Internal", "pos_x": 350, "pos_y": 1200,
-     "vulnerability": "交換ハブの管理権限不備", "info": "途中で攻略方針を変更できる接続点。条件付き監視は未実装。"},
+     "vulnerability": "交換ハブの管理権限不備", "info": "途中で攻略方針を変更できる接続点。S2-I07未攻略なら侵入時に警戒度が追加で+12%。"},
     {"id": "S2-I02", "name": "内部ルーター", "layer": "Internal", "pos_x": 350, "pos_y": 1900,
      "vulnerability": "内部ルーティング設定の不備", "info": "直接転送・迂回ゲートと補給拠点へ接続する。"},
     {"id": "S2-I03", "name": "予備解析基盤", "layer": "Internal", "pos_x": 1050, "pos_y": 2200,
      "vulnerability": "解析基盤のアクセス制御不備", "info": "初回侵入で解析資源+7（上限30）。"},
     {"id": "S2-I04", "name": "証明書管理サーバー", "layer": "Internal", "pos_x": 1100, "pos_y": 1200,
-     "vulnerability": "証明書管理APIの保護不足", "info": "証跡バックアップへの接続点。証明書によるゲート解除は第2段階で実装予定で、現在は不要。"},
+     "vulnerability": "証明書管理APIの保護不足", "info": "攻略するとS2-C02の前提ロックが解除される。証明書は消費しない。証跡バックアップにも接続。"},
     {"id": "S2-I05", "name": "監査ログ中継", "layer": "Internal", "pos_x": 700, "pos_y": 1400,
      "vulnerability": "監査ログ管理の権限不備", "info": "初回侵入で警戒度-8%。"},
     {"id": "S2-I06", "name": "証跡バックアップ", "layer": "Internal", "pos_x": 1250, "pos_y": 1750,
      "vulnerability": "バックアップ領域の設定不備", "info": "初回侵入で解析資源+5（上限30）。"},
     {"id": "S2-I07", "name": "監視制御端末", "layer": "Internal", "pos_x": 700, "pos_y": 1750,
-     "vulnerability": "制御端末の認証不備", "info": "初回侵入で警戒度-15%、解析資源+5。条件付き監視の無効化・ゲート解除は未実装。"},
+     "vulnerability": "制御端末の認証不備", "info": "攻略で以後の監視追加+12%を解除し、S2-C04を解放。初回侵入で警戒度-15%、解析資源+5。"},
     {"id": "S2-C01", "name": "直接転送ゲート", "layer": "Core", "pos_x": 150, "pos_y": 2600,
-     "vulnerability": "転送ゲートの権限設定不備", "info": "原本通信証跡DBへの直接接続。第1段階では追加監視なし。"},
+     "vulnerability": "転送ゲートの権限設定不備", "info": "原本通信証跡DBへの直接接続。前提ロックはないがS2-I07未攻略なら侵入の追加警戒度+12%。"},
     {"id": "S2-C02", "name": "証明書認証ゲート", "layer": "Core", "pos_x": 1150, "pos_y": 2700,
-     "vulnerability": "認証ゲートの設定不備", "info": "原本通信証跡DBへの接続。第1段階では証明書の前提条件なし。"},
+     "vulnerability": "認証ゲートの設定不備", "info": "侵入にはS2-I04の攻略が必要。スキャンは通常の接続条件で可能。"},
     {"id": "S2-C03", "name": "原本通信証跡DB", "layer": "Core", "pos_x": 650, "pos_y": 3200,
      "vulnerability": "証跡DBの権限設定不備", "info": "ステージ2の最終目標。侵入後のデータ回収で勝利。回収時も警戒度100%で敗北。"},
     {"id": "S2-C04", "name": "監視迂回ゲート", "layer": "Core", "pos_x": 650, "pos_y": 2650,
-     "vulnerability": "迂回ゲートの管理設定不備", "info": "初回侵入で警戒度-10%。第1段階では監視制御端末による解除条件なし。"},
+     "vulnerability": "迂回ゲートの管理設定不備", "info": "侵入にはS2-I07の攻略が必要。初回侵入で警戒度-10%。スキャンは通常の接続条件で可能。"},
 ]
 
 STAGE2_EDGE_PAIRS = [
@@ -49,7 +49,7 @@ STAGE2_EDGE_PAIRS = [
 
 STAGE2 = {
     "id": 2,
-    "name": "偽装された通信記録（第1段階試作）",
+    "name": "偽装された通信記録",
     "difficulty": "intermediate-advanced",
     "nodes": STAGE2_NODES,
     "edges": [{"id": f"S2-e{i}", "source": a, "target": b} for i, (a, b) in enumerate(STAGE2_EDGE_PAIRS, 1)],
@@ -61,14 +61,10 @@ STAGE2 = {
         "S2-I03": {"resource_bonus": 7, "log": "予備解析基盤から資源を最大7補給（上限30）。"},
         "S2-I06": {"resource_bonus": 5, "log": "証跡バックアップから資源を最大5補給（上限30）。"},
         "S2-I05": {"alert_delta": -8, "log": "監査ログの痕跡を削減。警戒度-8%。"},
-        "S2-I07": {"resource_bonus": 5, "alert_delta": -15, "log": "解析ツールを最大5回収し、痕跡を削減（警戒度-15%）。監視無効化・ゲート解除は未実装。"},
+        "S2-I07": {"resource_bonus": 5, "alert_delta": -15, "log": "解析ツールを最大5回収し、痕跡を削減（警戒度-15%）。"},
         "S2-C04": {"alert_delta": -10, "log": "迂回ゲートの痕跡を削減。警戒度-10%。"},
     },
-    "start_message": "ステージ2の試作を開始。S2-E01から侵入し、S2-C03で原本通信証跡を回収してください。条件付き監視・解除条件付きゲートは未実装です。",
-    "prototype_notice": "第1段階試作：条件付き監視・解除条件付きゲートは未実装です。現在は追加警戒度・前提ロックなし。設計上の中〜上級難度は第2段階で検証します。",
-    # 準備用メタデータ。ゲーム判定から参照しない。+12は難易度緩和せず維持。
-    "planned_mechanics": {
-        "conditionalBreachAlert": {"disabledByNodeId": "S2-I07", "targetNodeIds": ["S2-I01", "S2-C01", "S2-C03"], "alertDelta": 12},
-        "breachRequirements": {"S2-C02": ["S2-I04"], "S2-C04": ["S2-I07"]},
-    },
+    "start_message": "S2-E01から侵入し、S2-C03で原本通信証跡を回収してください。S2-I07攻略までS2-I01・S2-C01・S2-C03の侵入警戒度は追加+12%。ゲートの前提条件も確認してください。",
+    "conditional_breach_alert": {"disabled_by_node_id": "S2-I07", "target_node_ids": ["S2-I01", "S2-C01", "S2-C03"], "alert_delta": 12},
+    "breach_requirements": {"S2-C02": ["S2-I04"], "S2-C04": ["S2-I07"]},
 }

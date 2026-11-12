@@ -93,6 +93,7 @@ export interface LogEntry {
 export interface KeyFragments {
   a: string | null;
   b: string | null;
+  unlocked?: boolean;
 }
 
 export interface GameState {
@@ -140,6 +141,7 @@ export type ActionRejectReason =
   | 'insufficient_privilege'
   | 'node_not_scanned'
   | 'node_unreachable'
+  | 'node_locked'
   | 'invalid_passcode'
   | 'invalid_state';
 

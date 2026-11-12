@@ -19,9 +19,16 @@ def clear_stage(act, game, set_player):
     """入口から最短経路でCoreを攻略する（最後のdataExtractは含まない）。経路を返す。"""
     set_player(game, analysis_resource=1000)   # 資源の量ではなくルールのほうを試したいので十分に与える
     path = shortest_path_to_core()
+
     for node in path:
         assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+
+        if node == "E01":
+            assert act(game, "confirmInfo", node)["accepted"] is True
+            assert act(game, "completeAnalysis", node)["accepted"] is True
+
         assert act(game, "breach", node)["accepted"] is True, ("breach", node)
+
     return path
 
 
@@ -140,17 +147,27 @@ def test_breach_requires_scan(game, act):
 
 def test_breach_promotes_privilege(game, act):
     act(game, "scan", ENTRY)
+
+    # E01の攻略条件
+    act(game, "confirmInfo", ENTRY)
+    act(game, "completeAnalysis", ENTRY)
+
     result = act(game, "breach", ENTRY)
     assert result["accepted"] is True
     assert node_of(result["state"], ENTRY)["status"] == "hacked"
     assert result["state"]["privilege"] == "USER"
     assert result["state"]["analysisResource"] == (
-        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"]
+        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] + 3
     )
 
 
 def test_breach_hacked_node_again_is_rejected(game, act):
     act(game, "scan", ENTRY)
+
+    if ENTRY == "E01":
+        act(game, "confirmInfo", ENTRY)
+        act(game, "completeAnalysis", ENTRY)
+
     act(game, "breach", ENTRY)
     result = act(game, "breach", ENTRY)
     assert result["accepted"] is False
@@ -173,6 +190,11 @@ def test_breach_without_required_privilege_is_rejected(game, act, set_player):
     target = dmz_neighbors[0]
 
     act(game, "scan", ENTRY)
+
+    # E01の攻略条件
+    act(game, "confirmInfo", ENTRY)
+    act(game, "completeAnalysis", ENTRY)
+
     act(game, "breach", ENTRY)                   # USER に昇格
     act(game, "scan", target)
     set_player(game, current_privilege="GUEST")  # DMZ は USER 以上が必要
@@ -180,19 +202,24 @@ def test_breach_without_required_privilege_is_rejected(game, act, set_player):
     assert result["accepted"] is False
     assert result["reason"] == "insufficient_privilege"
 
-
 def test_privilege_never_goes_down(game, act, set_player):
     dmz_neighbors = [n for n in neighbors(ENTRY) if n in nodes_in_layer("DMZ")]
     if len(dmz_neighbors) < 2:
         pytest.skip("入口に隣接するDMZノードが2つ未満")
     set_player(game, analysis_resource=1000)
     privileges = []
+
     for node in [ENTRY, *dmz_neighbors[:2]]:
         act(game, "scan", node)
-        privileges.append(act(game, "breach", node)["state"]["privilege"])
-    # 入口 → USER、1つ目のDMZ → ADMIN、2つ目のDMZ でも ADMIN のまま（USER に戻らない）
-    assert privileges == ["USER", "ADMIN", "ADMIN"]
 
+        if node == ENTRY:
+            act(game, "confirmInfo", ENTRY)
+            act(game, "completeAnalysis", ENTRY)
+
+        privileges.append(act(game, "breach", node)["state"]["privilege"])
+
+    # 入口 → USER、1つ目のDMZ → ADMIN、2つ目のDMZ でも ADMIN のまま
+    assert privileges == ["USER", "ADMIN", "ADMIN"]
 
 # ---------- dataExtract ----------
 
@@ -222,8 +249,14 @@ def test_full_playthrough_wins(game, act, set_player):
 def test_default_resource_is_enough_to_clear_the_stage(game, act):
     """初期の解析資源だけで、最短経路ならクリアできること（バランスの最低ライン）。"""
     path = shortest_path_to_core()
+
     for node in path:
         assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+
+        if node == "E01":
+            assert act(game, "confirmInfo", node)["accepted"] is True
+            assert act(game, "completeAnalysis", node)["accepted"] is True
+
         assert act(game, "breach", node)["accepted"] is True, ("breach", node)
     result = act(game, "dataExtract", path[-1])
     assert result["accepted"] is True, result.get("reason")
@@ -370,7 +403,7 @@ def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passc
     set_player(game, analysis_resource=1000)
     # 最初は断片A・Bとも未入手なので None
     initial = act(game, "scan", "E01")["state"]
-    assert initial["keyFragments"] == {"a": None, "b": None}
+    assert initial["keyFragments"] == {"a": None, "b": None, "unlocked": False}
 
     # I06(断片A)とI07(断片B)を回収しつつ C04 まで進める
     act(game, "breach", "E01")
@@ -396,7 +429,15 @@ def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passc
     correct = act(game, "breach", "C03", passcode=f"{frag_a}{frag_b}")
     assert correct["accepted"] is True
     assert correct["state"]["alertLevel"] <= 40.0
+    assert correct["state"]["keyFragments"]["unlocked"] is True
     assert any("暗号キー認証に成功" in entry["message"] for entry in correct["state"]["log"])
+
+    # 暗号認証に成功した状態（または暗号鍵が揃っている状態）なら、残資源1でも消費資源0でデータ回収できる
+    set_player(game, analysis_resource=1)
+    extracted = act(game, "dataExtract", "C03")
+    assert extracted["accepted"] is True
+    assert extracted["state"]["status"] == "won"
+    assert extracted["state"]["analysisResource"] == 1
 
 
 # ---------- クリア時のスコア・ランク判定 & 複数ステージ ----------

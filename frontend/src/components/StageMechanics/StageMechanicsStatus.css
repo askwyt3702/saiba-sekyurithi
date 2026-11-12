@@ -1,0 +1,10 @@
+.stage-mechanics {
+  flex-shrink: 0;
+  padding: 9px 20px;
+  border-bottom: 1px solid #246758;
+  background: #10221f;
+  color: #b4e8db;
+  font: 12px/1.5 ui-monospace, Consolas, monospace;
+}
+.stage-mechanics--active { background: #281f14; border-color: #856028; color: #f8d391; }
+.stage-mechanics p { margin: 2px 0; overflow-wrap: anywhere; }

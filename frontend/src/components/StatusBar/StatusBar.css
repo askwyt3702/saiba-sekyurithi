@@ -16,6 +16,18 @@
   margin-right: 8px;
 }
 
+.status-bar__offline {
+  padding: 2px 8px;
+  border: 1px solid #eab308;
+  border-radius: 4px;
+  background: #2a2208;
+  color: #eab308;
+  font-size: 11px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  cursor: help;
+}
+
 .status-bar__item {
   display: flex;
   align-items: center;

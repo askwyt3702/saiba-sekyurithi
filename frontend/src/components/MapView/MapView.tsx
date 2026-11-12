@@ -12,6 +12,7 @@ import {
 
 import '@xyflow/react/dist/style.css';
 import { DEFAULT_STAGE_ID, getStageData } from '../../game/data/stageData';
+import { missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
   ApiNetworkEdge,
@@ -96,6 +97,11 @@ function MapContent({
           node,
           selected: node.id === selectedNodeId,
           isEntry: stage.entryNodeIds.includes(node.id),
+          isMonitored: stage.conditionalBreachAlert?.targetNodeIds.includes(node.id),
+          monitoringExtra: monitoringExtra(node.id, nodes, stage),
+          gateState: stage.breachRequirements[node.id]
+            ? node.status === 'hacked' ? 'hacked' : missingGateRequirements(node.id, nodes, stage).length ? 'locked' : 'unlocked'
+            : undefined,
         },
         draggable: false,
         className:

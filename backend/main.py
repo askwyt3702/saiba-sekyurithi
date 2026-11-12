@@ -105,12 +105,15 @@ class ResetGameRequest(BaseModel):
 class ActionRequest(BaseModel):
     type: Literal[
         "scan",
+        "scan",
         "remoteScan",
         "breach",
         "dataExtract",
         "recover",
         "pause",
         "resume",
+        "confirmInfo",
+        "completeAnalysis",
     ]
     nodeId: Optional[str] = None
     passcode: Optional[str] = None
@@ -163,8 +166,8 @@ def reset_game(game_id: int, req: Optional[ResetGameRequest] = None, db: Session
 # ======= 2. プレイヤー操作 =======
 @app.post("/api/games/{game_id}/actions")
 def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_db)):
-
-    """scan / remoteScan / breach / dataExtract / pause / resume を実行する。
+    """scan / remoteScan / breach / dataExtract / recover / pause / resume /
+    confirmInfo / completeAnalysis を実行する。
     受理可否(accepted, reason)に加えて、操作後の GameState を state として返す。
     """
 
@@ -173,8 +176,16 @@ def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_d
         game_logic.apply_action(db, player, action.type, action.nodeId, passcode=action.passcode)
     except game_logic.ActionRejected as e:
         db.rollback()
-        return {"accepted": False, "reason": e.reason, "state": game_logic.build_game_state(db, player)}
-    return {"accepted": True, "state": game_logic.build_game_state(db, player)}
+        return {
+            "accepted": False,
+            "reason": e.reason,
+            "state": game_logic.build_game_state(db, player),
+        }
+
+    return {
+        "accepted": True,
+        "state": game_logic.build_game_state(db, player),
+    }
 
 
 # ======= 3. 旧API（互換用：既定のゲーム = 最初のプレイヤー を対象にする） =======

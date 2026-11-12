@@ -56,6 +56,7 @@ function summary(state) {
     analysisResource: state.analysisResource, privilege: state.privilege, evaluation: state.evaluation ?? null,
     nodes: Object.fromEntries(state.nodes.map((node) => [node.id, node.status])),
     successLogged: state.log.some((entry) => entry.message.includes('目的達成')),
+    mechanicsLogs: state.log.filter((entry) => ['監視解除:', 'ゲート解除:', '条件付き監視:'].some((prefix) => entry.message.startsWith(prefix))).map((entry) => entry.message),
   }));
 }
 

@@ -46,10 +46,10 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           <button type="button" className="mission-card" onClick={() => onSelectMission(2)}>
             <div className="mission-number">ミッション 02</div>
             <h2>偽装された通信記録</h2>
-            <p>S2-E01から侵入し、S2-C03で原本通信証跡を回収せよ。第1段階試作：条件付き監視・ゲート解除条件は未実装。</p>
+            <p>S2-E01から侵入し、S2-C03で原本通信証跡を回収せよ。監視の追加警戒度+12%とゲート条件を確認し、攻略方針を選べ。</p>
             <div className="mission-bottom">
-              <span>中級〜上級向け・基礎試作 (16ノード)</span>
-              <span>試作を開始 →</span>
+              <span>中級〜上級 (16ノード)</span>
+              <span>ミッション開始 →</span>
             </div>
           </button>
 

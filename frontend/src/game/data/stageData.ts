@@ -184,11 +184,10 @@ export interface StageDefinition {
   difficulty: string;
   startMessage: string;
   prototypeNotice: string;
-  // 第2段階用の設定案。現在のゲーム判定には作用しない。
-  plannedMechanics: {
-    conditionalBreachAlert: { disabledByNodeId: string; targetNodeIds: string[]; alertDelta: number };
-    breachRequirements: Record<string, string[]>;
+  conditionalBreachAlert: {
+    disabledByNodeId: string; targetNodeIds: string[]; alertDelta: number;
   } | null;
+  breachRequirements: Record<string, string[]>;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   vulnerabilities: Record<string, string>;
@@ -206,7 +205,8 @@ export const STAGES: Record<number, StageDefinition> = {
     difficulty: 'tutorial',
     startMessage: '',
     prototypeNotice: '',
-    plannedMechanics: null,
+    conditionalBreachAlert: null,
+    breachRequirements: {},
     nodes: [
       { id: 'external-1', layer: 'External', name: 'External (公開サーバー)', position: { x: 600, y: 100 }, status: 'unscanned', info: '最初の侵入口。SSHポート(22)が開いている。', vulnerability: null },
       { id: 'dmz-1', layer: 'DMZ', name: 'DMZ (Webサーバー)', position: { x: 380, y: 340 }, status: 'unscanned', info: '古いバージョンのApacheが稼働中。', vulnerability: null },
@@ -240,7 +240,8 @@ export const STAGES: Record<number, StageDefinition> = {
     difficulty: 'beginner',
     startMessage: '',
     prototypeNotice: '',
-    plannedMechanics: null,
+    conditionalBreachAlert: null,
+    breachRequirements: {},
     nodes: [
       { id: 'E01', layer: 'External', name: '公開ゲートウェイ', position: { x: 600, y: 100 }, status: 'unscanned', info: 'ステージ1の唯一の初期侵入口。E01をスキャンして侵入すると、他のノードを探索できる。', vulnerability: null },
       { id: 'E02', layer: 'External', name: 'DNS情報サーバー', position: { x: 300, y: 330 }, status: 'unscanned', info: '内部の接続先に関する手がかりが残っている。', vulnerability: null },
@@ -351,28 +352,29 @@ export const STAGES: Record<number, StageDefinition> = {
   },
   2: {
     id: 2,
-    name: '偽装された通信記録（第1段階試作）',
+    name: '偽装された通信記録',
     difficulty: 'intermediate-advanced',
-    startMessage: 'ステージ2の試作を開始。S2-E01から侵入し、S2-C03で原本通信証跡を回収してください。条件付き監視・解除条件付きゲートは未実装です。',
-    prototypeNotice: '第1段階試作：条件付き監視・解除条件付きゲートは未実装です。現在は追加警戒度・前提ロックなし。設計上の中〜上級難度は第2段階で検証します。',
-    plannedMechanics: {"conditionalBreachAlert": {"disabledByNodeId": "S2-I07", "targetNodeIds": ["S2-I01", "S2-C01", "S2-C03"], "alertDelta": 12}, "breachRequirements": {"S2-C02": ["S2-I04"], "S2-C04": ["S2-I07"]}},
+    startMessage: 'S2-E01から侵入し、S2-C03で原本通信証跡を回収してください。S2-I07攻略までS2-I01・S2-C01・S2-C03の侵入警戒度は追加+12%。ゲートの前提条件も確認してください。',
+    prototypeNotice: '',
+    conditionalBreachAlert: {"disabledByNodeId": "S2-I07", "targetNodeIds": ["S2-I01", "S2-C01", "S2-C03"], "alertDelta": 12},
+    breachRequirements: {"S2-C02": ["S2-I04"], "S2-C04": ["S2-I07"]},
     nodes: [
       { id: 'S2-E01', layer: 'External', name: '調査用中継点', position: { x: 600, y: 100 }, status: 'unscanned', info: '唯一の初期侵入口。スキャンして侵入後、接続先を調査する。目標はS2-C03。', vulnerability: null },
-      { id: 'S2-D01', layer: 'DMZ', name: '公開通信リレー', position: { x: 250, y: 450 }, status: 'unscanned', info: '高速側への入口。第1段階では条件付き監視は未実装。', vulnerability: null },
+      { id: 'S2-D01', layer: 'DMZ', name: '公開通信リレー', position: { x: 250, y: 450 }, status: 'unscanned', info: '高速側への入口。監視対象への侵入はS2-I07攻略まで警戒度が追加で+12%。', vulnerability: null },
       { id: 'S2-D02', layer: 'DMZ', name: '認証窓口', position: { x: 1000, y: 450 }, status: 'unscanned', info: '管理プロキシ経由で補給・制御側へ進める。', vulnerability: null },
-      { id: 'S2-D03', layer: 'DMZ', name: 'トラフィック集約装置', position: { x: 250, y: 800 }, status: 'unscanned', info: '通信交換ハブへの接続点。監視の追加警戒度は第2段階で実装予定で、現在は加算されない。', vulnerability: null },
+      { id: 'S2-D03', layer: 'DMZ', name: 'トラフィック集約装置', position: { x: 250, y: 800 }, status: 'unscanned', info: '監視対象はS2-I01・S2-C01・S2-C03。侵入時の警戒度+12%はS2-I07攻略で解除できる。', vulnerability: null },
       { id: 'S2-D04', layer: 'DMZ', name: '管理プロキシ', position: { x: 1000, y: 800 }, status: 'unscanned', info: '証明書管理サーバーと監査ログ中継への分岐。', vulnerability: null },
-      { id: 'S2-I01', layer: 'Internal', name: '通信交換ハブ', position: { x: 350, y: 1200 }, status: 'unscanned', info: '途中で攻略方針を変更できる接続点。条件付き監視は未実装。', vulnerability: null },
+      { id: 'S2-I01', layer: 'Internal', name: '通信交換ハブ', position: { x: 350, y: 1200 }, status: 'unscanned', info: '途中で攻略方針を変更できる接続点。S2-I07未攻略なら侵入時に警戒度が追加で+12%。', vulnerability: null },
       { id: 'S2-I02', layer: 'Internal', name: '内部ルーター', position: { x: 350, y: 1900 }, status: 'unscanned', info: '直接転送・迂回ゲートと補給拠点へ接続する。', vulnerability: null },
       { id: 'S2-I03', layer: 'Internal', name: '予備解析基盤', position: { x: 1050, y: 2200 }, status: 'unscanned', info: '初回侵入で解析資源+7（上限30）。', vulnerability: null },
-      { id: 'S2-I04', layer: 'Internal', name: '証明書管理サーバー', position: { x: 1100, y: 1200 }, status: 'unscanned', info: '証跡バックアップへの接続点。証明書によるゲート解除は第2段階で実装予定で、現在は不要。', vulnerability: null },
+      { id: 'S2-I04', layer: 'Internal', name: '証明書管理サーバー', position: { x: 1100, y: 1200 }, status: 'unscanned', info: '攻略するとS2-C02の前提ロックが解除される。証明書は消費しない。証跡バックアップにも接続。', vulnerability: null },
       { id: 'S2-I05', layer: 'Internal', name: '監査ログ中継', position: { x: 700, y: 1400 }, status: 'unscanned', info: '初回侵入で警戒度-8%。', vulnerability: null },
       { id: 'S2-I06', layer: 'Internal', name: '証跡バックアップ', position: { x: 1250, y: 1750 }, status: 'unscanned', info: '初回侵入で解析資源+5（上限30）。', vulnerability: null },
-      { id: 'S2-I07', layer: 'Internal', name: '監視制御端末', position: { x: 700, y: 1750 }, status: 'unscanned', info: '初回侵入で警戒度-15%、解析資源+5。条件付き監視の無効化・ゲート解除は未実装。', vulnerability: null },
-      { id: 'S2-C01', layer: 'Core', name: '直接転送ゲート', position: { x: 150, y: 2600 }, status: 'unscanned', info: '原本通信証跡DBへの直接接続。第1段階では追加監視なし。', vulnerability: null },
-      { id: 'S2-C02', layer: 'Core', name: '証明書認証ゲート', position: { x: 1150, y: 2700 }, status: 'unscanned', info: '原本通信証跡DBへの接続。第1段階では証明書の前提条件なし。', vulnerability: null },
+      { id: 'S2-I07', layer: 'Internal', name: '監視制御端末', position: { x: 700, y: 1750 }, status: 'unscanned', info: '攻略で以後の監視追加+12%を解除し、S2-C04を解放。初回侵入で警戒度-15%、解析資源+5。', vulnerability: null },
+      { id: 'S2-C01', layer: 'Core', name: '直接転送ゲート', position: { x: 150, y: 2600 }, status: 'unscanned', info: '原本通信証跡DBへの直接接続。前提ロックはないがS2-I07未攻略なら侵入の追加警戒度+12%。', vulnerability: null },
+      { id: 'S2-C02', layer: 'Core', name: '証明書認証ゲート', position: { x: 1150, y: 2700 }, status: 'unscanned', info: '侵入にはS2-I04の攻略が必要。スキャンは通常の接続条件で可能。', vulnerability: null },
       { id: 'S2-C03', layer: 'Core', name: '原本通信証跡DB', position: { x: 650, y: 3200 }, status: 'unscanned', info: 'ステージ2の最終目標。侵入後のデータ回収で勝利。回収時も警戒度100%で敗北。', vulnerability: null },
-      { id: 'S2-C04', layer: 'Core', name: '監視迂回ゲート', position: { x: 650, y: 2650 }, status: 'unscanned', info: '初回侵入で警戒度-10%。第1段階では監視制御端末による解除条件なし。', vulnerability: null },
+      { id: 'S2-C04', layer: 'Core', name: '監視迂回ゲート', position: { x: 650, y: 2650 }, status: 'unscanned', info: '侵入にはS2-I07の攻略が必要。初回侵入で警戒度-10%。スキャンは通常の接続条件で可能。', vulnerability: null },
     ],
     edges: [
       { id: 'S2-e1', source: 'S2-E01', target: 'S2-D01' },
@@ -423,7 +425,7 @@ export const STAGES: Record<number, StageDefinition> = {
       'S2-I03': { resourceBonus: 7, alertDelta: 0, log: '予備解析基盤から資源を最大7補給（上限30）。' },
       'S2-I06': { resourceBonus: 5, alertDelta: 0, log: '証跡バックアップから資源を最大5補給（上限30）。' },
       'S2-I05': { resourceBonus: 0, alertDelta: -8, log: '監査ログの痕跡を削減。警戒度-8%。' },
-      'S2-I07': { resourceBonus: 5, alertDelta: -15, log: '解析ツールを最大5回収し、痕跡を削減（警戒度-15%）。監視無効化・ゲート解除は未実装。' },
+      'S2-I07': { resourceBonus: 5, alertDelta: -15, log: '解析ツールを最大5回収し、痕跡を削減（警戒度-15%）。' },
       'S2-C04': { resourceBonus: 0, alertDelta: -10, log: '迂回ゲートの痕跡を削減。警戒度-10%。' },
     },
   },
