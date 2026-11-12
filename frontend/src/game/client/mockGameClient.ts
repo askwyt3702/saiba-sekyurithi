@@ -147,6 +147,17 @@ export class MockGameClient implements GameClient {
     const rejection = this.validate(type, node);
     if (rejection) return { accepted: false, reason: rejection };
 
+    if (type === 'breach' && action.exploitMismatch) {
+      this.state.alertLevel = clampAlert(this.state.alertLevel + 8);
+      this.log(
+        'danger',
+        `【IDS検知警告】${node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: ${Math.round(this.state.alertLevel)}%）。`,
+      );
+      this.checkGameOver();
+      this.emit({ type: 'state_snapshot', state: this.cloneState() });
+      return { accepted: true };
+    }
+
     const stage = getStageData(this.stageId);
     let silentBreach = false;
     if (type === 'breach' && action.passcode !== undefined && action.passcode.trim() !== '') {
