@@ -19,14 +19,16 @@ def clear_stage(act, game, set_player):
     """入口から最短経路でCoreを攻略する（最後のdataExtractは含まない）。経路を返す。"""
     set_player(game, analysis_resource=1000)   # 資源の量ではなくルールのほうを試したいので十分に与える
     path = shortest_path_to_core()
-    for node in path:
-       assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+
+for node in path:
+    assert act(game, "scan", node)["accepted"] is True, ("scan", node)
 
     if node == "E01":
         assert act(game, "confirmInfo", node)["accepted"] is True
         assert act(game, "completeAnalysis", node)["accepted"] is True
 
     assert act(game, "breach", node)["accepted"] is True, ("breach", node)
+
 
 
 
