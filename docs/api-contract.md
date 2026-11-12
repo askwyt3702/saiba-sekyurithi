@@ -75,6 +75,7 @@ interface GameState {
   keyFragments?: {           // 入手済みの暗号鍵の断片（未入手は null）
     a: string | null;
     b: string | null;
+    unlocked?: boolean;     // 両断片取得済みで暗号認証成功、または回収資源不足による救済が有効
   };
   nodes: ApiNetworkNode[]    // 2.1 と同じ形
   edges: ApiNetworkEdge[];
@@ -267,7 +268,7 @@ pytest
     - 初期資源25・上限30・共通コスト。静的な補給・警戒度低減は有効。
     - S2-I07未攻略中、S2-I01・S2-C01・S2-C03の侵入に追加警戒度+12%。スキャン・回収には加算しない。追加分と自然減衰を含む判定で100%に到達すると、侵入完了・ノード効果より先に敗北する。
     - S2-C02の侵入にはS2-I04攻略、S2-C04にはS2-I07攻略が必要。未解除の侵入は`accepted: false, reason: "node_locked"`。資源・時間・警戒度・ログは変更しない。スキャンの既存条件は変更しない。
-    - 監視解除・ゲート解除は既存`log`に記録する。`GameState`の形とDB構造は変更しない。UIはノード攻略状態から現在の監視・ロック状態を導出する。
+    - 監視解除・ゲート解除は既存`log`に記録する。監視・ゲートのための`GameState`追加項目やDB構造変更はない。UIはノード攻略状態から現在の監視・ロック状態を導出する。
     - 生成設定は`conditionalBreachAlert`（解除ノード・対象・追加値）と`breachRequirements`（ゲートごとの前提ノード一覧）。旧`plannedMechanics`は置換。ステージ0・1はそれぞれnullと空マップで無効。
 - **ステージ指定作成 / 切り替え**:
   - `POST /api/games` に `{"stageId": 0}` などを渡すと指定ステージで作成（ボディ省略時は `stageId = 1`）。

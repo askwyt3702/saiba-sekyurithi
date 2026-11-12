@@ -370,7 +370,7 @@ def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passc
     set_player(game, analysis_resource=1000)
     # 最初は断片A・Bとも未入手なので None
     initial = act(game, "scan", "E01")["state"]
-    assert initial["keyFragments"] == {"a": None, "b": None}
+    assert initial["keyFragments"] == {"a": None, "b": None, "unlocked": False}
 
     # I06(断片A)とI07(断片B)を回収しつつ C04 まで進める
     act(game, "breach", "E01")
@@ -396,7 +396,15 @@ def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passc
     correct = act(game, "breach", "C03", passcode=f"{frag_a}{frag_b}")
     assert correct["accepted"] is True
     assert correct["state"]["alertLevel"] <= 40.0
+    assert correct["state"]["keyFragments"]["unlocked"] is True
     assert any("暗号キー認証に成功" in entry["message"] for entry in correct["state"]["log"])
+
+    # 暗号認証に成功した状態（または暗号鍵が揃っている状態）なら、残資源1でも消費資源0でデータ回収できる
+    set_player(game, analysis_resource=1)
+    extracted = act(game, "dataExtract", "C03")
+    assert extracted["accepted"] is True
+    assert extracted["state"]["status"] == "won"
+    assert extracted["state"]["analysisResource"] == 1
 
 
 # ---------- クリア時のスコア・ランク判定 & 複数ステージ ----------
