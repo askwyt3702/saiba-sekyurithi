@@ -13,7 +13,7 @@ import type {
 import { balanceConfig } from '../../game/data/balanceConfig';
 import './NodeDetailPanel.css';
 
-type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
+type NodePanelActionType = Exclude<ActionType, 'pause' | 'resume'> | 'confirmInfo';
 
 interface NodeDetailPanelProps {
   node: NetworkNode | null;
@@ -26,7 +26,7 @@ interface NodeDetailPanelProps {
   analysisResource: number;
   alertLevel?: number;
   notice: string | null;
-  onAction: (type: TimedActionType, passcode?: string) => void;
+  onAction: (type: NodePanelActionType, passcode?: string) => void;
 }
 
 export function NodeDetailPanel({
@@ -117,7 +117,7 @@ export function NodeDetailPanel({
 
   const extractResourceCost =
     hasAllKeyFragments &&
-    (Boolean(keyFragments?.unlocked) || analysisResource < balanceConfig.dataExtract.resource)
+      (Boolean(keyFragments?.unlocked) || analysisResource < balanceConfig.dataExtract.resource)
       ? 0
       : balanceConfig.dataExtract.resource;
 
@@ -372,6 +372,7 @@ export function NodeDetailPanel({
                 type="button"
                 className="node-info-modal__close-btn"
                 onClick={() => {
+                  onAction('confirmInfo');
                   setIsExploitOpen(false);
                   setIsInfoOpen(true);
                 }}
