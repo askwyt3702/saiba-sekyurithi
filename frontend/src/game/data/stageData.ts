@@ -1,6 +1,16 @@
 // このファイルは scripts/gen_stage_data.py で backend/game_data.py・balance_config.py から生成している。
 // 手で編集せず、バックエンド側を変えたらスクリプトを実行し直すこと。
-import type { ApiNetworkEdge, NetworkNode } from '../model/types';
+import type { ActionCost, ApiNetworkEdge, NetworkNode } from '../model/types';
+
+// 各操作のコスト(time: 経過秒数, resource: 消費する解析資源, alertDelta: 警戒度の上昇)。
+export const ACTION_COSTS = {
+  scan: { time: 10, resource: 1, alertDelta: 2 },
+  remoteScan: { time: 25, resource: 4, alertDelta: 8 },
+  breach: { time: 20, resource: 2, alertDelta: 5 },
+  dataExtract: { time: 15, resource: 3, alertDelta: 10 },
+  recover: { time: 30, resource: 0, alertDelta: 12 },
+} satisfies Record<string, ActionCost>;
+export const ALERT_DECAY_PER_SECOND = 0.05;
 
 export const EVALUATION_CONFIG = {
   "baseScore": 1000,

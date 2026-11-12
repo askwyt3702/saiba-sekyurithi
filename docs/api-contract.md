@@ -227,7 +227,7 @@ WebSocket（4節）は未実装のため、現状は **アクションの結果�
 - **recover**：侵入済みノードがあり、資源が上限未満ならノード選択なしで回復できる。資源0でも実行可能。
 - データ回収を含む全時間消費アクションで警戒度が100に達すると `status = 'lost'`。資源・時間は消費し、検知をノード攻略効果・勝利より優先する。却下ではなく`accepted: true`で敗北状態を返し、評価はnull、成功ログは出ない。鍵の回収軽減は警戒度加算前に適用する。検知されず、勝利もせず、回復を含む操作が残っていない場合も敗北する。
 - ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
-- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源を変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。
+- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源・操作コストを変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。フロントの `balanceConfig.ts` も生成値を読むだけ。生成し忘れはCIの `stage-data` ジョブで検出される。
 
 ### 古いゲームの自動削除（backend）
 

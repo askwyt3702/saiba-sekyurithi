@@ -22,8 +22,10 @@ Mockのステージやギミックの数値、データ回収ボタンの判定�
 - ステージ(ノード・エッジ・脆弱性)
 - ギミック(最終目標 `TARGET_NODE_IDS`・暗号鍵 `KEY_FRAGMENT_NODE_IDS`・ノードの特殊効果 `NODE_EFFECTS`)
 - 初期の解析資源などの数値
+- 各操作のコスト(`ACTION_COSTS`)や警戒度の減衰(`ALERT_DECAY_PER_SECOND`)
 
-`stageData.ts` は手で編集しない。
+`stageData.ts` は手で編集しない。フロントの `balanceConfig.ts` もこの生成値を読んでいるだけなので、数値を直接書かない。
+生成し忘れると、GitHubのCI(`stage-data` ジョブ)が失敗する。
 
 ## ゲームのルール(判定の処理)を変えるとき
 
