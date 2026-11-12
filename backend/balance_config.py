@@ -45,4 +45,13 @@ SECURITY_RULES = {
         "success_resource": 3,
         "required_privilege": "GUEST",
     },
+
+    "E03": {
+        "vulnerability": "古い公開ファイルのアクセス制御不備",
+        "risk_level": "LOW",
+        "required_scan": True,
+        "failure_alert": 3,
+        "success_resource": 5,
+        "required_privilege": "GUEST",
+    },
 }
