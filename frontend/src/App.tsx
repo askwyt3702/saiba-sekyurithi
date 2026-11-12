@@ -13,6 +13,7 @@ import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { MissionResult } from './components/MissionResult/MissionResult';
 import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
+import { ToolPanel } from './components/ToolPanel/ToolPanel';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import './App.css';
 
@@ -219,6 +220,17 @@ function App() {
         </div>
       )}
       <div className="app-body">
+        <ToolPanel
+          stageId={state.stageId ?? stageId}
+          nodes={state.nodes}
+          edges={state.edges}
+          privilege={state.privilege}
+          keyFragments={state.keyFragments}
+          log={state.log}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={handleSelectNode}
+        />
+
         <MapView
           stageId={state.stageId ?? stageId}
           nodes={state.nodes}

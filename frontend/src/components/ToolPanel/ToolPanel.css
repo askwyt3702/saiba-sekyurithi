@@ -1,0 +1,293 @@
+.tool-panel {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #15171d;
+  border-right: 1px solid #2a2e38;
+  color: #c7ccd6;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.tool-panel--collapsed {
+  width: 32px;
+}
+
+.tool-panel__expand {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tool-panel__expand:hover {
+  color: #c084fc;
+}
+
+.tool-panel__expand-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+  font-size: 11px;
+}
+
+.tool-panel__header {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #2a2e38;
+}
+
+.tool-panel__tabs {
+  flex: 1;
+  display: flex;
+}
+
+.tool-panel__tab,
+.tool-panel__collapse {
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #9ca3af;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tool-panel__tab {
+  flex: 1;
+}
+
+.tool-panel__collapse {
+  padding: 8px 10px;
+}
+
+.tool-panel__tab:hover,
+.tool-panel__collapse:hover {
+  color: #f3f4f6;
+}
+
+.tool-panel__tab--active {
+  color: #c084fc;
+  border-bottom-color: #c084fc;
+}
+
+.tool-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.tool-panel__summary {
+  margin: 0 0 10px;
+  opacity: 0.7;
+}
+
+.tool-panel__heading {
+  margin: 16px 0 8px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  opacity: 0.6;
+  font-weight: normal;
+}
+
+.tool-panel__heading:first-child {
+  margin-top: 0;
+}
+
+.tool-panel__empty,
+.tool-panel__note {
+  margin: 0;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.tool-panel__note {
+  margin-top: 6px;
+  color: #22c55e;
+}
+
+.tool-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-panel__node,
+.tool-panel__row {
+  width: 100%;
+  text-align: left;
+  background: #1b1e26;
+  border: 1px solid #2a2e38;
+  border-radius: 4px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tool-panel__node {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+
+.tool-panel__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.tool-panel__node:hover,
+.tool-panel__row:hover {
+  border-color: #3a3f4b;
+  background: #20232c;
+}
+
+.tool-panel__node--selected {
+  border-color: #c084fc;
+}
+
+.tool-panel__node-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.tool-panel__node-name {
+  color: #f3f4f6;
+}
+
+.tool-panel__node-meta {
+  opacity: 0.55;
+  font-size: 11px;
+}
+
+.tool-panel__node-vuln {
+  color: #fbbf24;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tool-panel__badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.tool-panel__badge--ready {
+  background: #132017;
+  color: #22c55e;
+}
+
+.tool-panel__badge--blocked {
+  background: #23262f;
+  color: #9ca3af;
+}
+
+.tool-panel__badge--done {
+  background: #1e1530;
+  color: #c084fc;
+}
+
+.tool-panel__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.tool-panel__chip {
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid #3a3f4b;
+  border-radius: 10px;
+  color: #9ca3af;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tool-panel__chip:hover {
+  color: #f3f4f6;
+}
+
+.tool-panel__chip--active {
+  border-color: #c084fc;
+  color: #c084fc;
+}
+
+.tool-panel__chip--danger.tool-panel__chip--active {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.tool-panel__chip--warning.tool-panel__chip--active {
+  border-color: #eab308;
+  color: #eab308;
+}
+
+.tool-panel__chip--success.tool-panel__chip--active {
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.tool-panel__fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 0;
+}
+
+.tool-panel__fields dt {
+  opacity: 0.55;
+}
+
+.tool-panel__fields dd {
+  margin: 0;
+  color: #f3f4f6;
+}
+
+.tool-panel__log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.45;
+}
+
+.tool-panel__log-time {
+  opacity: 0.5;
+}
+
+.tool-panel__log-entry--success {
+  color: #22c55e;
+}
+
+.tool-panel__log-entry--warning {
+  color: #eab308;
+}
+
+.tool-panel__log-entry--danger {
+  color: #ef4444;
+}
