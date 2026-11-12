@@ -494,9 +494,14 @@ def test_remote_scan_reaches_disconnected_core(game, act):
     assert blocked["accepted"] is False
     assert blocked["reason"] == "node_unreachable"
     remote = act(game, "remoteScan", core)
+    assert remote["accepted"] is False
+    assert remote["reason"] == "node_unreachable"
+    assert act(game, "scan", ENTRY)["accepted"] is True
+    assert act(game, "breach", ENTRY)["accepted"] is True
+    remote = act(game, "remoteScan", core)
     assert remote["accepted"] is True
     assert node_of(remote["state"], core)["status"] == "scanned"
-    assert remote["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - ACTION_COSTS["remoteScan"]["resource"]
+    assert remote["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] - ACTION_COSTS["remoteScan"]["resource"]
 
 
 def test_recovery_requires_hacked_node_and_respects_cap(game, act, set_player):

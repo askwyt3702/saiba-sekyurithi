@@ -219,6 +219,9 @@ function App() {
         />
 
         <NodeDetailPanel
+          stageId={state.stageId ?? stageId}
+          gameStatus={state.status}
+          privilege={state.privilege}
           node={selectedNode}
           nodes={state.nodes}
           edges={state.edges}

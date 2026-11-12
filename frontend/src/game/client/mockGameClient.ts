@@ -10,6 +10,8 @@ import type {
 } from '../model/types';
 import { balanceConfig } from '../data/balanceConfig';
 import { createMockGameState } from '../data/mockGameState';
+import { canReachNode, canRemoteScanNode } from '../model/actionRules';
+import { calculateMissionResult } from '../model/missionResult';
 import {
   DEFAULT_STAGE_ID,
   getStageData,
@@ -128,7 +130,7 @@ export class MockGameClient implements GameClient {
     // 暗号鍵の断片がすべて揃っていれば、データ回収時の警戒度上昇を0に抑える
     const silentExtract = type === 'dataExtract' && this.hasAllKeyFragments();
     this.advanceTime(cost.time, silentExtract ? 0 : cost.alertDelta);
-    this.resolveAction(type, node, silentExtract);
+    if (this.state.alertLevel < 100) this.resolveAction(type, node, silentExtract);
     this.checkGameOver();
 
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
@@ -143,14 +145,15 @@ export class MockGameClient implements GameClient {
     if (this.state.analysisResource < cost.resource) return 'insufficient_resource';
 
     const stage = getStageData(this.stageId);
+    if (type !== 'dataExtract' && !canRemoteScanNode(node.id, this.state.nodes, stage)) return 'node_unreachable';
     if (type === 'scan' || type === 'remoteScan') {
       if (node.status !== 'unscanned') return 'invalid_state';
-      if (type === 'scan' && !stage.entryLayers.includes(node.layer) && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
+      if (type === 'scan' && !canReachNode(node.id, this.state.nodes, this.state.edges, stage)) return 'node_unreachable';
     } else if (type === 'breach') {
       if (node.status === 'hacked') return 'invalid_state';
 
       // 入口(External)以外は、隣接ノードのどれかを侵入済みにしていないと届かない
-      if (!stage.entryLayers.includes(node.layer) && !this.hasHackedNeighbor(node.id)) return 'node_unreachable';
+      if (!canReachNode(node.id, this.state.nodes, this.state.edges, stage)) return 'node_unreachable';
       if (node.status !== 'scanned') return 'node_not_scanned';
       if (privilegeIndex(this.state.privilege) < layerRequirement(node.layer)) {
         return 'insufficient_privilege';
@@ -190,11 +193,14 @@ export class MockGameClient implements GameClient {
       this.applyNodeEffect(node);
     } else {
       this.state.status = 'won';
+      const { rank, score, title } = calculateMissionResult(this.state);
+      this.state.evaluation = { rank, score, title };
       if (silentExtract) {
         this.log('success', `復元した暗号鍵を使用し、${node.name} から極秘研究データを隠密回収しました。目的達成！`);
       } else {
         this.log('success', `${node.name} から機密データを回収しました。目的達成！`);
       }
+      this.log('success', `作戦評価: RANK ${rank}（スコア: ${score}） - ${title}`);
       this.emit({ type: 'game_over', result: 'won' });
     }
   }
@@ -204,7 +210,7 @@ export class MockGameClient implements GameClient {
     const stage = getStageData(this.stageId);
     const effect = stage.nodeEffects[node.id];
     if (!effect) {
-      const reward = RESOURCE_REWARDS[node.id] ?? 0;
+      const reward = stage.id === DEFAULT_STAGE_ID ? RESOURCE_REWARDS[node.id] ?? 0 : 0;
       this.state.analysisResource = Math.min(MAX_ANALYSIS_RESOURCE, this.state.analysisResource + reward);
       return;
     }
@@ -228,14 +234,6 @@ export class MockGameClient implements GameClient {
       stage.keyFragmentNodeIds.length > 0 &&
       stage.keyFragmentNodeIds.every((id) => this.state.nodes.some((n) => n.id === id && n.status === 'hacked'))
     );
-  }
-
-  private hasHackedNeighbor(nodeId: string): boolean {
-    return this.state.edges.some((edge) => {
-      const neighborId =
-        edge.source === nodeId ? edge.target : edge.target === nodeId ? edge.source : null;
-      return neighborId !== null && this.state.nodes.some((n) => n.id === neighborId && n.status === 'hacked');
-    });
   }
 
   private hasAnyAffordableAction(): boolean {

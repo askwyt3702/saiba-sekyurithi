@@ -15,7 +15,12 @@ function loadSource(path, overrides = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
   });
   const module = { exports: {} };
-  const localRequire = (id) => id.endsWith('.css') ? {} : overrides[id] ?? require(id);
+  const localRequire = (id) => {
+    if (id.endsWith('.css')) return {};
+    if (id in overrides) return overrides[id];
+    if (id.startsWith('.')) return loadSource(new URL(id + '.ts', new URL(path, import.meta.url)), overrides);
+    return require(id);
+  };
   runInNewContext('(function(require, module, exports) {' + outputText + '\n})', { console })(localRequire, module, module.exports);
   return module.exports;
 }
@@ -31,7 +36,8 @@ const state = {
 
 test('all five ranks and exact score thresholds', () => {
   for (const { rank, minimum } of evaluation.RESULT_RANK_CONFIG.thresholds) {
-    const input = { ...state, elapsedSeconds: 200 + (1000 - minimum) * 2, alertLevel: 0, analysisResource: 0 };
+    const config = evaluation.RESULT_RANK_CONFIG;
+    const input = { ...state, elapsedSeconds: config.timeGraceSeconds + (config.baseScore - minimum) / config.timePenaltyPerSecond, alertLevel: 0, analysisResource: 0 };
     assert.equal(evaluation.calculateMissionResult(input).score, minimum);
     assert.equal(evaluation.calculateMissionResult(input).rank, rank);
     if (rank !== 'D') {
@@ -50,6 +56,8 @@ test('time, alert and resources affect score; input is not mutated', () => {
   assert.equal(evaluation.calculateMissionResult({ ...state, elapsedSeconds: 10000 }).score, 0);
   assert.equal(evaluation.calculateMissionResult(state).hackedNodes, 2);
   assert.equal(JSON.stringify(state), before);
+  assert.equal(evaluation.calculateMissionResult({ ...state, analysisResource: 10 }).score,
+    evaluation.calculateMissionResult({ ...state, analysisResource: 30 }).score);
 });
 
 test('time formatting includes long missions and zero', () => {
@@ -65,6 +73,15 @@ test('result markup uses real state metrics and accessible dialog labels', () =>
   }
   assert.ok(html.includes('aria-labelledby="mission-result-title"'));
   assert.ok(html.includes('aria-describedby="mission-result-description"'));
+});
+
+test('result displays the evaluation returned by the API', () => {
+  const html = renderToStaticMarkup(createElement(MissionResult, {
+    state: { ...state, evaluation: { rank: 'D', score: 10, title: 'Recorded evaluation' } },
+    onRetry: async () => {}, onTitle: async () => {},
+  }));
+  assert.ok(html.includes('クリアランク D'));
+  assert.ok(html.includes('SCORE 10'));
 });
 
 function mountResult(props) {

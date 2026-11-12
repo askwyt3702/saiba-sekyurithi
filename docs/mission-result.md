@@ -4,15 +4,17 @@
 時間・警戒度・資源・権限は受信したGameState、攻略数は `status === 'hacked'` のノード数を使う。
 時間は実時間ではなく、操作で進むゲーム内の経過時間。
 
-## 画面専用の5段階評価
+## API・ログ・Mock・画面で共通の5段階評価
 
-`frontend/src/game/model/missionResult.ts` の `RESULT_RANK_CONFIG` で調整する。
+`backend/balance_config.py` の `EVALUATION_CONFIG` で調整し、`python scripts/gen_stage_data.py` で同期する。
+`frontend/src/game/model/missionResult.ts` の `RESULT_RANK_CONFIG` は生成された共有設定を参照する。
 
-得点 = 1000 − max(0, 経過秒数 − 200) × 0.5 − 警戒度 × 8 ＋ 残り解析資源 × 15
+得点 = 1000 − max(0, 経過秒数 − 240) × 0.5 − 警戒度 × 5 ＋ min(10, 残り解析資源) × 10
 
 最後に四捨五入し、下限を0にする。900以上S、750以上A、550以上B、350以上C、それ未満D。
-これはHTTP・Mock共通の表示評価。既存バックエンドのS〜C評価やログ、API、クリア判定、ゲームバランスは変更しない。
-バックエンド評価には警戒度による別の昇格条件があるため、ログのランクと画面専用評価が異なる場合がある。
+バックエンドの別の昇格条件は廃止し、ログと画面の評価を統一する。HTTP接続時は返されたevaluationを表示し、Mockも同じ共有式でevaluationとログを生成する。
+資源加点は10で頭打ち。回復1回は最大50点の資源加点に対して52.5点以上の警戒度ペナルティとなり、得点稼ぎにならない。
+攻略ノード数自体への加点はない。リザルトは勝利時のみ。回収によって警戒度100に到達した場合は敗北し表示しない。
 
 ## 再開と操作
 
@@ -24,7 +26,8 @@
 
 ## 確認
 
-フロントエンドで `node --test tests/missionResult.test.mjs` を実行する。
+フロントエンドで `node --test tests/missionResult.test.mjs tests/strategy.test.mjs` を実行する。
+後者はプロジェクトのPython環境でバックエンドをメモリ内再生し、Mockと一手ごとに比較する。Pythonパスは`NULL_ROUTE_TEST_PYTHON`で指定可能。
 ランク境界、結果表示、攻略数、ボタンの呼び分け・二重送信防止・通信失敗、Appの勝利条件と遷移を検証する。
 追加依存なし。既存TypeScriptコンパイラとNodeのテストランナーを使う。
 

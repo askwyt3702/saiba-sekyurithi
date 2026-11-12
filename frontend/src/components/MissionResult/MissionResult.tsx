@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../../game/model/types';
-import { calculateMissionResult, formatMissionTime } from '../../game/model/missionResult';
+import { RESULT_RANK_CONFIG, calculateMissionResult, formatMissionTime } from '../../game/model/missionResult';
 import './MissionResult.css';
 
 interface MissionResultProps {
@@ -14,7 +14,8 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
   const pendingRef = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const result = calculateMissionResult(state);
+  const calculated = calculateMissionResult(state);
+  const result = { ...calculated, ...state.evaluation };
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -56,7 +57,7 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
           <div><dt>最終権限</dt><dd>{state.privilege}</dd></div>
           <div><dt>攻略したノード数（侵入済み）</dt><dd>{result.hackedNodes}<small> / {state.nodes.length}</small></dd></div>
         </dl>
-        <p className="mission-result__note">クリア時間・警戒度・残り解析資源による画面専用評価</p>
+        <p className="mission-result__note">クリア時間・警戒度・残り解析資源による共通評価（資源加点は{RESULT_RANK_CONFIG.resourceBonusCap}まで）</p>
         {error && <p className="mission-result__error" role="alert">{error}</p>}
         <div className="mission-result__actions" aria-busy={pending}>
           <button type="button" disabled={pending} onClick={() => void navigate(onRetry)}>RETRY</button>

@@ -9,6 +9,7 @@ import {
   type GameState,
   type GameStatus,
   type LogEntry,
+  type MissionEvaluation,
   type ServerEvent,
 } from '../model/types';
 import { DEFAULT_STAGE_ID } from '../data/stageData';
@@ -17,6 +18,7 @@ import { DEFAULT_STAGE_ID } from '../data/stageData';
 interface ApiGameState {
   gameId: string;
   stageId?: number;
+  evaluation: MissionEvaluation | null;
   status: GameStatus;
   elapsedSeconds: number;
   alertLevel: number;

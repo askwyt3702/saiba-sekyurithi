@@ -93,6 +93,7 @@ export interface LogEntry {
 export interface GameState {
   gameId: string;
   stageId?: number;
+  evaluation?: MissionEvaluation | null;
   status: GameStatus;
   elapsedSeconds: number;    // backend DBでは player_status.game_time
   alertLevel: number;        // backend DBでは player_status.alert_level
@@ -101,6 +102,12 @@ export interface GameState {
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   log: LogEntry[];
+}
+
+export interface MissionEvaluation {
+  rank: 'S' | 'A' | 'B' | 'C' | 'D';
+  score: number;
+  title: string;
 }
 
  

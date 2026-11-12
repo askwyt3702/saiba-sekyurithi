@@ -26,7 +26,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           <div className="mission-card" onClick={() => onSelectMission(0)}>
             <div className="mission-number">チュートリアル / TRAINING</div>
             <h2>基礎侵入訓練</h2>
-            <p>5ノードの小規模ネットワークで、スキャン・侵入・データ回収の基本操作を習得せよ。</p>
+            <p>5ノードの小規模ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。本編の初期侵入口はE01のみ。</p>
             <div className="mission-bottom">
               <span>訓練 (5ノード)</span>
               <span>選択可能 →</span>
@@ -36,7 +36,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           <div className="mission-card" onClick={() => onSelectMission(1)}>
             <div className="mission-number">ミッション 01</div>
             <h2>消えた機密データ</h2>
-            <p>不正アクセスの侵入経路を特定し、24ノードの本編ネットワークから極秘研究データを回収せよ。</p>
+            <p>E01から侵入し、最短・安全・資源回収の方針を選んでC03のデータを回収せよ。回収時も警戒度100%で敗北。</p>
             <div className="mission-bottom">
               <span>初級 (24ノード)</span>
               <span>選択可能 →</span>

@@ -30,7 +30,7 @@ export function NetworkNodeView({
 
   const displayName =
     node.status === 'unscanned'
-      ? '不明ノード'
+      ? node.id === 'E01' ? 'E01 / 初期侵入口' : node.id === 'external-1' ? '訓練の入口' : '不明ノード'
       : node.name;
 
   const statusLabel =
@@ -50,7 +50,7 @@ export function NetworkNodeView({
       <Handle type="target" position={Position.Top} />
 
       <div className="network-node__layer">
-        {node.layer}
+        {node.id} / {node.layer}
       </div>
 
       <div className="network-node__name">

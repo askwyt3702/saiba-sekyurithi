@@ -60,3 +60,21 @@ MAX_ANALYSIS_RESOURCE = 30
 # 一定期間操作されていないゲームを自動削除する日数
 # 旧APIが使用する最初のゲームは削除対象外
 STALE_GAME_DAYS = 7
+
+# API・ログ・Mock・リザルトで共有（gen_stage_data.pyでフロントへ生成）。
+# 回復は最大+50点に対して警戒度コスト52.5点以上で、得点稼ぎにならない。
+EVALUATION_CONFIG = {
+    "baseScore": 1000,
+    "timeGraceSeconds": 240,
+    "timePenaltyPerSecond": 0.5,
+    "alertPenaltyPerPoint": 5,
+    "resourceBonusPerPoint": 10,
+    "resourceBonusCap": 10,
+    "thresholds": [
+        {"rank": "S", "minimum": 900, "title": "完璧な隠密作戦 (GHOST OPERATIVE)"},
+        {"rank": "A", "minimum": 750, "title": "優秀な侵入工作 (SHADOW AGENT)"},
+        {"rank": "B", "minimum": 550, "title": "作戦目標達成 (FIELD OPERATIVE)"},
+        {"rank": "C", "minimum": 350, "title": "強行突破による生還 (LOUD BREACHER)"},
+        {"rank": "D", "minimum": 0, "title": "作戦完遂・改善の余地あり (SURVIVOR)"},
+    ],
+}

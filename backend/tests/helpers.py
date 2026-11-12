@@ -6,12 +6,12 @@ game_data から「入口ノード」「Coreまでの最短経路」などを計
 """
 from collections import deque
 
-from game_data import EDGES, ENTRY_LAYERS, NODES, TARGET_NODE_IDS
+from game_data import EDGES, ENTRY_NODE_IDS, NODES, TARGET_NODE_IDS
 
 HIDDEN_INFO = "不明（スキャンが必要です）"
 
 NODE_BY_ID = {n["id"]: n for n in NODES}
-ENTRY = next(n["id"] for n in NODES if n["layer"] in ENTRY_LAYERS)
+ENTRY = next(n["id"] for n in NODES if n["id"] in ENTRY_NODE_IDS)
 
 
 def node_of(state, node_id):

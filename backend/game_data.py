@@ -16,7 +16,7 @@ NODES = [
         "pos_x": 650,
         "pos_y": 60,
         "vulnerability": "弱いSSHパスワード",
-        "info": "ステージの初期侵入口。外部ネットワークへの接続点。",
+        "info": "ステージ1の唯一の初期侵入口。E01をスキャンして侵入すると、他のノードを探索できる。",
     },
     {
         "id": "E02",
@@ -101,7 +101,7 @@ NODES = [
         "pos_x": 1100,
         "pos_y": 390,
         "vulnerability": "監視システムの設定不備",
-        "info": "ARGUSの監視条件を調査できる。",
+        "info": "ログ管理サーバーI03への迂回接続。痕跡削減ルートに進める。",
     },
 
     # ==========================
@@ -141,7 +141,7 @@ NODES = [
         "pos_x": 900,
         "pos_y": 580,
         "vulnerability": "監視制御APIの認証不備",
-        "info": "監視AIの防衛機能を妨害するための重要ノード。",
+        "info": "初回侵入で警戒度-20%。I03から回り込む安全ルートの重要ノード。効果は一度だけ。",
     },
     {
         "id": "I05",
@@ -150,7 +150,7 @@ NODES = [
         "pos_x": 1150,
         "pos_y": 580,
         "vulnerability": "バックアップ領域の権限不備",
-        "info": "解析資源を補給できる候補。",
+        "info": "資源回収ルートの補給拠点。初回侵入で解析資源+10（上限30）。時間を使って後半の探索余力を確保できる。",
     },
     {
         "id": "I06",
@@ -195,7 +195,7 @@ NODES = [
         "pos_x": 1150,
         "pos_y": 780,
         "vulnerability": "研究用APIの認証不備",
-        "info": "研究データの位置情報が残っている。",
+        "info": "研究データへの最短接続点。補給はないため、残資源を確認してCoreへ進むこと。",
     },
 
     # ==========================
@@ -255,12 +255,11 @@ EDGE_PAIRS = [
     ("D03", "D06"),
     ("D03", "I03"),
     ("D04", "I02"),
-    ("D04", "I04"),
     ("D05", "I01"),
     ("D05", "I06"),
     ("D06", "I03"),
     ("D06", "I05"),
-    ("D07", "I04"),
+    ("D07", "I03"),
 
     ("I01", "I07"),
     ("I01", "I08"),
@@ -295,8 +294,9 @@ EDGES = [
     for i, (source, target) in enumerate(EDGE_PAIRS, start=1)
 ]
 
-# 現行ロジックではExternal階層が初期侵入可能
+# 階層情報は互換用。初期アクセスの判定はENTRY_NODE_IDSを使う。
 ENTRY_LAYERS = {"External"}
+ENTRY_NODE_IDS = {"E01"}
 
 
 # ==========================================
@@ -355,8 +355,7 @@ MAP_POSITIONS = {
 # 報酬は初回侵入時のみ獲得する
 RESOURCE_REWARDS = {
     "E03": 5,   # 公開情報アーカイブ
-    "I05": 5,   # バックアップサーバー
-    "I10": 10,  # 研究部門サーバー
+    "I05": 10,  # バックアップサーバー（NODE_EFFECTSと二重加算しない）
 }
 
 
@@ -403,9 +402,9 @@ NODE_EFFECTS = {
         "log": "ARGUS監視制御を妨害！監視AIの警戒レベルを大幅に引き下げました（警戒度 -20%）。",
     },
     "I05": {
-        "resource_bonus": 6,
+        "resource_bonus": 10,
         "alert_delta": 0.0,
-        "log": "バックアップ領域から予備の計算リソースを確保。解析資源が +6 補給されました。",
+        "log": "バックアップ領域から予備の計算リソースを確保。解析資源を最大10補給します（上限30）。",
     },
     "I06": {
         "resource_bonus": 0,
@@ -466,6 +465,7 @@ STAGES = {
         "nodes": TUTORIAL_NODES,
         "edges": TUTORIAL_EDGES,
         "entry_layers": {"External"},
+        "entry_node_ids": {"external-1"},
         "target_node_ids": {"core-1"},
         "key_fragment_node_ids": set(),
         "node_effects": {},
@@ -477,6 +477,7 @@ STAGES = {
         "nodes": NODES,
         "edges": EDGES,
         "entry_layers": ENTRY_LAYERS,
+        "entry_node_ids": ENTRY_NODE_IDS,
         "target_node_ids": TARGET_NODE_IDS,
         "key_fragment_node_ids": KEY_FRAGMENT_NODE_IDS,
         "node_effects": NODE_EFFECTS,

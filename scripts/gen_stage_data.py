@@ -3,6 +3,7 @@
 ステージやギミックを変えたら、リポジトリのルートで次を実行して stageData.ts も更新すること:
     python scripts/gen_stage_data.py
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -80,6 +81,7 @@ def format_stage_entry(stage_id: int, stage: dict) -> str:
         f"    edges: {edges_block},\n"
         f"    vulnerabilities: {vuln_block},\n"
         f"    entryLayers: {ts_id_list(stage.get('entry_layers', {'External'}))},\n"
+        f"    entryNodeIds: {ts_id_list(stage['entry_node_ids'])},\n"
         f"    targetNodeIds: {ts_id_list(stage.get('target_node_ids', set()))},\n"
         f"    keyFragmentNodeIds: {ts_id_list(stage.get('key_fragment_node_ids', set()))},\n"
         f"    nodeEffects: {eff_block},\n"
@@ -94,10 +96,11 @@ effects = format_effects(g.NODE_EFFECTS)
 stages_ts = NL.join(format_stage_entry(sid, s) for sid, s in sorted(g.STAGES.items()))
 all_target_ids = sorted({tid for s in g.STAGES.values() for tid in s.get("target_node_ids", set())})
 
-OUTPUT.write_text(
-    f"""// このファイルは scripts/gen_stage_data.py で backend/game_data.py・balance_config.py から生成している。
+generated = f"""// このファイルは scripts/gen_stage_data.py で backend/game_data.py・balance_config.py から生成している。
 // 手で編集せず、バックエンド側を変えたらスクリプトを実行し直すこと。
 import type {{ ApiNetworkEdge, NetworkNode }} from '../model/types';
+
+export const EVALUATION_CONFIG = {json.dumps(balance_config.EVALUATION_CONFIG, ensure_ascii=False, indent=2)} as const;
 
 export const INITIAL_ANALYSIS_RESOURCE = {ts_num(balance_config.INITIAL_ANALYSIS_RESOURCE)};
 export const MAX_ANALYSIS_RESOURCE = {ts_num(balance_config.MAX_ANALYSIS_RESOURCE)};
@@ -146,6 +149,7 @@ export interface StageDefinition {{
   edges: ApiNetworkEdge[];
   vulnerabilities: Record<string, string>;
   entryLayers: string[];
+  entryNodeIds: string[];
   targetNodeIds: string[];
   keyFragmentNodeIds: string[];
   nodeEffects: Record<string, NodeEffect>;
@@ -166,11 +170,16 @@ export function isExtractTarget(node: Pick<NetworkNode, 'id' | 'layer'>, stageId
   }}
   return ALL_TARGET_NODE_IDS.length === 0 ? node.layer === 'Core' : ALL_TARGET_NODE_IDS.includes(node.id);
 }}
-""",
-    encoding="utf-8",
-    newline="\n",
-)
+"""
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--check", action="store_true", help="生成結果との一致だけを検査し、ファイルを書き換えない")
+args = parser.parse_args()
+if args.check:
+    if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != generated:
+        raise SystemExit("stageData.ts is out of date; run python scripts/gen_stage_data.py")
+else:
+    OUTPUT.write_text(generated, encoding="utf-8", newline="\n")
 print(
-    f"wrote {OUTPUT.relative_to(REPO)}: {len(g.STAGES)} stages, "
+    f"{'checked' if args.check else 'wrote'} {OUTPUT.relative_to(REPO)}: {len(g.STAGES)} stages, "
     f"{len(g.ALL_STAGE_NODES)} total nodes"
 )

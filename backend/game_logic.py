@@ -4,6 +4,7 @@ API層(main.py)からは「状態の取得」と「アクションの適用」�
 バランス数値は balance_config.py、ステージ構造は game_data.py に分離してある。
 """
 from datetime import datetime, timedelta
+from math import floor
 from typing import Optional
 
 from sqlalchemy import bindparam, func, inspect, text
@@ -13,6 +14,7 @@ import models
 
 from balance_config import (
     ACTION_COSTS,
+    EVALUATION_CONFIG,
     ALERT_DECAY_PER_SECOND,
     ALERT_GAME_OVER_THRESHOLD,
     INITIAL_ANALYSIS_RESOURCE,
@@ -65,6 +67,12 @@ def _layer_index(layer: str) -> int:
 def _player_stage(player: models.PlayerStatus) -> dict:
     stage_id = player.stage_id if player.stage_id is not None else DEFAULT_STAGE_ID
     return get_stage(stage_id)
+
+
+def _start_message(stage: dict) -> str:
+    if stage["id"] == 1:
+        return "侵入作戦を開始しました。唯一の初期侵入口E01をスキャンして侵入してください。ターン制のため操作時だけ時間が進みます。"
+    return "基礎侵入訓練を開始しました。公開サーバーが入口です。本編の初期侵入口はE01のみです。"
 
 
 def _neighbors(node_id: str, edges: list[dict]) -> set[str]:
@@ -125,22 +133,17 @@ def add_log(
 
 
 def evaluate_mission_result(player: models.PlayerStatus) -> dict:
-    """作戦クリア時のスコアとランク(S/A/B/C)を算出する。"""
-    alert_penalty = round(player.alert_level * 8)
-    time_penalty = max(0, (player.game_time - 200) // 2)
-    resource_bonus = player.analysis_resource * 15
-    score = max(0, 1000 - alert_penalty - time_penalty + resource_bonus)
-
-    if score >= 900 or (player.alert_level <= 25.0 and player.analysis_resource >= 5):
-        rank, title = "S", "完璧な隠密作戦 (GHOST OPERATIVE)"
-    elif score >= 750 or player.alert_level <= 50.0:
-        rank, title = "A", "優秀な侵入工作 (SHADOW AGENT)"
-    elif score >= 550 or player.alert_level <= 75.0:
-        rank, title = "B", "作戦目標達成 (FIELD OPERATIVE)"
-    else:
-        rank, title = "C", "強行突破による生還 (LOUD BREACHER)"
-
-    return {"rank": rank, "score": score, "title": title}
+    """表示と同じ警戒度・共有係数でS〜D評価を計算する。"""
+    config = EVALUATION_CONFIG
+    score = max(0, floor(
+        config["baseScore"]
+        - max(0, player.game_time - config["timeGraceSeconds"]) * config["timePenaltyPerSecond"]
+        - round(player.alert_level, 2) * config["alertPenaltyPerPoint"]
+        + min(config["resourceBonusCap"], max(0, player.analysis_resource)) * config["resourceBonusPerPoint"]
+        + 0.5
+    ))
+    threshold = next(t for t in config["thresholds"] if score >= t["minimum"])
+    return {"rank": threshold["rank"], "score": score, "title": threshold["title"]}
 
 
 # ---------- ゲームの生成・取得 ----------
@@ -176,7 +179,7 @@ def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID) -> models.PlayerS
         db,
         player,
         "info",
-        "侵入作戦を開始しました。まずは公開サーバーをスキャンしてください。",
+        _start_message(stage),
     )
 
     db.commit()
@@ -206,7 +209,7 @@ def reset_game(
         db,
         player,
         "info",
-        "侵入作戦を開始しました。まずは公開サーバーをスキャンしてください。",
+        _start_message(_player_stage(player)),
     )
 
     db.commit()
@@ -385,6 +388,11 @@ def _validate_timed_action(
 
     statuses = _node_statuses(db, player)
     status = statuses.get(node.id, "unscanned")
+    entry_ids = stage["entry_node_ids"]
+    has_foothold = any(statuses.get(nid) == "hacked" for nid in stage_node_ids)
+    # リモートスキャンも最初の侵入を迂回しない。拠点確保後は遠隔調査できる。
+    if action_type in ("scan", "remoteScan", "breach") and not has_foothold and node.id not in entry_ids:
+        raise ActionRejected("node_unreachable")
 
     
     if action_type in ("scan", "remoteScan"):
@@ -393,13 +401,13 @@ def _validate_timed_action(
 
         if action_type == "scan":
             # 通常スキャンは侵入済みノードの隣接先だけ
-            # ただしExternal層は初期探索の入口として許可
+            # ステージごとに指定した入口ノードだけは初期探索を許可
             has_hacked_neighbor = any(
                 statuses.get(neighbor_id) == "hacked"
                 for neighbor_id in _neighbors(node.id, stage["edges"])
             )
 
-            if node.layer != "External" and not has_hacked_neighbor:
+            if node.id not in entry_ids and not has_hacked_neighbor:
                 raise ActionRejected("node_unreachable")
 
 
@@ -408,7 +416,7 @@ def _validate_timed_action(
             raise ActionRejected("invalid_state")
 
         # 入口以外は、侵入済みの隣接ノードが必要
-        if node.layer not in stage["entry_layers"]:
+        if node.id not in entry_ids:
             if not any(
                 statuses.get(neighbor_id) == "hacked"
                 for neighbor_id in _neighbors(node.id, stage["edges"])
@@ -602,6 +610,13 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
         cost["time"],
         alert_delta,
     )
+
+    # 検知はノード効果・鍵以外の事後軽減・勝利より優先する。
+    # 鍵による回収の軽減は上のalert_delta計算で既に適用済み。
+    if player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
+        _check_game_over(db, player)
+        db.commit()
+        return
 
     if action_type in ("scan", "remoteScan"):
         _set_node_status(db, player, node.id, "scanned")

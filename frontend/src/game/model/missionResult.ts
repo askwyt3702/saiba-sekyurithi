@@ -1,20 +1,8 @@
 import type { GameState } from './types';
+import { EVALUATION_CONFIG } from '../data/stageData';
 
-// Presentation-only evaluation. The backend's existing S–C evaluation is unchanged.
-export const RESULT_RANK_CONFIG = {
-  baseScore: 1000,
-  timeGraceSeconds: 200,
-  timePenaltyPerSecond: 0.5,
-  alertPenaltyPerPoint: 8,
-  resourceBonusPerPoint: 15,
-  thresholds: [
-    { rank: 'S', minimum: 900 },
-    { rank: 'A', minimum: 750 },
-    { rank: 'B', minimum: 550 },
-    { rank: 'C', minimum: 350 },
-    { rank: 'D', minimum: 0 },
-  ],
-} as const;
+// backend/balance_config.pyから生成。API・ログ・Mock・表示で同じ式を使う。
+export const RESULT_RANK_CONFIG = EVALUATION_CONFIG;
 
 export function calculateMissionResult(state: Pick<GameState,
   'elapsedSeconds' | 'alertLevel' | 'analysisResource' | 'nodes'>) {
@@ -22,11 +10,12 @@ export function calculateMissionResult(state: Pick<GameState,
   const score = Math.max(0, Math.round(
     config.baseScore
     - Math.max(0, state.elapsedSeconds - config.timeGraceSeconds) * config.timePenaltyPerSecond
-    - state.alertLevel * config.alertPenaltyPerPoint
-    + state.analysisResource * config.resourceBonusPerPoint,
+    - (Math.round(state.alertLevel * 100) / 100) * config.alertPenaltyPerPoint
+    + Math.min(config.resourceBonusCap, Math.max(0, state.analysisResource)) * config.resourceBonusPerPoint,
   ));
-  const rank = config.thresholds.find((threshold) => score >= threshold.minimum)!.rank;
-  return { score, rank, hackedNodes: state.nodes.filter((node) => node.status === 'hacked').length };
+  const threshold = config.thresholds.find((threshold) => score >= threshold.minimum)!;
+  return { score, rank: threshold.rank, title: threshold.title,
+    hackedNodes: state.nodes.filter((node) => node.status === 'hacked').length };
 }
 
 export function formatMissionTime(seconds: number): string {

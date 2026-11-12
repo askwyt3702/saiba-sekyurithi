@@ -2,16 +2,52 @@
 // 手で編集せず、バックエンド側を変えたらスクリプトを実行し直すこと。
 import type { ApiNetworkEdge, NetworkNode } from '../model/types';
 
+export const EVALUATION_CONFIG = {
+  "baseScore": 1000,
+  "timeGraceSeconds": 240,
+  "timePenaltyPerSecond": 0.5,
+  "alertPenaltyPerPoint": 5,
+  "resourceBonusPerPoint": 10,
+  "resourceBonusCap": 10,
+  "thresholds": [
+    {
+      "rank": "S",
+      "minimum": 900,
+      "title": "完璧な隠密作戦 (GHOST OPERATIVE)"
+    },
+    {
+      "rank": "A",
+      "minimum": 750,
+      "title": "優秀な侵入工作 (SHADOW AGENT)"
+    },
+    {
+      "rank": "B",
+      "minimum": 550,
+      "title": "作戦目標達成 (FIELD OPERATIVE)"
+    },
+    {
+      "rank": "C",
+      "minimum": 350,
+      "title": "強行突破による生還 (LOUD BREACHER)"
+    },
+    {
+      "rank": "D",
+      "minimum": 0,
+      "title": "作戦完遂・改善の余地あり (SURVIVOR)"
+    }
+  ]
+} as const;
+
 export const INITIAL_ANALYSIS_RESOURCE = 25;
 export const MAX_ANALYSIS_RESOURCE = 30;
 export const RESOURCE_RECOVERY_AMOUNT = 5;
 export const RECOVERY_COST = { time: 30, alertDelta: 12 };
-export const RESOURCE_REWARDS: Record<string, number> = {"E03": 5, "I05": 5, "I10": 10};
+export const RESOURCE_REWARDS: Record<string, number> = {"E03": 5, "I05": 10};
 export const ENTRY_LAYERS: string[] = ['External'];
 export const DEFAULT_STAGE_ID = 1;
 
 export const STAGE_NODES: NetworkNode[] = [
-  { id: 'E01', layer: 'External', name: '公開ゲートウェイ', position: { x: 600, y: 100 }, status: 'unscanned', info: 'ステージの初期侵入口。外部ネットワークへの接続点。', vulnerability: null },
+  { id: 'E01', layer: 'External', name: '公開ゲートウェイ', position: { x: 600, y: 100 }, status: 'unscanned', info: 'ステージ1の唯一の初期侵入口。E01をスキャンして侵入すると、他のノードを探索できる。', vulnerability: null },
   { id: 'E02', layer: 'External', name: 'DNS情報サーバー', position: { x: 300, y: 330 }, status: 'unscanned', info: '内部の接続先に関する手がかりが残っている。', vulnerability: null },
   { id: 'E03', layer: 'External', name: '公開情報アーカイブ', position: { x: 900, y: 330 }, status: 'unscanned', info: '過去の公開情報が保管されている。解析資源の補給候補。', vulnerability: null },
   { id: 'D01', layer: 'DMZ', name: 'Webサーバー', position: { x: 150, y: 600 }, status: 'unscanned', info: '高速侵入ルートの入口。', vulnerability: null },
@@ -20,17 +56,17 @@ export const STAGE_NODES: NetworkNode[] = [
   { id: 'D04', layer: 'DMZ', name: 'Web管理サーバー', position: { x: 100, y: 1000 }, status: 'unscanned', info: '開発環境への侵入に役立つ管理情報がある。', vulnerability: null },
   { id: 'D05', layer: 'DMZ', name: '認証キャッシュ', position: { x: 450, y: 1100 }, status: 'unscanned', info: 'VPN認証情報が残されている。', vulnerability: null },
   { id: 'D06', layer: 'DMZ', name: 'プロキシサーバー', position: { x: 900, y: 1000 }, status: 'unscanned', info: '通信の追跡を妨害できる可能性がある。', vulnerability: null },
-  { id: 'D07', layer: 'DMZ', name: 'DMZ監視装置', position: { x: 1200, y: 1150 }, status: 'unscanned', info: 'ARGUSの監視条件を調査できる。', vulnerability: null },
+  { id: 'D07', layer: 'DMZ', name: 'DMZ監視装置', position: { x: 1200, y: 1150 }, status: 'unscanned', info: 'ログ管理サーバーI03への迂回接続。痕跡削減ルートに進める。', vulnerability: null },
   { id: 'I01', layer: 'Internal', name: '社内認証サーバー', position: { x: 150, y: 1450 }, status: 'unscanned', info: '管理者トークンの取得候補。', vulnerability: null },
   { id: 'I02', layer: 'Internal', name: '開発環境サーバー', position: { x: 500, y: 1350 }, status: 'unscanned', info: '内部ルーターへの侵入経路。', vulnerability: null },
   { id: 'I03', layer: 'Internal', name: 'ログ管理サーバー', position: { x: 850, y: 1450 }, status: 'unscanned', info: '侵入の痕跡を削減できる可能性がある。', vulnerability: null },
-  { id: 'I04', layer: 'Internal', name: 'ARGUS監視制御', position: { x: 1200, y: 1400 }, status: 'unscanned', info: '監視AIの防衛機能を妨害するための重要ノード。', vulnerability: null },
-  { id: 'I05', layer: 'Internal', name: 'バックアップサーバー', position: { x: 1100, y: 1850 }, status: 'unscanned', info: '解析資源を補給できる候補。', vulnerability: null },
+  { id: 'I04', layer: 'Internal', name: 'ARGUS監視制御', position: { x: 1200, y: 1400 }, status: 'unscanned', info: '初回侵入で警戒度-20%。I03から回り込む安全ルートの重要ノード。効果は一度だけ。', vulnerability: null },
+  { id: 'I05', layer: 'Internal', name: 'バックアップサーバー', position: { x: 1100, y: 1850 }, status: 'unscanned', info: '資源回収ルートの補給拠点。初回侵入で解析資源+10（上限30）。時間を使って後半の探索余力を確保できる。', vulnerability: null },
   { id: 'I06', layer: 'Internal', name: '社内ファイルサーバー', position: { x: 150, y: 1800 }, status: 'unscanned', info: '暗号鍵の断片Aが保管されている。', vulnerability: null },
   { id: 'I07', layer: 'Internal', name: '管理端末', position: { x: 450, y: 1900 }, status: 'unscanned', info: '暗号鍵の断片Bが保管されている。', vulnerability: null },
   { id: 'I08', layer: 'Internal', name: '内部ルーター', position: { x: 750, y: 1800 }, status: 'unscanned', info: 'Coreネットワークへの主要接続点。', vulnerability: null },
   { id: 'I09', layer: 'Internal', name: 'セキュリティ管理サーバー', position: { x: 850, y: 2200 }, status: 'unscanned', info: 'Coreファイアウォールの防御を弱められる。', vulnerability: null },
-  { id: 'I10', layer: 'Internal', name: '研究部門サーバー', position: { x: 1200, y: 2150 }, status: 'unscanned', info: '研究データの位置情報が残っている。', vulnerability: null },
+  { id: 'I10', layer: 'Internal', name: '研究部門サーバー', position: { x: 1200, y: 2150 }, status: 'unscanned', info: '研究データへの最短接続点。補給はないため、残資源を確認してCoreへ進むこと。', vulnerability: null },
   { id: 'C01', layer: 'Core', name: 'Coreファイアウォール', position: { x: 550, y: 2550 }, status: 'unscanned', info: '機密領域を守る主要防衛装置。', vulnerability: null },
   { id: 'C02', layer: 'Core', name: '暗号認証サーバー', position: { x: 700, y: 2900 }, status: 'unscanned', info: '研究データの回収に必要な認証を管理する。', vulnerability: null },
   { id: 'C03', layer: 'Core', name: '研究データベース', position: { x: 700, y: 3250 }, status: 'unscanned', info: 'ステージの最終目標。極秘研究データが存在する。', vulnerability: null },
@@ -51,32 +87,31 @@ export const STAGE_EDGES: ApiNetworkEdge[] = [
   { id: 'e11', source: 'D03', target: 'D06', animated: true },
   { id: 'e12', source: 'D03', target: 'I03', animated: true },
   { id: 'e13', source: 'D04', target: 'I02', animated: true },
-  { id: 'e14', source: 'D04', target: 'I04', animated: true },
-  { id: 'e15', source: 'D05', target: 'I01', animated: true },
-  { id: 'e16', source: 'D05', target: 'I06', animated: true },
-  { id: 'e17', source: 'D06', target: 'I03', animated: true },
-  { id: 'e18', source: 'D06', target: 'I05', animated: true },
-  { id: 'e19', source: 'D07', target: 'I04', animated: true },
-  { id: 'e20', source: 'I01', target: 'I07', animated: true },
-  { id: 'e21', source: 'I01', target: 'I08', animated: true },
-  { id: 'e22', source: 'I02', target: 'I08', animated: true },
-  { id: 'e23', source: 'I02', target: 'I10', animated: true },
-  { id: 'e24', source: 'I03', target: 'I04', animated: true },
-  { id: 'e25', source: 'I03', target: 'I05', animated: true },
-  { id: 'e26', source: 'I04', target: 'I09', animated: true },
-  { id: 'e27', source: 'I05', target: 'I06', animated: true },
-  { id: 'e28', source: 'I06', target: 'I07', animated: true },
-  { id: 'e29', source: 'I06', target: 'I10', animated: true },
-  { id: 'e30', source: 'I07', target: 'I09', animated: true },
-  { id: 'e31', source: 'I08', target: 'I09', animated: true },
-  { id: 'e32', source: 'I08', target: 'C01', animated: true },
-  { id: 'e33', source: 'I09', target: 'C01', animated: true },
-  { id: 'e34', source: 'I09', target: 'C04', animated: true },
-  { id: 'e35', source: 'I10', target: 'C02', animated: true },
-  { id: 'e36', source: 'C01', target: 'C02', animated: true },
-  { id: 'e37', source: 'C01', target: 'C04', animated: true },
-  { id: 'e38', source: 'C02', target: 'C03', animated: true },
-  { id: 'e39', source: 'C04', target: 'C03', animated: true },
+  { id: 'e14', source: 'D05', target: 'I01', animated: true },
+  { id: 'e15', source: 'D05', target: 'I06', animated: true },
+  { id: 'e16', source: 'D06', target: 'I03', animated: true },
+  { id: 'e17', source: 'D06', target: 'I05', animated: true },
+  { id: 'e18', source: 'D07', target: 'I03', animated: true },
+  { id: 'e19', source: 'I01', target: 'I07', animated: true },
+  { id: 'e20', source: 'I01', target: 'I08', animated: true },
+  { id: 'e21', source: 'I02', target: 'I08', animated: true },
+  { id: 'e22', source: 'I02', target: 'I10', animated: true },
+  { id: 'e23', source: 'I03', target: 'I04', animated: true },
+  { id: 'e24', source: 'I03', target: 'I05', animated: true },
+  { id: 'e25', source: 'I04', target: 'I09', animated: true },
+  { id: 'e26', source: 'I05', target: 'I06', animated: true },
+  { id: 'e27', source: 'I06', target: 'I07', animated: true },
+  { id: 'e28', source: 'I06', target: 'I10', animated: true },
+  { id: 'e29', source: 'I07', target: 'I09', animated: true },
+  { id: 'e30', source: 'I08', target: 'I09', animated: true },
+  { id: 'e31', source: 'I08', target: 'C01', animated: true },
+  { id: 'e32', source: 'I09', target: 'C01', animated: true },
+  { id: 'e33', source: 'I09', target: 'C04', animated: true },
+  { id: 'e34', source: 'I10', target: 'C02', animated: true },
+  { id: 'e35', source: 'C01', target: 'C02', animated: true },
+  { id: 'e36', source: 'C01', target: 'C04', animated: true },
+  { id: 'e37', source: 'C02', target: 'C03', animated: true },
+  { id: 'e38', source: 'C04', target: 'C03', animated: true },
 ];
 
 // 脆弱性はスキャンするまで伏せておき、スキャン完了時に開示する。
@@ -126,7 +161,7 @@ export const NODE_EFFECTS: Record<string, NodeEffect> = {
   'D06': { resourceBonus: 0, alertDelta: -8, log: 'プロキシサーバーで通信経路を偽装。警戒度が低下しました。' },
   'I03': { resourceBonus: 0, alertDelta: -15, log: 'ログ管理サーバーの監査ログを改ざんし、侵入痕跡を削減しました（警戒度 -15%）。' },
   'I04': { resourceBonus: 0, alertDelta: -20, log: 'ARGUS監視制御を妨害！監視AIの警戒レベルを大幅に引き下げました（警戒度 -20%）。' },
-  'I05': { resourceBonus: 6, alertDelta: 0, log: 'バックアップ領域から予備の計算リソースを確保。解析資源が +6 補給されました。' },
+  'I05': { resourceBonus: 10, alertDelta: 0, log: 'バックアップ領域から予備の計算リソースを確保。解析資源を最大10補給します（上限30）。' },
   'I06': { resourceBonus: 0, alertDelta: 0, log: '【重要】社内ファイルサーバーから「暗号鍵の断片A」を入手しました。' },
   'I07': { resourceBonus: 0, alertDelta: 0, log: '【重要】管理端末から「暗号鍵の断片B」を入手しました。' },
   'I09': { resourceBonus: 3, alertDelta: -10, log: 'セキュリティ管理サーバーを掌握。Core領域の防衛設定を弱体化させました（資源 +3 / 警戒度 -10%）。' },
@@ -141,6 +176,7 @@ export interface StageDefinition {
   edges: ApiNetworkEdge[];
   vulnerabilities: Record<string, string>;
   entryLayers: string[];
+  entryNodeIds: string[];
   targetNodeIds: string[];
   keyFragmentNodeIds: string[];
   nodeEffects: Record<string, NodeEffect>;
@@ -173,6 +209,7 @@ export const STAGES: Record<number, StageDefinition> = {
       'core-1': 'SQLインジェクション',
     },
     entryLayers: ['External'],
+    entryNodeIds: ['external-1'],
     targetNodeIds: ['core-1'],
     keyFragmentNodeIds: [],
     nodeEffects: {},
@@ -182,7 +219,7 @@ export const STAGES: Record<number, StageDefinition> = {
     name: 'OPERATION SILENT TRACE: 消えた機密データ',
     difficulty: 'beginner',
     nodes: [
-      { id: 'E01', layer: 'External', name: '公開ゲートウェイ', position: { x: 600, y: 100 }, status: 'unscanned', info: 'ステージの初期侵入口。外部ネットワークへの接続点。', vulnerability: null },
+      { id: 'E01', layer: 'External', name: '公開ゲートウェイ', position: { x: 600, y: 100 }, status: 'unscanned', info: 'ステージ1の唯一の初期侵入口。E01をスキャンして侵入すると、他のノードを探索できる。', vulnerability: null },
       { id: 'E02', layer: 'External', name: 'DNS情報サーバー', position: { x: 300, y: 330 }, status: 'unscanned', info: '内部の接続先に関する手がかりが残っている。', vulnerability: null },
       { id: 'E03', layer: 'External', name: '公開情報アーカイブ', position: { x: 900, y: 330 }, status: 'unscanned', info: '過去の公開情報が保管されている。解析資源の補給候補。', vulnerability: null },
       { id: 'D01', layer: 'DMZ', name: 'Webサーバー', position: { x: 150, y: 600 }, status: 'unscanned', info: '高速侵入ルートの入口。', vulnerability: null },
@@ -191,17 +228,17 @@ export const STAGES: Record<number, StageDefinition> = {
       { id: 'D04', layer: 'DMZ', name: 'Web管理サーバー', position: { x: 100, y: 1000 }, status: 'unscanned', info: '開発環境への侵入に役立つ管理情報がある。', vulnerability: null },
       { id: 'D05', layer: 'DMZ', name: '認証キャッシュ', position: { x: 450, y: 1100 }, status: 'unscanned', info: 'VPN認証情報が残されている。', vulnerability: null },
       { id: 'D06', layer: 'DMZ', name: 'プロキシサーバー', position: { x: 900, y: 1000 }, status: 'unscanned', info: '通信の追跡を妨害できる可能性がある。', vulnerability: null },
-      { id: 'D07', layer: 'DMZ', name: 'DMZ監視装置', position: { x: 1200, y: 1150 }, status: 'unscanned', info: 'ARGUSの監視条件を調査できる。', vulnerability: null },
+      { id: 'D07', layer: 'DMZ', name: 'DMZ監視装置', position: { x: 1200, y: 1150 }, status: 'unscanned', info: 'ログ管理サーバーI03への迂回接続。痕跡削減ルートに進める。', vulnerability: null },
       { id: 'I01', layer: 'Internal', name: '社内認証サーバー', position: { x: 150, y: 1450 }, status: 'unscanned', info: '管理者トークンの取得候補。', vulnerability: null },
       { id: 'I02', layer: 'Internal', name: '開発環境サーバー', position: { x: 500, y: 1350 }, status: 'unscanned', info: '内部ルーターへの侵入経路。', vulnerability: null },
       { id: 'I03', layer: 'Internal', name: 'ログ管理サーバー', position: { x: 850, y: 1450 }, status: 'unscanned', info: '侵入の痕跡を削減できる可能性がある。', vulnerability: null },
-      { id: 'I04', layer: 'Internal', name: 'ARGUS監視制御', position: { x: 1200, y: 1400 }, status: 'unscanned', info: '監視AIの防衛機能を妨害するための重要ノード。', vulnerability: null },
-      { id: 'I05', layer: 'Internal', name: 'バックアップサーバー', position: { x: 1100, y: 1850 }, status: 'unscanned', info: '解析資源を補給できる候補。', vulnerability: null },
+      { id: 'I04', layer: 'Internal', name: 'ARGUS監視制御', position: { x: 1200, y: 1400 }, status: 'unscanned', info: '初回侵入で警戒度-20%。I03から回り込む安全ルートの重要ノード。効果は一度だけ。', vulnerability: null },
+      { id: 'I05', layer: 'Internal', name: 'バックアップサーバー', position: { x: 1100, y: 1850 }, status: 'unscanned', info: '資源回収ルートの補給拠点。初回侵入で解析資源+10（上限30）。時間を使って後半の探索余力を確保できる。', vulnerability: null },
       { id: 'I06', layer: 'Internal', name: '社内ファイルサーバー', position: { x: 150, y: 1800 }, status: 'unscanned', info: '暗号鍵の断片Aが保管されている。', vulnerability: null },
       { id: 'I07', layer: 'Internal', name: '管理端末', position: { x: 450, y: 1900 }, status: 'unscanned', info: '暗号鍵の断片Bが保管されている。', vulnerability: null },
       { id: 'I08', layer: 'Internal', name: '内部ルーター', position: { x: 750, y: 1800 }, status: 'unscanned', info: 'Coreネットワークへの主要接続点。', vulnerability: null },
       { id: 'I09', layer: 'Internal', name: 'セキュリティ管理サーバー', position: { x: 850, y: 2200 }, status: 'unscanned', info: 'Coreファイアウォールの防御を弱められる。', vulnerability: null },
-      { id: 'I10', layer: 'Internal', name: '研究部門サーバー', position: { x: 1200, y: 2150 }, status: 'unscanned', info: '研究データの位置情報が残っている。', vulnerability: null },
+      { id: 'I10', layer: 'Internal', name: '研究部門サーバー', position: { x: 1200, y: 2150 }, status: 'unscanned', info: '研究データへの最短接続点。補給はないため、残資源を確認してCoreへ進むこと。', vulnerability: null },
       { id: 'C01', layer: 'Core', name: 'Coreファイアウォール', position: { x: 550, y: 2550 }, status: 'unscanned', info: '機密領域を守る主要防衛装置。', vulnerability: null },
       { id: 'C02', layer: 'Core', name: '暗号認証サーバー', position: { x: 700, y: 2900 }, status: 'unscanned', info: '研究データの回収に必要な認証を管理する。', vulnerability: null },
       { id: 'C03', layer: 'Core', name: '研究データベース', position: { x: 700, y: 3250 }, status: 'unscanned', info: 'ステージの最終目標。極秘研究データが存在する。', vulnerability: null },
@@ -221,32 +258,31 @@ export const STAGES: Record<number, StageDefinition> = {
       { id: 'e11', source: 'D03', target: 'D06', animated: true },
       { id: 'e12', source: 'D03', target: 'I03', animated: true },
       { id: 'e13', source: 'D04', target: 'I02', animated: true },
-      { id: 'e14', source: 'D04', target: 'I04', animated: true },
-      { id: 'e15', source: 'D05', target: 'I01', animated: true },
-      { id: 'e16', source: 'D05', target: 'I06', animated: true },
-      { id: 'e17', source: 'D06', target: 'I03', animated: true },
-      { id: 'e18', source: 'D06', target: 'I05', animated: true },
-      { id: 'e19', source: 'D07', target: 'I04', animated: true },
-      { id: 'e20', source: 'I01', target: 'I07', animated: true },
-      { id: 'e21', source: 'I01', target: 'I08', animated: true },
-      { id: 'e22', source: 'I02', target: 'I08', animated: true },
-      { id: 'e23', source: 'I02', target: 'I10', animated: true },
-      { id: 'e24', source: 'I03', target: 'I04', animated: true },
-      { id: 'e25', source: 'I03', target: 'I05', animated: true },
-      { id: 'e26', source: 'I04', target: 'I09', animated: true },
-      { id: 'e27', source: 'I05', target: 'I06', animated: true },
-      { id: 'e28', source: 'I06', target: 'I07', animated: true },
-      { id: 'e29', source: 'I06', target: 'I10', animated: true },
-      { id: 'e30', source: 'I07', target: 'I09', animated: true },
-      { id: 'e31', source: 'I08', target: 'I09', animated: true },
-      { id: 'e32', source: 'I08', target: 'C01', animated: true },
-      { id: 'e33', source: 'I09', target: 'C01', animated: true },
-      { id: 'e34', source: 'I09', target: 'C04', animated: true },
-      { id: 'e35', source: 'I10', target: 'C02', animated: true },
-      { id: 'e36', source: 'C01', target: 'C02', animated: true },
-      { id: 'e37', source: 'C01', target: 'C04', animated: true },
-      { id: 'e38', source: 'C02', target: 'C03', animated: true },
-      { id: 'e39', source: 'C04', target: 'C03', animated: true },
+      { id: 'e14', source: 'D05', target: 'I01', animated: true },
+      { id: 'e15', source: 'D05', target: 'I06', animated: true },
+      { id: 'e16', source: 'D06', target: 'I03', animated: true },
+      { id: 'e17', source: 'D06', target: 'I05', animated: true },
+      { id: 'e18', source: 'D07', target: 'I03', animated: true },
+      { id: 'e19', source: 'I01', target: 'I07', animated: true },
+      { id: 'e20', source: 'I01', target: 'I08', animated: true },
+      { id: 'e21', source: 'I02', target: 'I08', animated: true },
+      { id: 'e22', source: 'I02', target: 'I10', animated: true },
+      { id: 'e23', source: 'I03', target: 'I04', animated: true },
+      { id: 'e24', source: 'I03', target: 'I05', animated: true },
+      { id: 'e25', source: 'I04', target: 'I09', animated: true },
+      { id: 'e26', source: 'I05', target: 'I06', animated: true },
+      { id: 'e27', source: 'I06', target: 'I07', animated: true },
+      { id: 'e28', source: 'I06', target: 'I10', animated: true },
+      { id: 'e29', source: 'I07', target: 'I09', animated: true },
+      { id: 'e30', source: 'I08', target: 'I09', animated: true },
+      { id: 'e31', source: 'I08', target: 'C01', animated: true },
+      { id: 'e32', source: 'I09', target: 'C01', animated: true },
+      { id: 'e33', source: 'I09', target: 'C04', animated: true },
+      { id: 'e34', source: 'I10', target: 'C02', animated: true },
+      { id: 'e35', source: 'C01', target: 'C02', animated: true },
+      { id: 'e36', source: 'C01', target: 'C04', animated: true },
+      { id: 'e37', source: 'C02', target: 'C03', animated: true },
+      { id: 'e38', source: 'C04', target: 'C03', animated: true },
     ],
     vulnerabilities: {
       'E01': '弱いSSHパスワード',
@@ -275,6 +311,7 @@ export const STAGES: Record<number, StageDefinition> = {
       'C04': '緊急制御機能の設定不備',
     },
     entryLayers: ['External'],
+    entryNodeIds: ['E01'],
     targetNodeIds: ['C03'],
     keyFragmentNodeIds: ['I06', 'I07'],
     nodeEffects: {
@@ -282,7 +319,7 @@ export const STAGES: Record<number, StageDefinition> = {
       'D06': { resourceBonus: 0, alertDelta: -8, log: 'プロキシサーバーで通信経路を偽装。警戒度が低下しました。' },
       'I03': { resourceBonus: 0, alertDelta: -15, log: 'ログ管理サーバーの監査ログを改ざんし、侵入痕跡を削減しました（警戒度 -15%）。' },
       'I04': { resourceBonus: 0, alertDelta: -20, log: 'ARGUS監視制御を妨害！監視AIの警戒レベルを大幅に引き下げました（警戒度 -20%）。' },
-      'I05': { resourceBonus: 6, alertDelta: 0, log: 'バックアップ領域から予備の計算リソースを確保。解析資源が +6 補給されました。' },
+      'I05': { resourceBonus: 10, alertDelta: 0, log: 'バックアップ領域から予備の計算リソースを確保。解析資源を最大10補給します（上限30）。' },
       'I06': { resourceBonus: 0, alertDelta: 0, log: '【重要】社内ファイルサーバーから「暗号鍵の断片A」を入手しました。' },
       'I07': { resourceBonus: 0, alertDelta: 0, log: '【重要】管理端末から「暗号鍵の断片B」を入手しました。' },
       'I09': { resourceBonus: 3, alertDelta: -10, log: 'セキュリティ管理サーバーを掌握。Core領域の防衛設定を弱体化させました（資源 +3 / 警戒度 -10%）。' },
