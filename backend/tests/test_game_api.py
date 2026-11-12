@@ -20,16 +20,16 @@ def clear_stage(act, game, set_player):
     set_player(game, analysis_resource=1000)   # 資源の量ではなくルールのほうを試したいので十分に与える
     path = shortest_path_to_core()
 
-for node in path:
-    assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+    for node in path:
+        assert act(game, "scan", node)["accepted"] is True, ("scan", node)
 
-    if node == "E01":
-        assert act(game, "confirmInfo", node)["accepted"] is True
-        assert act(game, "completeAnalysis", node)["accepted"] is True
+        if node == "E01":
+            assert act(game, "confirmInfo", node)["accepted"] is True
+            assert act(game, "completeAnalysis", node)["accepted"] is True
 
-    assert act(game, "breach", node)["accepted"] is True, ("breach", node)
+        assert act(game, "breach", node)["accepted"] is True, ("breach", node)
 
-
+    return path
 
 
 # ---------- ゲームの作成・取得・リセット ----------
@@ -163,6 +163,11 @@ def test_breach_promotes_privilege(game, act):
 
 def test_breach_hacked_node_again_is_rejected(game, act):
     act(game, "scan", ENTRY)
+
+    if ENTRY == "E01":
+        act(game, "confirmInfo", ENTRY)
+        act(game, "completeAnalysis", ENTRY)
+
     act(game, "breach", ENTRY)
     result = act(game, "breach", ENTRY)
     assert result["accepted"] is False
@@ -244,8 +249,14 @@ def test_full_playthrough_wins(game, act, set_player):
 def test_default_resource_is_enough_to_clear_the_stage(game, act):
     """初期の解析資源だけで、最短経路ならクリアできること（バランスの最低ライン）。"""
     path = shortest_path_to_core()
+
     for node in path:
         assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+
+        if node == "E01":
+            assert act(game, "confirmInfo", node)["accepted"] is True
+            assert act(game, "completeAnalysis", node)["accepted"] is True
+
         assert act(game, "breach", node)["accepted"] is True, ("breach", node)
     result = act(game, "dataExtract", path[-1])
     assert result["accepted"] is True, result.get("reason")

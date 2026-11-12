@@ -319,22 +319,22 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
         if player.game_status != "playing":
             raise ActionRejected("invalid_state")
 
-        if node_id != "E01":
+        if node_id not in SECURITY_RULES:
             raise ActionRejected("invalid_state")
 
         statuses = _node_statuses(db, player)
 
-        if statuses.get("E01") != "scanned":
+        if statuses.get(node_id) != "scanned":
             raise ActionRejected("node_not_scanned")
 
-        if _security_event_done(db, player, "E01", "INFO_CONFIRMED"):
+        if _security_event_done(db, player, node_id, "INFO_CONFIRMED"):
             raise ActionRejected("invalid_state")
 
         add_log(
             db,
             player,
             "success",
-            "[SECURITY:E01:INFO_CONFIRMED]"
+            f"[SECURITY:{node_id}:INFO_CONFIRMED]"
         )
         db.commit()
         return
@@ -344,16 +344,16 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
         if player.game_status != "playing":
             raise ActionRejected("invalid_state")
 
-        if node_id != "E01":
+        if node_id not in SECURITY_RULES:
             raise ActionRejected("invalid_state")
 
         if not _security_event_done(
-            db, player, "E01", "INFO_CONFIRMED"
+            db, player, node_id, "INFO_CONFIRMED"
         ):
             raise ActionRejected("invalid_state")
 
         if _security_event_done(
-            db, player, "E01", "ANALYSIS_COMPLETED"
+            db, player, node_id, "ANALYSIS_COMPLETED"
         ):
             raise ActionRejected("invalid_state")
 
@@ -361,7 +361,7 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str, nod
             db,
             player,
             "success",
-            "[SECURITY:E01:ANALYSIS_COMPLETED]"
+            f"[SECURITY:{node_id}:ANALYSIS_COMPLETED]"
         )
         db.commit()
         return
