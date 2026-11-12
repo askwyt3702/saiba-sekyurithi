@@ -38,6 +38,7 @@ function elements(tree, type) {
 
 const { NodeDetailPanel } = load(new URL('../src/components/NodeDetailPanel/NodeDetailPanel.tsx', import.meta.url));
 const { MockGameClient } = load(new URL('../src/game/client/mockGameClient.ts', import.meta.url));
+const { getSecurityChallenge } = load(new URL('../src/game/data/securityLearningData.ts', import.meta.url));
 function textOf(tree) {
   if (typeof tree === 'string' || typeof tree === 'number') return String(tree);
   return tree && typeof tree === 'object' ? [tree.props?.children].flat(Infinity).map(textOf).join('') : '';
@@ -92,6 +93,23 @@ for (const id of ['E01', 'E02', 'E03']) {
     assert.notEqual(JSON.stringify(client.state), before);
     assert.equal(elements(panel(), 'button')[2].props.disabled, false);
     assert.equal(client.state.elapsedSeconds, 10, 'confirmation and analysis must not spend time');
+    button('閉じる').props.onClick();
+    const readyState = JSON.stringify(client.state);
+    elements(panel(), 'button')[2].props.onClick();
+    const execute = () => elements(panel(), 'button').find((b) => b.props.className === 'exploit-modal__execute-btn');
+    assert.equal(execute().props.disabled, true, 'the learning terminal requires a matching technique');
+    const node = client.state.nodes.find((n) => n.id === id);
+    const challenge = getSecurityChallenge(id, node.vulnerability, node.info);
+    const choices = () => elements(panel(), 'button').filter((b) => b.props.className?.startsWith('exploit-choice '));
+    choices()[challenge.choices.findIndex((c) => !c.isCorrect)].props.onClick();
+    assert.equal(execute().props.disabled, true);
+    assert.equal(JSON.stringify(client.state), readyState, 'learning feedback alone must not consume resources or breach');
+    choices()[challenge.choices.findIndex((c) => c.isCorrect)].props.onClick();
+    assert.equal(execute().props.disabled, false);
+    execute().props.onClick();
+    assert.equal((await pending).accepted, true);
+    assert.equal(client.state.nodes.find((n) => n.id === id).status, 'hacked');
+    assert.equal(client.state.elapsedSeconds, 30);
   });
 }
 
