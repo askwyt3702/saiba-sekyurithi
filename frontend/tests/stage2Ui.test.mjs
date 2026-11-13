@@ -140,3 +140,41 @@ test('monitor panel previews +12 and detection at 100, and removes the extra aft
   assert.ok(textOf(panel()).includes('88.00%'));
   assert.ok(!textOf(panel()).includes('検知され敗北'));
 });
+
+test('TutorialBanner guides Stage 0 through steps 1-7 and hides on Stage 1/2', () => {
+  const { TutorialBanner } = load(
+    new URL('../src/components/TutorialBanner/TutorialBanner.tsx', import.meta.url),
+  );
+  const { createMockGameState } = load(new URL('../src/game/data/mockGameState.ts', import.meta.url));
+  const state0 = createMockGameState('tut', 0);
+
+  assert.equal(TutorialBanner({ stageId: 1, nodes: state0.nodes, logs: [], selectedNodeId: null, onSelectNode() {} }), null);
+  assert.equal(TutorialBanner({ stageId: 2, nodes: state0.nodes, logs: [], selectedNodeId: null, onSelectNode() {} }), null);
+
+  const renderStep = (selectedNodeId) =>
+    textOf(TutorialBanner({ stageId: 0, nodes: state0.nodes, logs: [], selectedNodeId, onSelectNode() {} }));
+
+  assert.ok(renderStep(null).includes('STEP 1 / 7'));
+  assert.ok(renderStep('external-1').includes('STEP 2 / 7'));
+
+  state0.nodes.find((n) => n.id === 'external-1').status = 'scanned';
+  assert.ok(renderStep('external-1').includes('STEP 3 / 7'));
+  for (const message of ['[SECURITY:external-1:INFO_CONFIRMED]', '【調査完了】external-1: SSH hint']) {
+    const confirmed = textOf(TutorialBanner({ stageId: 0, nodes: state0.nodes,
+      logs: [{ id: 'confirm', timestamp: 0, severity: 'success', message }],
+      selectedNodeId: 'external-1', onSelectNode() {} }));
+    assert.ok(confirmed.includes('事前調査が完了しました'));
+  }
+
+  state0.nodes.find((n) => n.id === 'external-1').status = 'hacked';
+  assert.ok(renderStep('external-1').includes('STEP 4 / 7'));
+
+  state0.nodes.find((n) => n.id === 'dmz-2').status = 'hacked';
+  assert.ok(renderStep('dmz-2').includes('STEP 5 / 7'));
+
+  state0.nodes.find((n) => n.id === 'internal-1').status = 'hacked';
+  assert.ok(renderStep('internal-1').includes('STEP 6 / 7'));
+
+  state0.nodes.find((n) => n.id === 'core-1').status = 'hacked';
+  assert.ok(renderStep('core-1').includes('STEP 7 / 7'));
+});

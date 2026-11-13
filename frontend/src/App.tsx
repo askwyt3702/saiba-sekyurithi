@@ -14,6 +14,7 @@ import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { MissionResult } from './components/MissionResult/MissionResult';
 import { MissionFailure } from './components/MissionFailure/MissionFailure';
 import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
+import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import './App.css';
@@ -252,6 +253,13 @@ function App() {
         <div className="app-banner" role="note">{getStageData(state.stageId ?? stageId).prototypeNotice}</div>
       )}
       <StageMechanicsStatus stageId={state.stageId ?? stageId} nodes={state.nodes} />
+      <TutorialBanner
+        stageId={state.stageId ?? stageId}
+        nodes={state.nodes}
+        logs={state.log}
+        selectedNodeId={selectedNodeId}
+        onSelectNode={handleSelectNode}
+      />
       {state.status === 'won' && (
         <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
       )}
