@@ -4,7 +4,7 @@
 
 .ms-root {
   position: relative;
-  min-height: 100vh;
+  height: var(--app-h);
   width: 100%;
   background-color: #020805;
   color: #e6f5ec;
@@ -76,7 +76,7 @@
     transform: translate3d(0, -120px, 0);
   }
   100% {
-    transform: translate3d(0, 115vh, 0);
+    transform: translate3d(0, calc(var(--app-h) * 1.15), 0);
   }
 }
 
@@ -200,7 +200,7 @@
 
 .ms-title {
   margin: 4px 0 8px;
-  font-size: clamp(26px, 3.2vw, 38px);
+  font-size: clamp(26px, calc(var(--app-w) * 0.032), 38px);
   font-weight: 300;
   letter-spacing: 6px;
   color: #ffffff;

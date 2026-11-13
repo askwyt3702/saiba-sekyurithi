@@ -1,7 +1,7 @@
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: var(--app-h);
   background: #101218;
 }
 
@@ -15,7 +15,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  height: var(--app-h);
   background: #101218;
   color: #6b7280;
   font-family: ui-monospace, Consolas, monospace;
@@ -47,7 +47,7 @@
 
 /* 画面全体 */
 .app-shell {
-  height: 100vh;
+  height: var(--app-h);
   overflow: hidden;
 }
 

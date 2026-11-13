@@ -1,6 +1,6 @@
 .mission-result {
-  width: min(760px, calc(100vw - 40px));
-  max-height: calc(100dvh - 40px);
+  width: min(760px, calc(var(--app-w) - 40px));
+  max-height: calc(var(--app-h) - 40px);
   box-sizing: border-box;
   overflow: auto;
   padding: 0;
@@ -15,12 +15,12 @@
 .mission-result[open] { animation: mission-result-enter 350ms ease-out; }
 .mission-result::backdrop { background: #02080de6; }
 .mission-result__content {
-  padding: clamp(24px, 4vw, 44px);
+  padding: clamp(24px, calc(var(--app-w) * 0.04), 44px);
   text-align: center;
   background: radial-gradient(ellipse at top, #16423a55, transparent 65%);
 }
 .mission-result__eyebrow { color: #7aaca7; font-size: 11px; letter-spacing: 3px; }
-.mission-result h1 { color: #65f3c0; font-size: clamp(25px, 4.5vw, 44px); letter-spacing: 2px; margin: 24px 0 12px; }
+.mission-result h1 { color: #65f3c0; font-size: clamp(25px, calc(var(--app-w) * 0.045), 44px); letter-spacing: 2px; margin: 24px 0 12px; }
 .mission-result__rank { display: flex; flex-direction: column; align-items: center; margin: 26px 0; }
 .mission-result__rank > span { color: #93c2c1; font-size: 11px; letter-spacing: 4px; }
 .mission-result__rank strong { color: #67e8f9; font-size: 92px; line-height: 1.2; text-shadow: 0 0 28px #22d3ee44; }
