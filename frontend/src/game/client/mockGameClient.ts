@@ -34,6 +34,12 @@ function clampAlert(value: number): number {
 
 const KEY_FRAGMENT_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+const SECURITY_INFO_HINTS: Record<string, string> = {
+  E01: 'E01: 公開SSHゲートウェイの構成を確認。Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、ログイン試行制限（Fail2ban等）が未導入です。辞書攻撃（hydra）による突破が有効です。',
+  E02: 'E02: DNSサーバーのゾーン転送設定（AXFR）の不備を確認。内部ドメイン「corp.local」のレコード一覧を取得可能。DMZ層の Web(D01)・Mail(D02) の内部通信経路を特定しました。',
+  E03: 'E03: アーカイブサーバーの公開ディレクトリを確認。旧システム移行用バックアップファイルがアクセス制限なしで露出。内部ツールの解析資源（RESOURCE +5）を回収可能です。',
+};
+
 function generateKeyFragment(): string {
   let out = '';
   for (let i = 0; i < 4; i++) {
@@ -128,6 +134,26 @@ export class MockGameClient implements GameClient {
         this.checkGameOver();
         this.emit({ type: 'state_snapshot', state: this.cloneState() });
         return Promise.resolve({ accepted: true });
+      case 'confirmInfo': {
+        if (this.state.status !== 'playing' || !action.nodeId) {
+          return Promise.resolve({ accepted: false, reason: 'invalid_state' });
+        }
+        const targetNode = this.state.nodes.find((n) => n.id === action.nodeId);
+        if (!targetNode || targetNode.status !== 'scanned') {
+          return Promise.resolve({ accepted: false, reason: 'node_not_scanned' });
+        }
+        const marker = `[SECURITY:${action.nodeId}:INFO_CONFIRMED]`;
+        if (this.state.log.some((entry) => entry.message === marker)) {
+          return Promise.resolve({ accepted: false, reason: 'invalid_state' });
+        }
+        this.log('success', marker);
+        const hint = SECURITY_INFO_HINTS[action.nodeId];
+        if (hint) {
+          this.log('info', `【調査完了】${hint}`);
+        }
+        this.emit({ type: 'state_snapshot', state: this.cloneState() });
+        return Promise.resolve({ accepted: true });
+      }
       case 'remoteScan':
       case 'scan':
       case 'breach':

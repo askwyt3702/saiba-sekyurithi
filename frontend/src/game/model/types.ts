@@ -126,7 +126,8 @@ export type ActionType =
   | 'dataExtract'
   | 'recover'
   | 'pause'
-  | 'resume';
+  | 'resume'
+  | 'confirmInfo';
 
 
 

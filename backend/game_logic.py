@@ -695,6 +695,10 @@ def apply_action(
             "success",
             f"[SECURITY:{node_id}:INFO_CONFIRMED]"
         )
+        rule = SECURITY_RULES.get(node_id, {})
+        hint = rule.get("info_hint")
+        if hint:
+            add_log(db, player, "info", f"【調査完了】{hint}")
         db.commit()
         return
 
