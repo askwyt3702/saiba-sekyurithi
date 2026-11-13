@@ -56,6 +56,7 @@ export function NodeDetailPanel({
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
   const [penalizedChoiceIds, setPenalizedChoiceIds] = useState<string[]>([]);
+  const [modalAlert, setModalAlert] = useState(false);
 
   useEffect(() => {
     setPasscode('');
@@ -63,6 +64,7 @@ export function NodeDetailPanel({
     setQuestionIndex(0);
     setSelectedExploitId(null);
     setPenalizedChoiceIds([]);
+    setModalAlert(false);
   }, [node?.id, stageId]);
 
   useEffect(() => {
@@ -164,9 +166,13 @@ export function NodeDetailPanel({
 
   const handleSelectExploitChoice = (choiceId: string, isCorrect: boolean) => {
     setSelectedExploitId(choiceId);
-    if (!isCorrect && !penalizedChoiceIds.includes(choiceId)) {
-      setPenalizedChoiceIds((prev) => [...prev, choiceId]);
-      onAction('breach', undefined, true, choiceId);
+    if (!isCorrect) {
+      setModalAlert(true);
+      setTimeout(() => setModalAlert(false), 900);
+      if (!penalizedChoiceIds.includes(choiceId)) {
+        setPenalizedChoiceIds((prev) => [...prev, choiceId]);
+        onAction('breach', undefined, true, choiceId);
+      }
     }
   };
 
@@ -309,7 +315,7 @@ export function NodeDetailPanel({
           onClick={() => setIsExploitOpen(false)}
         >
           <div
-            className="node-info-modal exploit-modal"
+            className={`node-info-modal exploit-modal ${modalAlert ? 'exploit-modal--ids-alert' : ''}`}
             onClick={(e) => e.stopPropagation()}
           >
             <header className="node-info-modal__header exploit-modal__header">
