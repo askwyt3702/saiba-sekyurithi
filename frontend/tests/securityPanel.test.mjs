@@ -38,8 +38,13 @@ function elements(tree, type) {
 
 const { NodeDetailPanel } = load(new URL('../src/components/NodeDetailPanel/NodeDetailPanel.tsx', import.meta.url));
 const { MockGameClient } = load(new URL('../src/game/client/mockGameClient.ts', import.meta.url));
-const { getSecurityChallenge } = load(new URL('../src/game/data/securityLearningData.ts', import.meta.url));
+const { getSecurityChallenge, getNodeSecurityMeta } = load(new URL('../src/game/data/securityLearningData.ts', import.meta.url));
 const { STAGES, SECURITY_RULES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
+
+test('unknown node metadata preserves the original Japanese guidance', () => {
+  assert.equal(getNodeSecurityMeta('unknown-node').infoHint,
+    '対象ノードの開放ポートと脆弱性情報に合致するエクスプロイトを選択してください。');
+});
 
 test('stage1 and stage2 questions have one correct answer and unambiguous choice IDs', () => {
   for (const stageId of [0, 1, 2]) {

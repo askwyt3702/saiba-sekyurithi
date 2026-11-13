@@ -1409,7 +1409,7 @@ export function getNodeSecurityMeta(nodeId: string): NodeSecurityMeta {
   const rule = SECURITY_RULES[nodeId as keyof typeof SECURITY_RULES] as SecurityRule | undefined;
   const meta = NODE_SECURITY_META[nodeId] ?? {
     riskLevel: 'MEDIUM' as const,
-    infoHint: '???????????????????????????????????????',
+    infoHint: '対象ノードの開放ポートと脆弱性情報に合致するエクスプロイトを選択してください。',
   };
   return { ...meta, failureAlert: rule?.exploit_failure_alert ?? 8, failureResource: rule?.failure_resource ?? 0 };
 }
