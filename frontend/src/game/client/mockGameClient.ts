@@ -55,6 +55,10 @@ const SECURITY_INFO_HINTS: Record<string, string> = {
   I08: 'I08: 内部ルーターのACLルーティング設定を確認。管理プレーンの保護が不十分で、Core層へのパケット転送ルールを書き換え可能です。',
   I09: 'I09: セキュリティ管理コンソールの設定を確認。Core層ファイアウォールのポリシーを弱体化させ、資源+3獲得と警戒度-10%を同時に実現可能です。',
   I10: 'I10: 研究開発用REST APIの認証を確認。認証トークンの検証がバイパス可能で、最深部Coreノードへの最短侵入ルートが開かれます。',
+  C01: 'C01: Coreファイアウォールの設定を確認。管理プレーンのACL設定が甘く、SNMP RW権限によるルール書き換えで最深部へのルーティングが許可されます。',
+  C02: 'C02: 暗号認証サーバーの暗号化プロトコルを確認。古いSSL/TLS暗号スイート（RC4/3DES）が有効で、既知の鍵復元・暗号解読手法が通用します。',
+  C03: 'C03: 研究データベースの接続エンドポイントを確認。WebフォームやAPIのSQLクエリ組み立て不備（SQLインジェクション）により、極秘研究データの抽出が可能です！',
+  C04: 'C04: ARGUS緊急防衛システムの制御端末を確認。緊急遮断APIの認証不備を突き、緊急防衛プロトコルを解除して警戒度を-15%大幅低下させます。',
 };
 
 const CORRECT_EXPLOITS: Record<string, string[]> = {
@@ -78,6 +82,10 @@ const CORRECT_EXPLOITS: Record<string, string[]> = {
   I08: ['net_route', 'net_fw_r1'],
   I09: ['net_route', 'net_fw_r1'],
   I10: ['web_bypass', 'web_def_ok'],
+  C01: ['net_route', 'net_fw_r1'],
+  C02: ['vpn_downgrade', 'vpn_cfg_ok'],
+  C03: ['db_sqli_union', 'db_code_a'],
+  C04: ['log_tamper', 'log_def_ok'],
 };
 
 const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = {
@@ -101,6 +109,10 @@ const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = 
   I08: { alert: 6, resource: 1 },
   I09: { alert: 6, resource: 1 },
   I10: { alert: 5, resource: 1 },
+  C01: { alert: 8, resource: 1 },
+  C02: { alert: 7, resource: 1 },
+  C03: { alert: 10, resource: 1 },
+  C04: { alert: 8, resource: 1 },
 };
 
 function generateKeyFragment(): string {
