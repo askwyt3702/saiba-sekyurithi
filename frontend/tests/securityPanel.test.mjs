@@ -194,7 +194,7 @@ test('rejected answer is not displayed as penalized and can be retried', async (
 test('all 45 nodes reject missing, unknown and foreign questions without consumption', async () => {
   const questions=Object.values(SECURITY_RULES).flatMap(r=>Object.keys(r.question_answers));
   assert.equal(Object.keys(SECURITY_RULES).length,45);
-  assert.equal(questions.length,90);assert.equal(new Set(questions).size,90);
+  assert.equal(questions.length,135);assert.equal(new Set(questions).size,135);
   for (const stage of Object.values(STAGES)) for (const node of stage.nodes) {
     const client=new MockGameClient('question-contract',stage.id);await client.connect(()=>{});
     client.state.privilege='ROOT';

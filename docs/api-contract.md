@@ -14,7 +14,7 @@
 
 ### 問題単位の判定と追加ノード
 
-`questionId?: string | null`は侵入（breach）時に全45ノードで必須。形式は`ノードID:問題テンプレートID`（例：`E01:ssh-q1`、`S2-E01:ssh-q1`）で、全90問のIDを一意にする。未指定/null/空文字は`question_required`、未知・空白・他ノードの問題IDは`invalid_question`で無消費拒否。UIは常に現在の問題IDを送る。省略や旧形式`ssh-q1`の自動補完はしない。
+`questionId?: string | null`は侵入（breach）時に全45ノードで必須。形式は`ノードID:問題テンプレートID`（例：`E01:ssh-q1`、`S2-E01:ssh-q1`）で、各ノード3問・全135問のIDを一意にする。未指定/null/空文字は`question_required`、未知・空白・他ノードの問題IDは`invalid_question`で無消費拒否。UIは常に現在の問題IDを送る。省略や旧形式`ssh-q1`の自動補完はしない。
 
 旧API利用者は、最新の`getSecurityChallenge(nodeId, vulnerability).questions`から選択問題の`.id`と選択肢の`.id`を送る必要がある。既存セーブの移行は不要で、マップ・進行状態・確認履歴は保持する。自動攻略も正規の情報確認と問題/回答IDを明示するよう更新した。
 

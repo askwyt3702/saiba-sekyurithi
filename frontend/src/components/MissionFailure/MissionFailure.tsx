@@ -39,6 +39,7 @@ export function MissionFailure({ state, onRetry, onTitle }: MissionFailureProps)
 
   const isAlertThreshold = state.alertLevel >= 100;
   const hackedCount = state.nodes.filter((n) => n.status === 'hacked').length;
+  const idsAlertCount = (state.log ?? []).filter((l) => l.message.includes('【IDS検知警告】')).length;
 
   // 直近の警告・危険ログまたは最新ログを抽出
   const recentIncidentLogs = (state.log ?? [])
@@ -81,6 +82,7 @@ export function MissionFailure({ state, onRetry, onTitle }: MissionFailureProps)
             <div className="mission-failure__cause-mitre">
               <span className="report-badge report-badge--attck">ATT&CK: T1190 (Exploit Public-Facing App)</span>
               <span className="report-badge report-badge--cwe">CWE-398 (Indicator of Attack)</span>
+              <span className="report-badge report-badge--cwe">IDS誤検知回数: {idsAlertCount}回</span>
             </div>
           )}
         </div>

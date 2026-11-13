@@ -17,6 +17,12 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
   const [error, setError] = useState<string | null>(null);
   const calculated = calculateMissionResult(state);
   const result = { ...calculated, ...state.evaluation };
+  const idsAlertCount = (state.log ?? []).filter((l) => l.message.includes('【IDS検知警告】')).length;
+  const reconCount = (state.log ?? []).filter((l) => l.message.includes('INFO_CONFIRMED')).length;
+  const accuracyPercent =
+    result.hackedNodes + idsAlertCount > 0
+      ? Math.round((result.hackedNodes / (result.hackedNodes + idsAlertCount)) * 100)
+      : 100;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -62,10 +68,22 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
 
         {/* ペネトレーションテスト診断レポート */}
         <div className="mission-result__report">
-          <h2 className="mission-result__report-title">
-            <span className="mission-result__report-tag">SECURITY AUDIT</span>
-            ペネトレーションテスト診断レポート（悪用された脆弱性と防御提言）
-          </h2>
+          <div className="mission-result__report-head">
+            <h2 className="mission-result__report-title">
+              <span className="mission-result__report-tag">SECURITY AUDIT</span>
+              ペネトレーションテスト診断レポート（悪用された脆弱性と防御提言）
+            </h2>
+            <div className="mission-result__accuracy-badges">
+              <span className={`report-badge ${idsAlertCount === 0 ? 'report-badge--stealth' : 'report-badge--warn'}`}>
+                {idsAlertCount === 0
+                  ? `✦ PERFECT STEALTH (攻撃選定精度 100% / IDS誤検知 0回)`
+                  : `攻撃選定精度 ${accuracyPercent}% (IDS誤検知 ${idsAlertCount}回)`}
+              </span>
+              <span className="report-badge report-badge--attck">
+                事前調査実施: {reconCount}ノード
+              </span>
+            </div>
+          </div>
           <div className="mission-result__report-list">
             {state.nodes
               .filter((n) => n.status === 'hacked')

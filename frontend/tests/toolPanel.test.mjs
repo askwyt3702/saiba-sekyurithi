@@ -53,12 +53,24 @@ test('vulnerability tab lists only scanned nodes and the scannable entry node', 
   await client.sendAction({ type: 'scan', nodeId: entry });
   const scanned = render(client.state);
   assert.ok(scanned.includes('確認条件未達'));
+  assert.ok(scanned.includes('RISK: MEDIUM'));
+  assert.ok(scanned.includes('CWE-'));
   assert.ok(scanned.includes(client.state.nodes.find((node) => node.id === entry).vulnerability));
 
   await client.sendAction({ type: 'confirmInfo', nodeId: entry });
+  assert.ok(render(client.state).includes('調査済 ✓'));
   await client.sendAction({ type: 'completeAnalysis', nodeId: entry });
   await client.sendAction({ type: 'breach', nodeId: entry, exploitId: entry === 'E01' ? 'ssh_bf' : undefined, questionId: entry === 'E01' ? 'E01:ssh-q1' : undefined });
   assert.ok(render(client.state).includes('侵入済み'));
+});
+
+test('diagnostics show supply and trace removal effects from generated stage data', async () => {
+  const client = new MockGameClient('diagnostic-effects', 1);
+  await client.connect(() => {});
+  for (const id of ['I05', 'I03']) client.state.nodes.find(node => node.id === id).status = 'scanned';
+  const html = render(client.state);
+  assert.ok(html.includes('資源 +10'));
+  assert.ok(html.includes('痕跡 -15%'));
 });
 
 test('breach status explains why a scanned node cannot be breached yet', () => {

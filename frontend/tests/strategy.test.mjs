@@ -142,7 +142,8 @@ test('all 45 stage nodes have every correct exploit choice accepted by generated
       const challenge = getSecurityChallenge(node.id, vuln, node.info);
       const rule = SECURITY_RULES[node.id];
       const allowed = rule.correct_exploits;
-      assert.ok(Array.isArray(allowed) && allowed.length > 0, `Missing CORRECT_EXPLOITS for ${node.id}`);
+      assert.ok(Array.isArray(allowed) && allowed.length >= 3, `Missing CORRECT_EXPLOITS for ${node.id}`);
+      assert.equal(challenge.questions.length, 3);
       for (const q of challenge.questions) {
         const correctChoices = q.choices.filter((c) => c.isCorrect);
         assert.equal(correctChoices.length, 1, `Expected exactly 1 correct choice in ${node.id} ${q.id}`);

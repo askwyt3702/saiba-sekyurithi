@@ -10,7 +10,8 @@
     "required_info": true,
     "correct_exploits": [
       "net_route",
-      "net_fw_r1"
+      "net_fw_r1",
+      "net_def_c"
     ],
     "failure_alert": 8.0,
     "failure_resource": 1,
@@ -29,7 +30,8 @@
     "required_info": true,
     "correct_exploits": [
       "vpn_downgrade",
-      "vpn_cfg_ok"
+      "vpn_cfg_ok",
+      "vpn_def_c"
     ],
     "failure_alert": 7.0,
     "failure_resource": 1,
@@ -48,7 +50,8 @@
     "required_info": true,
     "correct_exploits": [
       "db_sqli_union",
-      "db_code_a"
+      "db_code_a",
+      "db_def_c"
     ],
     "failure_alert": 10.0,
     "failure_resource": 1,
@@ -67,7 +70,8 @@
     "required_info": true,
     "correct_exploits": [
       "log_tamper",
-      "log_def_ok"
+      "log_def_ok",
+      "log_cfg_b"
     ],
     "failure_alert": 8.0,
     "failure_resource": 1,
@@ -86,7 +90,8 @@
     "required_info": true,
     "correct_exploits": [
       "ssh_bf",
-      "ssh_cfg_b"
+      "ssh_cfg_b",
+      "ssh_def_c"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -105,7 +110,8 @@
     "required_info": true,
     "correct_exploits": [
       "dns_axfr",
-      "dns_cfg_ok"
+      "dns_cfg_ok",
+      "dns_def_c"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -124,7 +130,8 @@
     "required_info": true,
     "correct_exploits": [
       "web_bypass",
-      "web_def_ok"
+      "web_def_ok",
+      "web_cfg_b"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -143,7 +150,8 @@
     "required_info": true,
     "correct_exploits": [
       "dns_axfr",
-      "dns_cfg_ok"
+      "dns_cfg_ok",
+      "dns_def_c"
     ],
     "failure_alert": 6.0,
     "failure_resource": 1,
@@ -162,7 +170,8 @@
     "required_info": true,
     "correct_exploits": [
       "web_bypass",
-      "web_def_ok"
+      "web_def_ok",
+      "web_cfg_b"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -181,7 +190,8 @@
     "required_info": true,
     "correct_exploits": [
       "priv_esc",
-      "priv_sudo_b"
+      "priv_sudo_b",
+      "priv_def_c"
     ],
     "failure_alert": 6.0,
     "failure_resource": 1,
@@ -200,7 +210,8 @@
     "required_info": true,
     "correct_exploits": [
       "net_route",
-      "net_fw_r1"
+      "net_fw_r1",
+      "net_def_c"
     ],
     "failure_alert": 6.0,
     "failure_resource": 1,
@@ -219,7 +230,8 @@
     "required_info": true,
     "correct_exploits": [
       "priv_esc",
-      "priv_sudo_b"
+      "priv_sudo_b",
+      "priv_def_c"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -238,7 +250,8 @@
     "required_info": true,
     "correct_exploits": [
       "vpn_downgrade",
-      "vpn_cfg_ok"
+      "vpn_cfg_ok",
+      "vpn_def_c"
     ],
     "failure_alert": 7.0,
     "failure_resource": 1,
@@ -257,7 +270,8 @@
     "required_info": true,
     "correct_exploits": [
       "log_tamper",
-      "log_def_ok"
+      "log_def_ok",
+      "log_cfg_b"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -276,7 +290,8 @@
     "required_info": true,
     "correct_exploits": [
       "acl_smb",
-      "acl_cfg_ok"
+      "acl_cfg_ok",
+      "acl_def_c"
     ],
     "failure_alert": 4.0,
     "failure_resource": 1,
@@ -295,7 +310,8 @@
     "required_info": true,
     "correct_exploits": [
       "log_tamper",
-      "log_def_ok"
+      "log_def_ok",
+      "log_cfg_b"
     ],
     "failure_alert": 7.0,
     "failure_resource": 1,
@@ -314,7 +330,8 @@
     "required_info": true,
     "correct_exploits": [
       "net_route",
-      "net_fw_r1"
+      "net_fw_r1",
+      "net_def_c"
     ],
     "failure_alert": 8.0,
     "failure_resource": 1,
@@ -333,7 +350,8 @@
     "required_info": true,
     "correct_exploits": [
       "vpn_downgrade",
-      "vpn_cfg_ok"
+      "vpn_cfg_ok",
+      "vpn_def_c"
     ],
     "failure_alert": 8.0,
     "failure_resource": 1,
@@ -352,7 +370,8 @@
     "required_info": true,
     "correct_exploits": [
       "db_sqli_union",
-      "db_code_a"
+      "db_code_a",
+      "db_def_c"
     ],
     "failure_alert": 10.0,
     "failure_resource": 1,
@@ -371,7 +390,8 @@
     "required_info": true,
     "correct_exploits": [
       "log_tamper",
-      "log_def_ok"
+      "log_def_ok",
+      "log_cfg_b"
     ],
     "failure_alert": 8.0,
     "failure_resource": 1,
@@ -390,7 +410,8 @@
     "required_info": true,
     "correct_exploits": [
       "ssh_bf",
-      "ssh_cfg_b"
+      "ssh_cfg_b",
+      "ssh_def_c"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -409,7 +430,8 @@
     "required_info": true,
     "correct_exploits": [
       "web_bypass",
-      "web_def_ok"
+      "web_def_ok",
+      "web_cfg_b"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -428,7 +450,8 @@
     "required_info": true,
     "correct_exploits": [
       "mail_spoof",
-      "mail_spf_ok"
+      "mail_spf_ok",
+      "mail_def_c"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -447,7 +470,8 @@
     "required_info": true,
     "correct_exploits": [
       "priv_esc",
-      "priv_sudo_b"
+      "priv_sudo_b",
+      "priv_def_c"
     ],
     "failure_alert": 5.0,
     "failure_resource": 1,
@@ -466,7 +490,8 @@
     "required_info": true,
     "correct_exploits": [
       "db_sqli_union",
-      "db_code_a"
+      "db_code_a",
+      "db_def_c"
     ],
     "failure_alert": 8.0,
     "failure_resource": 1,

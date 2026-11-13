@@ -98,6 +98,24 @@ test('audit report lists hacked nodes with vulnerability and defense metadata', 
   assert.ok(!html.includes('Unhacked target'));
 });
 
+test('attack selection accuracy reflects actual IDS events without changing score or rank', () => {
+  const base = { ...state, nodes: [{ id: 'E01', status: 'hacked' }, { id: 'E02', status: 'hacked' }], log: [] };
+  const render = input => renderToStaticMarkup(createElement(MissionResult, {
+    state: input, onRetry: async () => {}, onTitle: async () => {},
+  }));
+  assert.ok(render(base).includes('PERFECT STEALTH'));
+  const withMistake = { ...base, log: [
+    { id: 'ids', message: '【IDS検知警告】wrong answer', severity: 'danger' },
+    { id: 'confirmed', message: '[SECURITY:E01:INFO_CONFIRMED]', severity: 'success' },
+    { id: 'hint', message: '【調査完了】E01: hint', severity: 'info' },
+  ] };
+  const html = render(withMistake);
+  assert.ok(html.includes('攻撃選定精度 67%'));
+  assert.ok(html.includes('事前調査実施: 1ノード'));
+  assert.ok(!html.includes('PERFECT STEALTH'));
+  assert.deepEqual(evaluation.calculateMissionResult(base), evaluation.calculateMissionResult(withMistake));
+});
+
 function mountResult(props, componentName = 'MissionResult') {
   const values = [];
   const refs = [];
