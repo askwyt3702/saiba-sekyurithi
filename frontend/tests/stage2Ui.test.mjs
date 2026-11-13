@@ -38,11 +38,17 @@ test('stage2 card starts stage2 while mission3 remains locked', () => {
   const { MissionScreen } = load(new URL('../src/components/MissionScreen/MissionScreen.tsx', import.meta.url));
   let selected;
   const tree = MissionScreen({ onSelectMission: (id) => { selected = id; }, onBack() {} });
-  const card = elements(tree, 'button').find((button) => button.props.className === 'mission-card');
+  const card = elements(tree, 'article').find((item) => item.props.className.includes('ms-card--amber'));
   assert.ok(card);
   card.props.onClick();
   assert.equal(selected, 2);
-  assert.equal(elements(tree, 'div').filter((div) => div.props.className === 'mission-card locked').length, 1);
+  const locked = elements(tree, 'article').filter((item) => item.props.className.includes('is-locked'));
+  assert.equal(locked.length, 1);
+  locked[0].props.onClick();
+  assert.equal(selected, 2);
+  assert.equal(locked[0].props.tabIndex, -1);
+  card.props.onKeyDown({ key: 'Enter', preventDefault() {} });
+  assert.equal(selected, 2);
 });
 
 test('MapView supplies all 16 stage2 nodes and 21 edges to React Flow with its own entry', () => {

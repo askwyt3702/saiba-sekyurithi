@@ -36,7 +36,7 @@ def test_pure_simulation_is_repeatable_non_mutating_and_matches_db(scenario):
             game_logic._set_node_status(db, player, nid, status)
         db.commit()
         for data in actions:
-            action = RuleAction(data["type"], data.get("nodeId"), data.get("passcode"), data.get("exploitMismatch", False), data.get("exploitId"))
+            action = RuleAction(data["type"], data.get("nodeId"), data.get("passcode"), data.get("exploitMismatch", False), data.get("exploitId"), data.get("questionId"))
             before, before_map, before_action = deepcopy(state), deepcopy(definition), deepcopy(action)
             reason = validate_action(definition, state, action)
             result = transition(definition, state, action)
@@ -56,7 +56,7 @@ def test_pure_simulation_is_repeatable_non_mutating_and_matches_db(scenario):
                 assert result.state == before and not result.events
             old_logs = db.query(models.GameLog).filter_by(player_id=player.id).count()
             try:
-                game_logic.apply_action(db, player, action.type, action.node_id, action.passcode, action.exploit_mismatch, action.exploit_id)
+                game_logic.apply_action(db, player, action.type, action.node_id, action.passcode, action.exploit_mismatch, action.exploit_id, action.question_id)
                 assert result.accepted
             except game_logic.ActionRejected as error:
                 assert not result.accepted and error.reason == result.reason

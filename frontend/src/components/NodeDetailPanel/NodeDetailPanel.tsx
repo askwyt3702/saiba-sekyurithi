@@ -35,6 +35,7 @@ interface NodeDetailPanelProps {
     passcode?: string,
     exploitMismatch?: boolean,
     exploitId?: string,
+    questionId?: string,
   ) => void | Promise<ActionResult | void>;
 }
 
@@ -166,6 +167,8 @@ export function NodeDetailPanel({
     challenge.questions[questionIndex % challenge.questions.length] ?? challenge.questions[0];
   const selectedChoice =
     currentQuestion.choices.find((c) => c.id === selectedExploitId) ?? null;
+  const wrongAlert = securityRule?.exploit_failure_alert ?? 8;
+  const wrongResource = securityRule?.failure_resource ?? 0;
 
   const handleSelectExploitChoice = async (choiceId: string, isCorrect: boolean) => {
     if (!canBreach || answerPending.current) return;
@@ -176,7 +179,7 @@ export function NodeDetailPanel({
     }
     answerPending.current = true;
     try {
-      const result = await onAction('breach', undefined, true, choiceId);
+      const result = await onAction('breach', undefined, true, choiceId, currentQuestion.id);
       if (result && result.accepted) {
         setPenalizedChoiceIds((prev) => [...prev, choiceId]);
         setSelectedExploitId(choiceId);
@@ -371,7 +374,7 @@ export function NodeDetailPanel({
                 <div className="exploit-terminal-box__prompt">
                   &gt; {currentQuestion.prompt}
                   <span className="exploit-terminal-box__penalty-note">
-                    （※不正解を選ぶとIDSに検知され、警戒度が +8% 上昇します）
+                    {`（不正解：警戒度 +${wrongAlert}%、資源 -${wrongResource}、時間消費なし）`}
                   </span>
                 </div>
                 {currentQuestion.codeSnippet && (
@@ -406,7 +409,7 @@ export function NodeDetailPanel({
                         </span>
                         {(isSelected || wasPenalized) && (
                           <span className={`exploit-choice__badge ${choice.isCorrect ? 'exploit-choice__badge--ok' : 'exploit-choice__badge--ng'}`}>
-                            {choice.isCorrect ? '有効 (MATCH)' : 'IDS検知 (警戒度 +8%)'}
+                            {choice.isCorrect ? '有効 (MATCH)' : `IDS検知 (警戒度 +${wrongAlert}% / 資源 -${wrongResource})`}
                           </span>
                         )}
                       </div>
@@ -425,7 +428,7 @@ export function NodeDetailPanel({
                   <div className="exploit-feedback__title">
                     {selectedChoice.isCorrect
                       ? '[+] EXPLOIT READY — 脆弱性に合致する解答を確認しました！'
-                      : `🚨 [!] IDS ALERT — 不適切な選択が検知され、警戒度が +8% 上昇しました（現在: ${alertLevel.toFixed(1)}%）`}
+                      : `🚨 [!] IDS ALERT — 警戒度 +${wrongAlert}%、資源 -${wrongResource}（現在: ${alertLevel.toFixed(1)}%）`}
                   </div>
                   <p className="exploit-feedback__text">{selectedChoice.feedback}</p>
                   {selectedChoice.isCorrect && (
@@ -491,6 +494,7 @@ export function NodeDetailPanel({
                         showPasscodeInput ? passcode : undefined,
                         false,
                         selectedExploitId ?? undefined,
+                        currentQuestion.id,
                       );
                       if (result && result.accepted) setIsExploitOpen(false);
                     } finally { answerPending.current = false; }

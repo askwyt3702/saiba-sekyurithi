@@ -39,6 +39,7 @@ def summary(state):
         "nodes": {n["id"]: n["data"]["status"] for n in state["nodes"]},
         "successLogged": any("目的達成" in line["message"] for line in state["log"]),
         "securityEvents": state.get("securityEvents", {}),
+        "penaltyLogs": [line["message"] for line in state["log"] if "IDS" in line["message"]],
         "investigationLogs": [line["message"] for line in state["log"] if line["message"].startswith("【調査完了】")],
         "mechanicsLogs": [line["message"] for line in state["log"] if line["message"].startswith(("監視解除:", "ゲート解除:", "条件付き監視:"))],
     }
@@ -57,7 +58,7 @@ def simulate(scenario, engine):
         for action in actions_for(scenario):
             accepted, reason = True, None
             try:
-                game_logic.apply_action(db, player, action["type"], action.get("nodeId"), action.get("passcode"), action.get("exploitMismatch", False), action.get("exploitId"))
+                game_logic.apply_action(db, player, action["type"], action.get("nodeId"), action.get("passcode"), action.get("exploitMismatch", False), action.get("exploitId"), action.get("questionId"))
             except game_logic.ActionRejected as error:
                 db.rollback()
                 accepted, reason = False, error.reason

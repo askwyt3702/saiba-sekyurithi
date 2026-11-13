@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 import main
 import models
+from balance_config import SECURITY_RULES
 
 
 @pytest.fixture
@@ -27,16 +28,20 @@ def ready_act(act, client):
     条件未達・拒否・ペナルティの試験は生のactを使う。
     """
     def perform(game_id, type_, node=None, passcode=None):
-        if type_ == "breach" and node in ("E01", "E02", "E03"):
+        if type_ == "breach" and node in SECURITY_RULES:
             state = client.get(f"/api/games/{game_id}").json()
             target = next((n for n in state["nodes"] if n["id"] == node), None)
             if state["status"] == "playing" and target and target["data"]["status"] == "scanned":
                 events = state.get("securityEvents", {}).get(node, [])
                 if "INFO_CONFIRMED" not in events:
                     assert act(game_id, "confirmInfo", node)["accepted"]
-                if node == "E01" and "ANALYSIS_COMPLETED" not in events:
+                if SECURITY_RULES[node].get("required_analysis") and "ANALYSIS_COMPLETED" not in events:
                     assert act(game_id, "completeAnalysis", node)["accepted"]
-        return act(game_id, type_, node, passcode, exploitId={"E01":"ssh_bf", "E02":"dns_axfr", "E03":"acl_smb"}.get(node) if type_ == "breach" else None)
+        rule = SECURITY_RULES.get(node, {})
+        answers = rule.get("question_answers", {})
+        question = next(iter(answers), None)
+        answer = answers[question][0] if question else next(iter(rule.get("correct_exploits", [])), None)
+        return act(game_id, type_, node, passcode, exploitId=answer if type_ == "breach" else None, questionId=question if type_ == "breach" else None)
     return perform
 
 
@@ -72,12 +77,14 @@ def set_player():
 def act(client):
     """アクションを送り、レスポンス全体(accepted/reason/state)を返す。"""
 
-    def _act(game_id, type_, node=None, passcode=None, exploitMismatch=False, exploitId=None):
+    def _act(game_id, type_, node=None, passcode=None, exploitMismatch=False, exploitId=None, questionId=None):
         body = {"type": type_}
         if node is not None:
             body["nodeId"] = node
         if passcode is not None:
             body["passcode"] = passcode
+        if questionId is not None:
+            body["questionId"] = questionId
         if exploitId is not None:
             body["exploitId"] = exploitId
         if exploitMismatch:

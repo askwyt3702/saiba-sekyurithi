@@ -118,6 +118,7 @@ class ActionRequest(BaseModel):
     passcode: Optional[str] = None
     exploitMismatch: Optional[bool] = False
     exploitId: Optional[str] = None
+    questionId: Optional[str] = None
 
 
 
@@ -182,6 +183,7 @@ def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_d
             passcode=action.passcode,
             exploit_mismatch=bool(action.exploitMismatch),
             exploit_id=action.exploitId,
+            question_id=action.questionId,
         )
     except game_logic.ActionRejected as e:
         db.rollback()

@@ -401,14 +401,14 @@ def _monitoring_extra(stage: dict, statuses: dict[str, str], node_id: str) -> fl
 
 def apply_action(db: Session, player: models.PlayerStatus, action_type: str,
                  node_id: Optional[str], passcode: Optional[str] = None,
-                 exploit_mismatch: bool = False, exploit_id: Optional[str] = None) -> None:
+                 exploit_mismatch: bool = False, exploit_id: Optional[str] = None, question_id: Optional[str] = None) -> None:
     """DB入出力アダプター。判定・状態遷移は純粋ルールへ委譲する。"""
     from game_rules import RuleAction, transition
     from map_definition import map_from_stage
 
     definition = map_from_stage(_player_stage(player))
     before = _rule_state(db, player)
-    result = transition(definition, before, RuleAction(action_type, node_id, passcode, exploit_mismatch, exploit_id))
+    result = transition(definition, before, RuleAction(action_type, node_id, passcode, exploit_mismatch, exploit_id, question_id))
     if not result.accepted:
         raise ActionRejected(result.reason)
     after = result.state

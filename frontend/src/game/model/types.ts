@@ -140,9 +140,12 @@ export interface ActionRequest {
   passcode?: string;
   exploitMismatch?: boolean;
   exploitId?: string;
+  questionId?: string;
 }
 
 export type ActionRejectReason =
+  | 'question_required'
+  | 'invalid_question'
   | 'exploit_required'
   | 'security_requirements_unmet'
   | 'insufficient_resource'

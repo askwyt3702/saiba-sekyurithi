@@ -87,9 +87,12 @@ class RuleRunner {
       this.checkGameOver();
       return { accepted: true };
     }
-    if (type === 'breach' && (rule?.correct_exploits?.length ? !rule.correct_exploits.includes(action.exploitId!) : action.exploitMismatch)) {
-      this.state.alertLevel = clampAlert(this.state.alertLevel + EXPLOIT_MISMATCH_ALERT);
-      this.log('danger', `【IDS検知警告】${node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: ${Math.round(this.state.alertLevel)}%）。`);
+    if (type === 'breach' && (rule?.correct_exploits?.length ? !(rule.question_answers?.[action.questionId!] ?? rule.correct_exploits).includes(action.exploitId!) : action.exploitMismatch)) {
+      const penalty = rule?.exploit_failure_alert ?? EXPLOIT_MISMATCH_ALERT;
+      const resource = rule?.failure_resource ?? 0;
+      this.state.analysisResource = Math.max(0, this.state.analysisResource - resource);
+      this.state.alertLevel = clampAlert(this.state.alertLevel + penalty);
+      this.log('danger', `【IDS検知警告】${node.name}への不適切な攻撃手法を検知。解析資源 -${resource}、警戒度 +${penalty}%（現在: ${Math.round(this.state.alertLevel)}%）。`);
       this.checkGameOver();
       return { accepted: true };
     }
@@ -306,6 +309,8 @@ class RuleRunner {
       const rule = this.map.securityRules[node.id];
       if (rule?.failure_mode === 'consume' && !securityRequirementsMet(rule, this.state.securityEvents?.[node.id])) return undefined;
       if (rule?.correct_exploits?.length && !action.exploitId?.trim()) return 'exploit_required';
+      if (rule?.required_question && !action.questionId) return 'question_required';
+      if (action.questionId !== undefined && rule?.question_answers && !rule.question_answers[action.questionId]) return 'invalid_question';
     }
     if (type === 'breach' && action.passcode !== undefined && action.passcode.trim() !== '') {
       if (!this.isTarget(node) || !this.hasAllKeyFragments() || normalizePasscode(action.passcode) !== normalizePasscode(this.fragmentA + this.fragmentB)) return 'invalid_passcode';

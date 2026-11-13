@@ -42,6 +42,7 @@ class RuleAction:
     passcode: str | None = None
     exploit_mismatch: bool = False
     exploit_id: str | None = None
+    question_id: str | None = None
 
 @dataclass(eq=True)
 class TransitionResult:
@@ -304,6 +305,7 @@ def _apply_validated_action(
     passcode: Optional[str] = None,
     exploit_mismatch: bool = False,
     exploit_id: Optional[str] = None,
+    question_id: Optional[str] = None,
 ) -> None:
     """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
 
@@ -366,10 +368,14 @@ def _apply_validated_action(
         _check_game_over(player, stage)
         return
 
-    wrong = exploit_id not in rule["correct_exploits"] if rule.get("correct_exploits") else exploit_mismatch
+    answers = rule.get("question_answers", {}).get(question_id, rule.get("correct_exploits", []))
+    wrong = exploit_id not in answers if answers else exploit_mismatch
     if action_type == "breach" and wrong:
-        player.alert_level = _clamp_alert(player.alert_level + EXPLOIT_MISMATCH_ALERT)
-        _log(player, "danger", f"【IDS検知警告】{node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: {player.alert_level:.0f}%）。")
+        penalty = rule.get("exploit_failure_alert", EXPLOIT_MISMATCH_ALERT)
+        resource = rule.get("failure_resource", 0)
+        player.analysis_resource = max(0, player.analysis_resource - resource)
+        player.alert_level = _clamp_alert(player.alert_level + penalty)
+        _log(player, "danger", f"【IDS検知警告】{node.name}への不適切な攻撃手法を検知。解析資源 -{resource}、警戒度 +{penalty:g}%（現在: {floor(player.alert_level + 0.5)}%）。")
         _check_game_over(player, stage)
         return
 
@@ -510,6 +516,10 @@ def validate_action(stage: GameMapDefinition, state: RuleState, action: RuleActi
             return None
         if rule.get("correct_exploits") and (action.exploit_id is None or not action.exploit_id.strip()):
             return "exploit_required"
+        if rule.get("required_question") and not action.question_id:
+            return "question_required"
+        if action.question_id is not None and rule.get("question_answers") and action.question_id not in rule["question_answers"]:
+            return "invalid_question"
     if action.type == "breach" and action.passcode is not None and action.passcode.strip():
         keys = stage["key_fragment_node_ids"]
         target = node.id in stage["target_node_ids"] or (not stage["target_node_ids"] and node.layer == "Core")
@@ -525,7 +535,7 @@ def transition(stage: GameMapDefinition, state: RuleState, action: RuleAction) -
     if reason:
         return TransitionResult(False, reason, result, [])
     result.events = []
-    _apply_validated_action(result, stage, action.type, action.node_id, action.passcode, action.exploit_mismatch, action.exploit_id)
+    _apply_validated_action(result, stage, action.type, action.node_id, action.passcode, action.exploit_mismatch, action.exploit_id, action.question_id)
     events = result.events
     result.events = []
     return TransitionResult(True, None, result, events)

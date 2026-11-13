@@ -88,7 +88,7 @@ for (const id of ['E01', 'E02', 'E03']) {
         gameStatus: client.state.status, analysisResource: client.state.analysisResource,
         privilege: client.state.privilege, alertLevel: client.state.alertLevel,
         securityEvents: client.state.securityEvents, notice: null,
-        onAction(type, passcode, exploitMismatch, exploitId) { pending = client.sendAction({ type, nodeId: id, passcode, exploitMismatch, exploitId }); return pending; },
+        onAction(type, passcode, exploitMismatch, exploitId, questionId) { pending = client.sendAction({ type, nodeId: id, passcode, exploitMismatch, exploitId, questionId }); return pending; },
       });
     };
     const button = (label) => elements(panel(), 'button').find((b) => textOf(b) === label);
@@ -152,11 +152,14 @@ for (const id of ['E01', 'E02', 'E03']) {
 
 
 // The complete question bank for every server-controlled node must match both ways.
-test('all E01-E03 question answers exactly match the generated server allowlists', () => {
-  for (const id of ['E01', 'E02', 'E03']) {
+test('all configured question answers exactly match the generated server allowlists', () => {
+  for (const id of Object.keys(SECURITY_RULES)) {
     const challenge = getSecurityChallenge(id, STAGES[1].vulnerabilities[id]);
     const correct = challenge.questions.flatMap((q) => q.choices.filter((c) => c.isCorrect).map((c) => c.id));
     assert.deepEqual([...correct].sort(), [...SECURITY_RULES[id].correct_exploits].sort());
+    for (const question of challenge.questions) {
+      assert.deepEqual([...SECURITY_RULES[id].question_answers[question.id]].sort(), [...question.choices.filter(c=>c.isCorrect).map(c=>c.id)].sort());
+    }
     for (const question of challenge.questions) for (const choice of question.choices) {
       assert.equal(SECURITY_RULES[id].correct_exploits.includes(choice.id), choice.isCorrect);
     }
@@ -169,7 +172,7 @@ test('rejected answer is not displayed as penalized and can be retried', async (
   for (const type of ['scan','confirmInfo','completeAnalysis']) await client.sendAction({type,nodeId:'E01'});
   let reject = true;
   const panel = () => { hookCursor = 0; return NodeDetailPanel({node:client.state.nodes.find(n=>n.id==='E01'),nodes:client.state.nodes,edges:client.state.edges,analysisResource:client.state.analysisResource,securityEvents:client.state.securityEvents,notice:null,
-    onAction(type,passcode,exploitMismatch,exploitId) {return reject ? Promise.resolve({accepted:false,reason:'invalid_state'}) : client.sendAction({type,nodeId:'E01',passcode,exploitMismatch,exploitId});}}); };
+    onAction(type,passcode,exploitMismatch,exploitId,questionId) {return reject ? Promise.resolve({accepted:false,reason:'invalid_state'}) : client.sendAction({type,nodeId:'E01',passcode,exploitMismatch,exploitId,questionId});}}); };
   elements(panel(),'button')[2].props.onClick();
   const challenge=getSecurityChallenge('E01',STAGES[1].vulnerabilities.E01);
   const index=challenge.questions[0].choices.findIndex(c=>!c.isCorrect);

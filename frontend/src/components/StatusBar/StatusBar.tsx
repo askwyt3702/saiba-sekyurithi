@@ -43,7 +43,7 @@ export function StatusBar({
 }: StatusBarProps) {
   return (
     <header className="status-bar">
-      <div className="status-bar__title">NULL ROUTE</div>
+      <div className="status-bar__title">CYBER LABYRINTH</div>
 
       {offline && (
         <span

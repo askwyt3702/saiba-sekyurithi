@@ -48,6 +48,10 @@ class ActionCost(TypedDict):
 
 
 class SecurityRule(TypedDict, total=False):
+    question_answers: dict[str, list[str]]
+    required_question: bool
+    exploit_failure_alert: float
+    failure_resource: int
     correct_exploits: list[str]
     info_hint: str
     allowed_scan_types: list[str]
