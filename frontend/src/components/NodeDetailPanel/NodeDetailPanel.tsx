@@ -30,6 +30,7 @@ interface NodeDetailPanelProps {
   alertLevel?: number;
   securityEvents?: Record<string, string[]>;
   notice: string | null;
+  logs?: Array<{ message: string }>;
   onAction: (
     type: TimedActionType,
     passcode?: string,
@@ -51,6 +52,7 @@ export function NodeDetailPanel({
   alertLevel = 0,
   securityEvents = {},
   notice,
+  logs,
   onAction,
 }: NodeDetailPanelProps) {
   const stage = getStageData(stageId);
@@ -61,6 +63,8 @@ export function NodeDetailPanel({
   const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
   const [penalizedChoiceIds, setPenalizedChoiceIds] = useState<string[]>([]);
   const answerPending = useRef(false);
+  const modalAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [modalAlert, setModalAlert] = useState(false);
 
   useEffect(() => {
     setPasscode('');
@@ -68,6 +72,8 @@ export function NodeDetailPanel({
     setQuestionIndex(0);
     setSelectedExploitId(null);
     setPenalizedChoiceIds([]);
+    setModalAlert(false);
+    if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
   }, [node?.id, stageId]);
 
   useEffect(() => {
@@ -87,6 +93,8 @@ export function NodeDetailPanel({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isInfoOpen, isExploitOpen]);
+
+  useEffect(() => () => { if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current); }, []);
 
   if (!node) {
     return (
@@ -163,6 +171,12 @@ export function NodeDetailPanel({
   const fragA = keyFragments?.a ?? null;
   const fragB = keyFragments?.b ?? null;
   const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
+  const isInvestigated = confirmed || (
+    logs?.some(
+      (l) =>
+        l.message.includes(`[SECURITY:${node.id}:INFO_CONFIRMED]`) ||
+        l.message.includes(`【調査完了】${node.id}`)
+    ) ?? false);
   const currentQuestion =
     challenge.questions[questionIndex % challenge.questions.length] ?? challenge.questions[0];
   const selectedChoice =
@@ -173,7 +187,13 @@ export function NodeDetailPanel({
   const handleSelectExploitChoice = async (choiceId: string, isCorrect: boolean) => {
     if (!canBreach || answerPending.current) return;
     if (!isCorrect && securityRule?.correct_exploits?.length && !securityReady) return;
+    const flash = () => {
+      if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
+      setModalAlert(true);
+      modalAlertTimer.current = setTimeout(() => setModalAlert(false), 900);
+    };
     if (isCorrect || penalizedChoiceIds.includes(choiceId)) {
+      if (!isCorrect) flash();
       setSelectedExploitId(choiceId);
       return;
     }
@@ -181,6 +201,7 @@ export function NodeDetailPanel({
     try {
       const result = await onAction('breach', undefined, true, choiceId, currentQuestion.id);
       if (result && result.accepted) {
+        flash();
         setPenalizedChoiceIds((prev) => [...prev, choiceId]);
         setSelectedExploitId(choiceId);
       } else setSelectedExploitId(null);
@@ -191,7 +212,10 @@ export function NodeDetailPanel({
 
   return (
     <aside className="node-detail">
-      <h2>{isUnscanned ? '不明ノード' : node.name}</h2>
+      <h2>
+        {isUnscanned ? '不明ノード' : node.name}
+        {isInvestigated && <span className="node-detail__investigated-badge">調査済 ✓</span>}
+      </h2>
       {stage.entryNodeIds.includes(node.id) && <p>初期侵入口：{node.id}</p>}
       {securityRule && node.status !== 'hacked' && (
         <section className="node-detail__mechanics" aria-label="侵入前の確認条件">
@@ -231,7 +255,23 @@ export function NodeDetailPanel({
         <dd>{isUnscanned ? '-' : node.info ?? '-'}</dd>
 
         <dt>脆弱性</dt>
-        <dd>{isUnscanned ? '-' : node.vulnerability ?? '-'}</dd>
+        <dd>
+          {isUnscanned ? (
+            '-'
+          ) : (
+            <div>
+              <span>{node.vulnerability ?? '-'}</span>
+              {challenge.mitreId && (
+                <div className="node-detail__mitre-tags">
+                  <span className="mitre-tag mitre-tag--attck">ATT&CK: {challenge.mitreId}</span>
+                  {challenge.cweId && (
+                    <span className="mitre-tag mitre-tag--cwe">{challenge.cweId}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </dd>
       </dl>
       {!isUnscanned && effect && (
         <p>初回侵入効果：資源 {effect.resourceBonus >= 0 ? '+' : ''}{effect.resourceBonus}（上限{MAX_ANALYSIS_RESOURCE}）、警戒度 {effect.alertDelta >= 0 ? '+' : ''}{effect.alertDelta}%</p>
@@ -300,12 +340,12 @@ export function NodeDetailPanel({
 
         <button
           type="button"
-          className="node-detail__info-button"
+          className={`node-detail__info-button ${isInvestigated ? 'node-detail__info-button--checked' : ''}`}
           onClick={() => {
             setIsInfoOpen(true);
           }}
         >
-          情報確認
+          {isInvestigated ? '調査ログ再確認 ✓' : '情報確認'}
         </button>
       </div>
 
@@ -318,7 +358,7 @@ export function NodeDetailPanel({
           onClick={() => setIsExploitOpen(false)}
         >
           <div
-            className="node-info-modal exploit-modal"
+            className={`node-info-modal exploit-modal ${modalAlert ? 'exploit-modal--ids-alert' : ''}`}
             onClick={(e) => e.stopPropagation()}
           >
             <header className="node-info-modal__header exploit-modal__header">
@@ -351,6 +391,20 @@ export function NodeDetailPanel({
                   <span className="exploit-terminal-box__tag exploit-terminal-box__tag--vuln">[VULN]</span>{' '}
                   <strong>{node.vulnerability ?? '不明'}</strong>（{challenge.category}）
                 </div>
+                {(challenge.mitreId || challenge.cweId) && (
+                  <div className="exploit-terminal-box__line">
+                    {challenge.mitreId && (
+                      <>
+                        <span className="exploit-terminal-box__tag">[ATT&CK]</span> {challenge.mitreId}
+                      </>
+                    )}
+                    {challenge.cweId && (
+                      <>
+                        {' '}／ <span className="exploit-terminal-box__tag">[CWE]</span> {challenge.cweId}
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="exploit-terminal-box__log">
                   {challenge.scanTerminalLog}
                 </div>

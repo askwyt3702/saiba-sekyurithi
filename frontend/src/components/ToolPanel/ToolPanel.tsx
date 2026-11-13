@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getStageData, isExtractTarget, type StageDefinition } from '../../game/data/stageData';
 import { canReachNode } from '../../game/model/actionRules';
 import { breachStatus, LAYERS, PRIVILEGES, requiredPrivilege } from './breachStatus';
+import { currentViewportWidth, startsCollapsed } from './toolPanelLayout';
 import type {
   ApiNetworkEdge,
   KeyFragments,
@@ -45,7 +46,8 @@ export function ToolPanel({
   selectedNodeId,
   onSelectNode,
 }: ToolPanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  // 狭い画面ではマップを広く使えるよう、たたんだ状態で始める(◀/▶ でいつでも切り替えられる)
+  const [collapsed, setCollapsed] = useState(() => startsCollapsed(currentViewportWidth()));
   const [tab, setTab] = useState<Tab>('vuln');
   const [logFilter, setLogFilter] = useState<LogFilter>('all');
   const stage = getStageData(stageId);

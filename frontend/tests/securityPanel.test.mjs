@@ -28,7 +28,7 @@ function load(url) {
     }
     return require(id);
   };
-  runInNewContext('(function(require,module,exports){' + outputText + '\n})', { console })(localRequire, module, module.exports);
+  runInNewContext('(function(require,module,exports){' + outputText + '\n})', { console, setTimeout, clearTimeout })(localRequire, module, module.exports);
   return module.exports;
 }
 function elements(tree, type) {
@@ -110,6 +110,8 @@ for (const id of ['E01', 'E02', 'E03']) {
     button('情報を確認した').props.onClick();
     assert.equal((await pending).accepted, true);
     assert.equal(button('情報確認済み').props.disabled, true);
+    assert.ok(textOf(panel()).includes('調査済 ✓'));
+    assert.ok(textOf(panel()).includes('ATT&CK:'));
     if (id === 'E01') {
       assert.equal(button('解析を完了する').props.disabled, false);
       button('解析を完了する').props.onClick();
@@ -133,6 +135,7 @@ for (const id of ['E01', 'E02', 'E03']) {
     assert.equal(client.state.analysisResource, readyResource);
     assert.equal(client.state.elapsedSeconds, 10);
     assert.equal(client.state.alertLevel, readyAlert + 8);
+    assert.ok(elements(panel(), 'div').some((element) => element.props.className?.includes('exploit-modal--ids-alert')));
     assert.equal(client.state.nodes.find((n) => n.id === id).status, 'scanned');
     const afterWrong = JSON.stringify(client.state);
     choices()[challenge.choices.findIndex((c) => !c.isCorrect)].props.onClick();
@@ -182,6 +185,7 @@ test('rejected answer is not displayed as penalized and can be retried', async (
   await wrong().props.onClick();
   assert.equal(JSON.stringify(client.state),before);
   assert.ok(!elements(panel(),'button').some(b=>b.props.className==='exploit-choice exploit-choice--wrong'));
+  assert.ok(!elements(panel(),'div').some(e=>e.props.className?.includes('exploit-modal--ids-alert')));
   reject=false;await wrong().props.onClick();
   assert.equal(client.state.alertLevel,9.5);
   await wrong().props.onClick();assert.equal(client.state.alertLevel,9.5);

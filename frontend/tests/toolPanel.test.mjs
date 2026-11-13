@@ -73,3 +73,13 @@ test('breach status explains why a scanned node cannot be breached yet', () => {
   const far = { id: 'Z', layer: 'External', status: 'scanned' };
   assert.equal(breachStatus(far, [far], [], 'ROOT', stage).label, '未到達(隣接ノードが未侵入)');
 });
+
+test('tool panel starts collapsed only on narrow screens', () => {
+  const { startsCollapsed, TOOL_PANEL_COLLAPSE_WIDTH } = load(new URL('../src/components/ToolPanel/toolPanelLayout.ts', import.meta.url));
+  assert.equal(startsCollapsed(900), true);
+  assert.equal(startsCollapsed(TOOL_PANEL_COLLAPSE_WIDTH - 1), true);
+  assert.equal(startsCollapsed(TOOL_PANEL_COLLAPSE_WIDTH), false);
+  assert.equal(startsCollapsed(1280), false);
+  // サーバー側の描画など、幅が分からないときは開いた状態にする
+  assert.equal(startsCollapsed(undefined), false);
+});

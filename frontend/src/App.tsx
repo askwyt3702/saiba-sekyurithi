@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameClient } from './game/hooks/useGameClient';
 import type {
   ActionRejectReason,
@@ -63,12 +63,37 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [idsAlertActive, setIdsAlertActive] = useState(false);
+  const idsLogs = useRef<{ gameId: string | null; seen: Set<string> }>({ gameId: null, seen: new Set() });
+  const idsAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const triggerIdsAlert = () => {
+    if (idsAlertTimer.current) clearTimeout(idsAlertTimer.current);
+    setIdsAlertActive(true);
+    idsAlertTimer.current = setTimeout(() => {
+      setIdsAlertActive(false);
+    }, 900);
+  };
 
   useEffect(() => {
     if (hasAutostartParam()) {
       window.history.replaceState({}, '', '/');
     }
   }, []);
+
+  useEffect(() => {
+    if (!state?.log) return;
+    const cursor = idsLogs.current;
+    if (cursor.gameId !== state.gameId) {
+      idsLogs.current = { gameId: state.gameId, seen: new Set(state.log.map((entry) => entry.id)) };
+      return;
+    }
+    const newLogs = state.log.filter((entry) => !cursor.seen.has(entry.id));
+    for (const entry of newLogs) cursor.seen.add(entry.id);
+    if (newLogs.some((entry) => entry.message.includes('【IDS検知警告】'))) triggerIdsAlert();
+  }, [state?.gameId, state?.log]);
+
+  useEffect(() => () => { if (idsAlertTimer.current) clearTimeout(idsAlertTimer.current); }, []);
 
   // 選択中のノード
   const selectedNode =
@@ -201,7 +226,12 @@ function App() {
 
   // ゲーム画面
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${idsAlertActive ? 'app-shell--ids-alert' : ''}`}>
+      {idsAlertActive && (
+        <div className="ids-alert-banner" role="alert">
+          ⚠ [CRITICAL IDS ALERT] 侵入検知センサー作動 // 不正エクスプロイト遮断
+        </div>
+      )}
       <StatusBar
         elapsedSeconds={state.elapsedSeconds}
         alertLevel={state.alertLevel}
@@ -268,6 +298,7 @@ function App() {
               ? notice.message
               : null
           }
+          logs={state.log}
           onAction={handleAction}
         />
       </div>

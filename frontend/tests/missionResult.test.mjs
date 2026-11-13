@@ -21,7 +21,7 @@ function loadSource(path, overrides = {}) {
     if (id.startsWith('.')) return loadSource(new URL(id + '.ts', new URL(path, import.meta.url)), overrides);
     return require(id);
   };
-  runInNewContext('(function(require, module, exports) {' + outputText + '\n})', { console })(localRequire, module, module.exports);
+  runInNewContext('(function(require, module, exports) {' + outputText + '\n})', { console, setTimeout, clearTimeout, URLSearchParams, window: { location: { search: '' }, history: { replaceState() {} } } })(localRequire, module, module.exports);
   return module.exports;
 }
 const evaluation = loadSource('../src/game/model/missionResult.ts');
@@ -84,6 +84,19 @@ test('result displays the evaluation returned by the API', () => {
   assert.ok(html.includes('SCORE 10'));
 });
 
+test('audit report lists hacked nodes with vulnerability and defense metadata', () => {
+  const html = renderToStaticMarkup(createElement(MissionResult, {
+    state: { ...state, nodes: [
+      { id: 'E01', name: 'Gateway', status: 'hacked', vulnerability: '弱いSSHパスワード' },
+      { id: 'C03', name: 'Research DB', status: 'hacked', vulnerability: 'データベース権限設定の不備' },
+      { id: 'I01', name: 'Unhacked target', status: 'scanned' },
+    ] }, onRetry: async () => {}, onTitle: async () => {},
+  }));
+  assert.equal((html.match(/class="mission-result__report-item"/g) ?? []).length, 2);
+  for (const text of ['SECURITY AUDIT', 'Gateway', 'Research DB', 'ATT&amp;CK:', 'CWE-', 'パスワード', 'SQL']) assert.ok(html.includes(text), text);
+  assert.ok(!html.includes('Unhacked target'));
+});
+
 function mountResult(props) {
   const values = [];
   const refs = [];
@@ -140,11 +153,13 @@ test('failed reset keeps the result available and allows another attempt', async
   assert.ok(findElements(tree, 'button').every((button) => !button.props.disabled));
 });
 
-function mountApp(gameState, reset) {
+function mountApp(gameState, reset, sendAction = async () => ({ accepted: true })) {
+  const effects = [];
   const values = ['game'];
   let cursor = 0;
   const react = {
-    useEffect() {},
+    useEffect(callback) { effects.push(callback); },
+    useRef(initial) { const index = cursor++; if (!(index in values)) values[index] = { current: initial }; return values[index]; },
     useState(initial) {
       const index = cursor++;
       if (!(index in values)) values[index] = typeof initial === 'function' ? initial() : initial;
@@ -153,7 +168,7 @@ function mountApp(gameState, reset) {
   };
   const dependencies = {
     react,
-    './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction: async () => ({ accepted: true }) }) },
+    './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction }) },
     './game/data/stageData': { MAX_ANALYSIS_RESOURCE: 30, DEFAULT_STAGE_ID: 1, getStageData: () => ({ prototypeNotice: '' }) },
     './components/MissionResult/MissionResult': { MissionResult },
     './components/StageMechanics/StageMechanicsStatus': { StageMechanicsStatus: 'StageMechanicsStatus' },
@@ -162,7 +177,7 @@ function mountApp(gameState, reset) {
     dependencies[`./components/${name}/${name}`] = { [name]: name };
   }
   const App = loadSource('../src/App.tsx', dependencies).default;
-  return { render: () => { cursor = 0; return App(); }, values };
+  return { render: () => { cursor = 0; return App(); }, values, flushEffects: () => effects.splice(0).forEach(effect => effect()) };
 }
 
 test('App opens the result only for won games', () => {
@@ -197,4 +212,19 @@ test('selecting stage2 routes to its game and does not render a stale stage1 res
   const loading = app.render();
   assert.equal(loading.props.className, 'app-loading');
   assert.equal(findElements(loading, MissionResult).length, 0);
+});
+
+test('IDS animation follows new logs after reset and ignores rejected actions', async () => {
+  const current={...state,status:'playing',log:[],gameId:'ids-test'};
+  const app=mountApp(current,async()=>{},async()=>({accepted:false,reason:'invalid_question'}));
+  app.values[2]='E01';app.render();app.flushEffects();
+  await findElements(app.render(),'NodeDetailPanel')[0].props.onAction('breach',undefined,true,'wrong','wrong');
+  app.flushEffects();assert.ok(!app.render().props.className.includes('app-shell--ids-alert'));
+  current.log=[{id:'first',message:'【IDS検知警告】'}];
+  app.render();app.flushEffects();assert.ok(app.render().props.className.includes('app-shell--ids-alert'));
+  current.log=[{id:'reset',message:'new mission'}];app.render();app.flushEffects();
+  await new Promise(resolve=>setTimeout(resolve,950));
+  assert.ok(!app.render().props.className.includes('app-shell--ids-alert'));
+  current.log.push({id:'second',message:'【IDS検知警告】'});
+  app.render();app.flushEffects();assert.ok(app.render().props.className.includes('app-shell--ids-alert'));
 });

@@ -85,6 +85,8 @@
 .ms-container {
   position: relative;
   z-index: 5;
+  /* 左右の余白を幅に含める(含めないと画面より広くなり、右のカードが切れる) */
+  box-sizing: border-box;
   width: 100%;
   max-width: 1320px;
   margin: 0 auto;
