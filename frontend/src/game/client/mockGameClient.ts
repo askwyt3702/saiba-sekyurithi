@@ -38,18 +38,39 @@ const SECURITY_INFO_HINTS: Record<string, string> = {
   E01: 'E01: 公開SSHゲートウェイの構成を確認。Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、ログイン試行制限（Fail2ban等）が未導入です。辞書攻撃（hydra）による突破が有効です。',
   E02: 'E02: DNSサーバーのゾーン転送設定（AXFR）の不備を確認。内部ドメイン「corp.local」のレコード一覧を取得可能。DMZ層の Web(D01)・Mail(D02) の内部通信経路を特定しました。',
   E03: 'E03: アーカイブサーバーの公開ディレクトリを確認。旧システム移行用バックアップファイルがアクセス制限なしで露出。内部ツールの解析資源（RESOURCE +5）を回収可能です。',
+  D01: 'D01: Webサーバーの公開設定を確認。古いApacheのパストラバーサル脆弱性が残存しており、非公開の管理APIへの不正リクエストが可能です。',
+  D02: 'D02: メールサーバーのDNSレコードを確認。SPF/DMARCが未設定（p=none）のため、送信元ドメインの偽装が可能です。',
+  D03: 'D03: VPNエンドポイントの暗号スイートを確認。古い暗号化プロトコル（IKEv1/DES）が有効化されており、ダウングレード攻撃が可能です。',
+  D04: 'D04: Web管理コンソールのアクセス制御を確認。IP制限が不十分で、X-Forwarded-Forヘッダ偽装による管理権限バイパスが可能です。',
+  D05: 'D05: メモリキャッシュサーバーの設定を確認。セッショントークンおよびVPN認証情報が平文でキャッシュに残存しています。',
+  D06: 'D06: 社内プロキシサーバーの転送設定を確認。アクセス制御リスト（ACL）の誤設定により、通信経路を偽装して警戒度を削減可能です。',
+  D07: 'D07: DMZ境界の監視装置を確認。SNMPコミュニティ名がデフォルト（public）のままであり、監視センサーのシグネチャ設定を読み取れます。',
 };
 
 const CORRECT_EXPLOITS: Record<string, string[]> = {
   E01: ['ssh_bf', 'ssh_cfg_b'],
   E02: ['dns_axfr', 'dns_cfg_ok'],
   E03: ['acl_smb', 'acl_cfg_ok'],
+  D01: ['web_bypass', 'web_def_ok'],
+  D02: ['mail_spoof', 'mail_spf_ok'],
+  D03: ['vpn_downgrade', 'vpn_cfg_ok'],
+  D04: ['web_bypass', 'web_def_ok'],
+  D05: ['cred_dump', 'cred_code_b'],
+  D06: ['log_tamper', 'log_def_ok'],
+  D07: ['log_tamper', 'log_def_ok'],
 };
 
 const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = {
   E01: { alert: 5, resource: 1 },
   E02: { alert: 5, resource: 1 },
   E03: { alert: 3, resource: 1 },
+  D01: { alert: 5, resource: 1 },
+  D02: { alert: 5, resource: 1 },
+  D03: { alert: 6, resource: 1 },
+  D04: { alert: 5, resource: 1 },
+  D05: { alert: 5, resource: 1 },
+  D06: { alert: 4, resource: 1 },
+  D07: { alert: 6, resource: 1 },
 };
 
 function generateKeyFragment(): string {
