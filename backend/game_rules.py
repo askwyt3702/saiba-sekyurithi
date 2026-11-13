@@ -223,6 +223,14 @@ def _has_any_affordable_action(player: RuleState, stage: GameMapDefinition) -> b
         pass
     for data in stage["nodes"]:
         node = SimpleNamespace(**data)
+        if any(validate_action(stage, player, RuleAction(kind, node.id)) is None for kind in ("confirmInfo", "completeAnalysis")):
+            planned = deepcopy(player)
+            planned.security_events[node.id] = ["INFO_CONFIRMED", "ANALYSIS_COMPLETED"]
+            try:
+                _validate_timed_action(planned, stage, "breach", node)
+                return True
+            except ActionRejected:
+                pass
         for action in ("scan", "remoteScan", "breach", "dataExtract"):
             try:
                 _validate_timed_action(player, stage, action, node)
@@ -369,7 +377,7 @@ def _apply_validated_action(
         return
 
     answers = rule.get("question_answers", {}).get(question_id, rule.get("correct_exploits", []))
-    wrong = exploit_id not in answers if answers else exploit_mismatch
+    wrong = bool(answers) and exploit_id not in answers
     if action_type == "breach" and wrong:
         penalty = rule.get("exploit_failure_alert", EXPLOIT_MISMATCH_ALERT)
         resource = rule.get("failure_resource", 0)
@@ -512,14 +520,14 @@ def validate_action(stage: GameMapDefinition, state: RuleState, action: RuleActi
         return error.reason
     if action.type == "breach":
         rule = stage.get("security_rules", {}).get(action.node_id, {})
-        if rule.get("failure_mode") == "consume" and not security_requirements_met(stage, state, action.node_id):
-            return None
-        if rule.get("correct_exploits") and (action.exploit_id is None or not action.exploit_id.strip()):
-            return "exploit_required"
         if rule.get("required_question") and not action.question_id:
             return "question_required"
         if action.question_id is not None and rule.get("question_answers") and action.question_id not in rule["question_answers"]:
             return "invalid_question"
+        if rule.get("failure_mode") == "consume" and not security_requirements_met(stage, state, action.node_id):
+            return None
+        if rule.get("correct_exploits") and (action.exploit_id is None or not action.exploit_id.strip()):
+            return "exploit_required"
     if action.type == "breach" and action.passcode is not None and action.passcode.strip():
         keys = stage["key_fragment_node_ids"]
         target = node.id in stage["target_node_ids"] or (not stage["target_node_ids"] and node.layer == "Core")

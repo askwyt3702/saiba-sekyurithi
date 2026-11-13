@@ -12,7 +12,7 @@ def test_every_server_correct_answer_succeeds_despite_client_mismatch(node, answ
     act(game, "confirmInfo", node)
     if node == "E01":
         act(game, "completeAnalysis", node)
-    result = act(game, "breach", node, exploitMismatch=True, exploitId=answer)
+    result = act(game, "breach", node, exploitMismatch=True, exploitId=answer, questionId=next(q for q, ids in SECURITY_RULES[node]["question_answers"].items() if answer in ids))
     assert result["accepted"]
     assert next(n for n in result["state"]["nodes"] if n["id"] == node)["data"]["status"] == "hacked"
 
@@ -22,7 +22,7 @@ def test_ready_node_requires_an_answer_even_if_client_claims_correct(game, act):
     act(game, "confirmInfo", "E01")
     before = act(game, "completeAnalysis", "E01")["state"]
     for answer in (None, "", "  "):
-        result = act(game, "breach", "E01", exploitId=answer)
+        result = act(game, "breach", "E01", exploitId=answer, questionId="E01:ssh-q1")
         assert not result["accepted"] and result["reason"] == "exploit_required"
         assert result["state"] == before
 
@@ -63,7 +63,7 @@ def test_security_progress_survives_reload_and_is_cleared_by_reset(game, client,
     repeated = act(game, "confirmInfo", "E01")
     assert not repeated["accepted"] and repeated["state"] == first["state"]
     assert act(game, "completeAnalysis", "E01")["accepted"]
-    success = act(game, "breach", "E01", exploitId="ssh_bf")["state"]
+    success = act(game, "breach", "E01", exploitId="ssh_bf", questionId="E01:ssh-q1")["state"]
     assert success["analysisResource"] == 25
     assert next(n for n in success["nodes"] if n["id"] == "E01")["data"]["status"] == "hacked"
     reset = client.post(f"/api/games/{game}/reset").json()
@@ -77,11 +77,11 @@ def test_missing_requirements_are_paid_failed_attempts(node, game, act):
     if node == "E02":
         act(game, "confirmInfo", "E01")
         act(game, "completeAnalysis", "E01")
-        act(game, "breach", "E01", exploitId="ssh_bf")
+        act(game, "breach", "E01", exploitId="ssh_bf", questionId="E01:ssh-q1")
         before = act(game, "scan", "E02")["state"]
     else:
         before = act(game, "scan", "E01")["state"]  # rejected repeat does not consume
-    failed = act(game, "breach", node)
+    failed = act(game, "breach", node, questionId=next(iter(SECURITY_RULES[node]["question_answers"])))
     assert failed["accepted"]
     after = failed["state"]
     assert after["analysisResource"] == before["analysisResource"] - 2
@@ -94,10 +94,10 @@ def test_e03_refuses_without_consumption_and_does_not_duplicate_supply(game, rea
     ready_act(game, "scan", "E01")
     ready_act(game, "breach", "E01")
     before = act(game, "scan", "E03")["state"]
-    refused = act(game, "breach", "E03", exploitId="acl_smb")
+    refused = act(game, "breach", "E03", exploitId="acl_smb", questionId="E03:acl-q1")
     assert not refused["accepted"] and refused["reason"] == "security_requirements_unmet"
     assert refused["state"] == before
     act(game, "confirmInfo", "E03")
-    success = act(game, "breach", "E03", exploitId="acl_smb")["state"]
+    success = act(game, "breach", "E03", exploitId="acl_smb", questionId="E03:acl-q1")["state"]
     assert success["analysisResource"] == before["analysisResource"] - 2 + 5
-    assert act(game, "breach", "E03", exploitId="acl_smb")["state"] == success
+    assert act(game, "breach", "E03", exploitId="acl_smb", questionId="E03:acl-q1")["state"] == success

@@ -36,10 +36,10 @@ const scenarios = JSON.parse(readFileSync(new URL('../../backend/tests/fixtures/
 const root = new URL('../../', import.meta.url);
 const candidates = ['backend/.venv/Scripts/python.exe', 'backend/.venv/bin/python', '.venv/bin/python'];
 const python = process.env.NULL_ROUTE_TEST_PYTHON ?? candidates.map((candidate) => fileURLToPath(new URL(candidate, root))).find(existsSync) ?? 'python';
-const actual = spawnSync(python, ['scripts/simulate_stage_routes.py'], { cwd: fileURLToPath(root), encoding: 'utf8' });
+const actual = spawnSync(python, ['scripts/simulate_stage_routes.py'], { cwd: fileURLToPath(root), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
 // Pythonやバックエンドのライブラリを入れていない手元の環境では、比較テストだけスキップする(他のテストは実行する)。
 // CI(CI=true)とPythonを明示した場合(NULL_ROUTE_TEST_PYTHON)は、スキップせず失敗させる。
-const pythonMissing = Boolean(actual.error) || actual.status === 9009
+const pythonMissing = actual.error?.code === 'ENOENT' || actual.status === 9009
   || /ModuleNotFoundError|No module named/.test(actual.stderr ?? '');
 const requirePython = process.env.CI === 'true' || process.env.NULL_ROUTE_TEST_PYTHON !== undefined;
 const backend = actual.status === 0 ? JSON.parse(actual.stdout) : null;
@@ -115,7 +115,7 @@ test('node panel disables all E02/E03 operations until E01 is hacked, then permi
   await client.sendAction({ type: 'scan', nodeId: 'E01' });
   await client.sendAction({ type: 'confirmInfo', nodeId: 'E01' });
   await client.sendAction({ type: 'completeAnalysis', nodeId: 'E01' });
-  await client.sendAction({ type: 'breach', nodeId: 'E01', exploitId: 'ssh_bf' });
+  await client.sendAction({ type: 'breach', nodeId: 'E01', exploitId: 'ssh_bf', questionId: 'E01:ssh-q1' });
   for (const id of ['E02', 'E03']) assert.equal((markup(id).match(/disabled=""/g) ?? []).length, 2);
   await client.sendAction({ type: 'scan', nodeId: 'E02' });
   assert.equal((markup('E02').match(/disabled=""/g) ?? []).length, 3);

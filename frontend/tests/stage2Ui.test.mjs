@@ -111,7 +111,7 @@ test('gate panel permits scans while locked and enables breach only after the re
     state.nodes.find((node) => node.id === parent).status = 'hacked';
     const node = state.nodes.find((n) => n.id === gate);
     const panel = () => NodeDetailPanel({ stageId: 2, nodes: state.nodes, edges: state.edges, node,
-      analysisResource: 25, privilege: 'ROOT', alertLevel: 10, notice: null, onAction() {} });
+      securityEvents: { [gate]: ['INFO_CONFIRMED'] }, analysisResource: 25, privilege: 'ROOT', alertLevel: 10, notice: null, onAction() {} });
     assert.ok(textOf(panel()).includes('ゲート：ロック中'));
     assert.ok(textOf(panel()).includes(required));
     assert.equal(elements(panel(), 'button')[0].props.disabled, false);

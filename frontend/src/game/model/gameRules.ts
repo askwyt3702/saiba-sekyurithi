@@ -87,7 +87,7 @@ class RuleRunner {
       this.checkGameOver();
       return { accepted: true };
     }
-    if (type === 'breach' && (rule?.correct_exploits?.length ? !(rule.question_answers?.[action.questionId!] ?? rule.correct_exploits).includes(action.exploitId!) : action.exploitMismatch)) {
+    if (type === 'breach' && (rule?.correct_exploits?.length ? !(rule.question_answers?.[action.questionId!] ?? rule.correct_exploits).includes(action.exploitId!) : false)) {
       const penalty = rule?.exploit_failure_alert ?? EXPLOIT_MISMATCH_ALERT;
       const resource = rule?.failure_resource ?? 0;
       this.state.analysisResource = Math.max(0, this.state.analysisResource - resource);
@@ -246,6 +246,13 @@ class RuleRunner {
   private hasAnyAffordableAction(): boolean {
     if (this.state.analysisResource < this.map.rules.maxAnalysisResource && this.state.nodes.some((node) => node.status === 'hacked')) return true;
     for (const node of this.state.nodes) {
+      if (['confirmInfo', 'completeAnalysis'].some((type) => this.validateAction({ type: type as ActionRequest['type'], nodeId: node.id }) === undefined)) {
+        const planned = this.cloneState();
+        planned.securityEvents ??= {};
+        planned.securityEvents[node.id] = ['INFO_CONFIRMED', 'ANALYSIS_COMPLETED'];
+        const runner = new RuleRunner(this.map, planned, { fragmentA: this.fragmentA, fragmentB: this.fragmentB });
+        if (runner.validate('breach', node) === undefined) return true;
+      }
       for (const type of ['scan', 'remoteScan', 'breach', 'dataExtract'] as const) {
         if (this.validate(type, node) === undefined) return true;
       }
@@ -307,10 +314,10 @@ class RuleRunner {
     if (rejection) return rejection;
     if (type === 'breach') {
       const rule = this.map.securityRules[node.id];
-      if (rule?.failure_mode === 'consume' && !securityRequirementsMet(rule, this.state.securityEvents?.[node.id])) return undefined;
-      if (rule?.correct_exploits?.length && !action.exploitId?.trim()) return 'exploit_required';
       if (rule?.required_question && !action.questionId) return 'question_required';
       if (action.questionId !== undefined && rule?.question_answers && !rule.question_answers[action.questionId]) return 'invalid_question';
+      if (rule?.failure_mode === 'consume' && !securityRequirementsMet(rule, this.state.securityEvents?.[node.id])) return undefined;
+      if (rule?.correct_exploits?.length && !action.exploitId?.trim()) return 'exploit_required';
     }
     if (type === 'breach' && action.passcode !== undefined && action.passcode.trim() !== '') {
       if (!this.isTarget(node) || !this.hasAllKeyFragments() || normalizePasscode(action.passcode) !== normalizePasscode(this.fragmentA + this.fragmentB)) return 'invalid_passcode';

@@ -41,9 +41,9 @@ def test_pure_simulation_is_repeatable_non_mutating_and_matches_db(scenario):
             reason = validate_action(definition, state, action)
             result = transition(definition, state, action)
             if result.accepted and action.type == "breach" and action.exploit_mismatch and result.state.game_time == state.game_time:
-                assert result.state.analysis_resource == state.analysis_resource
+                assert result.state.analysis_resource == state.analysis_resource - definition["security_rules"].get(action.node_id, {}).get("failure_resource", 0)
                 assert result.state.game_time == state.game_time
-                assert result.state.alert_level == min(100, state.alert_level + 8)
+                assert result.state.alert_level == min(100, state.alert_level + definition["security_rules"].get(action.node_id, {}).get("exploit_failure_alert", 8))
                 assert result.state.node_statuses == state.node_statuses
                 assert result.state.security_events == state.security_events
                 assert result.state.current_privilege == state.current_privilege
@@ -83,7 +83,9 @@ def test_map_definition_is_detached_and_controls_rules_without_global_stage_look
     state.node_statuses["S2-C02"] = "scanned"
     assert validate_action(definition, state, RuleAction("breach", "S2-C02")) == "node_locked"
     state.node_statuses["S2-I06"] = "hacked"
-    state = transition(definition, state, RuleAction("breach", "S2-C02")).state
+    state = transition(definition, state, RuleAction("confirmInfo", "S2-C02")).state
+    question = next(iter(definition["security_rules"]["S2-C02"]["question_answers"]))
+    state = transition(definition, state, RuleAction("breach", "S2-C02", exploit_id=definition["security_rules"]["S2-C02"]["question_answers"][question][0], question_id=question)).state
     assert transition(definition, state, RuleAction("dataExtract", "S2-C02")).state.game_status == "won"
     assert game_data.STAGES == original
 

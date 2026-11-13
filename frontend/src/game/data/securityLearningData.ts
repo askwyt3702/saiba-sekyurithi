@@ -987,7 +987,7 @@ export function getSecurityChallenge(
 
   if (found) {
     const questions: ChallengeQuestion[] = found.questions.map((q, qIdx) => ({
-      id: q.id,
+      id: `${nodeId}:${q.id}`,
       questionType: q.questionType,
       prompt: q.prompt,
       codeSnippet: q.codeSnippet,

@@ -92,7 +92,9 @@ test('custom map controls initial state, gate and target; no global definition i
   assert.equal((await client.sendAction({ type: 'breach', nodeId: 'S2-C02' })).reason, 'node_locked');
   assert.deepEqual(plain(client.state), before);
   client.state.nodes.find((n) => n.id === 'S2-I06').status = 'hacked';
-  assert.equal((await client.sendAction({ type: 'breach', nodeId: 'S2-C02' })).accepted, true);
+  await client.sendAction({type:'confirmInfo',nodeId:'S2-C02'});
+  const questionId=Object.keys(map.securityRules['S2-C02'].question_answers)[0];
+  assert.equal((await client.sendAction({ type: 'breach', nodeId: 'S2-C02', questionId, exploitId: map.securityRules['S2-C02'].question_answers[questionId][0] })).accepted, true);
   assert.equal((await client.sendAction({ type: 'dataExtract', nodeId: 'S2-C02' })).accepted, true);
   assert.equal(client.state.status, 'won');
   assert.deepEqual(plain(STAGES), baseline);

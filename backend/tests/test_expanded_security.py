@@ -51,5 +51,5 @@ def test_privilege_questions_are_scoped_and_preserved(node):
     rule = SECURITY_RULES[node]
     assert rule["correct_exploits"] == ["priv_esc", "priv_sudo_b"]
     assert rule["required_question"]
-    assert rule["question_answers"] == {"priv-q1": ["priv_esc"], "priv-q2": ["priv_sudo_b"]}
-    assert all("priv_sudo_b" not in r["correct_exploits"] for nid, r in SECURITY_RULES.items() if nid not in ("I01", "I02"))
+    assert rule["question_answers"] == {f"{node}:priv-q1": ["priv_esc"], f"{node}:priv-q2": ["priv_sudo_b"]}
+    assert all("priv_sudo_b" not in r["correct_exploits"] for nid, r in SECURITY_RULES.items() if nid not in ("I01", "I02", "S2-I01", "S2-I03", "internal-1"))

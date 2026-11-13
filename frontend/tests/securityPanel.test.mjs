@@ -42,7 +42,7 @@ const { getSecurityChallenge } = load(new URL('../src/game/data/securityLearning
 const { STAGES, SECURITY_RULES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
 
 test('stage1 and stage2 questions have one correct answer and unambiguous choice IDs', () => {
-  for (const stageId of [1, 2]) {
+  for (const stageId of [0, 1, 2]) {
     const stage = STAGES[stageId];
     for (const node of stage.nodes) {
       const challenge = getSecurityChallenge(node.id, stage.vulnerabilities[node.id], node.info);
@@ -154,7 +154,8 @@ for (const id of ['E01', 'E02', 'E03']) {
 // The complete question bank for every server-controlled node must match both ways.
 test('all configured question answers exactly match the generated server allowlists', () => {
   for (const id of Object.keys(SECURITY_RULES)) {
-    const challenge = getSecurityChallenge(id, STAGES[1].vulnerabilities[id]);
+    const stage = Object.values(STAGES).find(s=>s.nodes.some(n=>n.id===id));
+    const challenge = getSecurityChallenge(id, stage.vulnerabilities[id]);
     const correct = challenge.questions.flatMap((q) => q.choices.filter((c) => c.isCorrect).map((c) => c.id));
     assert.deepEqual([...correct].sort(), [...SECURITY_RULES[id].correct_exploits].sort());
     for (const question of challenge.questions) {
@@ -184,4 +185,25 @@ test('rejected answer is not displayed as penalized and can be retried', async (
   reject=false;await wrong().props.onClick();
   assert.equal(client.state.alertLevel,9.5);
   await wrong().props.onClick();assert.equal(client.state.alertLevel,9.5);
+});
+
+test('all 45 nodes reject missing, unknown and foreign questions without consumption', async () => {
+  const questions=Object.values(SECURITY_RULES).flatMap(r=>Object.keys(r.question_answers));
+  assert.equal(Object.keys(SECURITY_RULES).length,45);
+  assert.equal(questions.length,90);assert.equal(new Set(questions).size,90);
+  for (const stage of Object.values(STAGES)) for (const node of stage.nodes) {
+    const client=new MockGameClient('question-contract',stage.id);await client.connect(()=>{});
+    client.state.privilege='ROOT';
+    for (const item of client.state.nodes) item.status=item.id===node.id?'scanned':'hacked';
+    await client.sendAction({type:'confirmInfo',nodeId:node.id});
+    if(SECURITY_RULES[node.id].required_analysis)await client.sendAction({type:'completeAnalysis',nodeId:node.id});
+    const before=JSON.stringify(client.state);
+    const foreign=questions.find(q=>!q.startsWith(node.id+':'));
+    for(const questionId of [undefined,'','unknown',foreign]){
+      const result=await client.sendAction({type:'breach',nodeId:node.id,questionId,exploitId:'unknown',exploitMismatch:true});
+      assert.equal(result.accepted,false,node.id);
+      assert.equal(result.reason,questionId?'invalid_question':'question_required');
+      assert.equal(JSON.stringify(client.state),before);
+    }
+  }
 });

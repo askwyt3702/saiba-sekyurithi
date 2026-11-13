@@ -27,8 +27,8 @@ const MISSIONS: MissionItem[] = [
     badge: '5 NODES',
     title: '基礎侵入訓練',
     description:
-      '5ノードの小規模ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。初期侵入口はE01のみ。',
-    targetNode: 'C01 (CORE)',
+      '5ノードの小規模ネットワークで、スキャン・情報確認・問題回答・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。初期侵入口はexternal-1のみ。',
+    targetNode: 'core-1 (CORE)',
     nodeCount: '05',
     difficultyLabel: '訓練 / TRAINING',
     difficultyLevel: 1,
