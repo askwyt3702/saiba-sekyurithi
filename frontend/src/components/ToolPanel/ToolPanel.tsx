@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getStageData, isExtractTarget, type StageDefinition } from '../../game/data/stageData';
+import { getNodeSecurityMeta, getSecurityChallenge } from '../../game/data/securityLearningData';
 import { canReachNode } from '../../game/model/actionRules';
 import { breachStatus, LAYERS, PRIVILEGES, requiredPrivilege } from './breachStatus';
 import { currentViewportWidth, startsCollapsed } from './toolPanelLayout';
@@ -94,6 +95,7 @@ export function ToolPanel({
             nodes={nodes}
             edges={edges}
             privilege={privilege}
+            log={log}
             selectedNodeId={selectedNodeId}
             onSelectNode={onSelectNode}
           />
@@ -119,6 +121,7 @@ function VulnerabilityTab({
   nodes,
   edges,
   privilege,
+  log,
   selectedNodeId,
   onSelectNode,
 }: {
@@ -126,6 +129,7 @@ function VulnerabilityTab({
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   privilege: string;
+  log: LogEntry[];
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string) => void;
 }) {
@@ -150,24 +154,59 @@ function VulnerabilityTab({
         <p className="tool-panel__empty">まだスキャンしたノードがありません。入口のノードをスキャンすると、ここに脆弱性が表示されます。</p>
       ) : (
         <ul className="tool-panel__list">
-          {rows.map(({ node, status }) => (
-            <li key={node.id}>
-              <button
-                type="button"
-                className={`tool-panel__node ${node.id === selectedNodeId ? 'tool-panel__node--selected' : ''}`}
-                onClick={() => onSelectNode(node.id)}
-              >
-                <span className="tool-panel__node-head">
-                  <span className="tool-panel__node-name">{node.id} {node.name}</span>
-                  <span className={`tool-panel__badge tool-panel__badge--${status.tone}`}>{status.label}</span>
-                </span>
-                <span className="tool-panel__node-meta">
-                  {node.layer} ／ 要求権限 {requiredPrivilege(node.layer)}
-                </span>
-                <span className="tool-panel__node-vuln">{node.vulnerability ?? '脆弱性情報なし'}</span>
-              </button>
-            </li>
-          ))}
+          {rows.map(({ node, status }) => {
+            const meta = getNodeSecurityMeta(node.id);
+            const ch = getSecurityChallenge(node.id, node.vulnerability, node.info);
+            const effect = stage.nodeEffects[node.id];
+            const isInvestigated = log.some(
+              (l) =>
+                l.message.includes(`[SECURITY:${node.id}:INFO_CONFIRMED]`) ||
+                l.message.includes(`【調査完了】${node.id}`),
+            );
+            return (
+              <li key={node.id}>
+                <button
+                  type="button"
+                  className={`tool-panel__node ${node.id === selectedNodeId ? 'tool-panel__node--selected' : ''}`}
+                  onClick={() => onSelectNode(node.id)}
+                >
+                  <span className="tool-panel__node-head">
+                    <span className="tool-panel__node-name">
+                      {node.id} {node.name}
+                    </span>
+                    <span className={`tool-panel__badge tool-panel__badge--${status.tone}`}>{status.label}</span>
+                  </span>
+                  <span className="tool-panel__node-meta">
+                    {node.layer} ／ 要求権限 {requiredPrivilege(node.layer)}
+                  </span>
+                  <span className="tool-panel__node-vuln">{node.vulnerability ?? '脆弱性情報なし'}</span>
+                  <span className="tool-panel__node-tags">
+                    <span className={`tool-panel__tag tool-panel__tag--risk-${meta.riskLevel.toLowerCase()}`}>
+                      RISK: {meta.riskLevel}
+                    </span>
+                    {ch.cweId && (
+                      <span className="tool-panel__tag tool-panel__tag--cwe">
+                        {ch.cweId.split(' ')[0]}
+                      </span>
+                    )}
+                    {isInvestigated && (
+                      <span className="tool-panel__tag tool-panel__tag--recon">調査済 ✓</span>
+                    )}
+                    {effect?.alertDelta !== undefined && effect.alertDelta < 0 && (
+                      <span className="tool-panel__tag tool-panel__tag--stealth">
+                        痕跡 {effect.alertDelta}%
+                      </span>
+                    )}
+                    {effect?.resourceBonus !== undefined && effect.resourceBonus > 0 && (
+                      <span className="tool-panel__tag tool-panel__tag--supply">
+                        資源 +{effect.resourceBonus}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -246,6 +285,34 @@ function MissionTab({
             })}
           </ul>
           {keyFragments?.unlocked && <p className="tool-panel__note">暗号認証済み:データ回収で警戒度が上がりません。</p>}
+        </>
+      )}
+
+      {Object.keys(stage.nodeEffects).length > 0 && (
+        <>
+          <h3 className="tool-panel__heading">作戦ボーナス（痕跡消去・補給）</h3>
+          <ul className="tool-panel__list">
+            {Object.entries(stage.nodeEffects)
+              .filter(([id]) => !stage.keyFragmentNodeIds.includes(id))
+              .map(([id, eff]) => {
+                const n = nodes.find((node) => node.id === id);
+                if (!n) return null;
+                const done = n.status === 'hacked';
+                const parts: string[] = [];
+                if (eff.alertDelta < 0) parts.push(`警戒${eff.alertDelta}%`);
+                if (eff.resourceBonus > 0) parts.push(`資源+${eff.resourceBonus}`);
+                return (
+                  <li key={id}>
+                    <button type="button" className="tool-panel__row" onClick={() => onSelectNode(id)}>
+                      <span>{id} ({parts.join(' / ')})</span>
+                      <span className={`tool-panel__badge tool-panel__badge--${done ? 'done' : n.status === 'scanned' ? 'ready' : 'blocked'}`}>
+                        {done ? '発動済' : n.status === 'scanned' ? '判明' : '未調査'}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+          </ul>
         </>
       )}
 

@@ -55,11 +55,38 @@
   padding: 18px 20px;
 }
 
+.mission-result__report-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mission-result__accuracy-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-badge--stealth {
+  background: rgba(16, 185, 129, 0.22);
+  border: 1px solid #10b981;
+  color: #6ee7b7;
+  font-weight: 700;
+}
+
+.report-badge--warn {
+  background: rgba(244, 63, 94, 0.22);
+  border: 1px solid #f43f5e;
+  color: #fda4af;
+  font-weight: 700;
+}
+
 .mission-result__report-title {
   font-size: 13px;
   color: #67e8f9;
   letter-spacing: 1px;
-  margin: 0 0 14px;
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
