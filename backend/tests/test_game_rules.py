@@ -36,10 +36,19 @@ def test_pure_simulation_is_repeatable_non_mutating_and_matches_db(scenario):
             game_logic._set_node_status(db, player, nid, status)
         db.commit()
         for data in actions:
-            action = RuleAction(data["type"], data.get("nodeId"), data.get("passcode"))
+            action = RuleAction(data["type"], data.get("nodeId"), data.get("passcode"), data.get("exploitMismatch", False))
             before, before_map, before_action = deepcopy(state), deepcopy(definition), deepcopy(action)
             reason = validate_action(definition, state, action)
             result = transition(definition, state, action)
+            if result.accepted and action.type == "breach" and action.exploit_mismatch:
+                assert result.state.analysis_resource == state.analysis_resource
+                assert result.state.game_time == state.game_time
+                assert result.state.alert_level == min(100, state.alert_level + 8)
+                assert result.state.node_statuses == state.node_statuses
+                assert result.state.security_events == state.security_events
+                assert result.state.current_privilege == state.current_privilege
+                assert result.state.cipher_authenticated == state.cipher_authenticated
+                assert any("IDS" in event.message for event in result.events)
             assert result == transition(definition, state, action)
             assert state == before and definition == before_map and action == before_action
             assert result.reason == reason
@@ -47,7 +56,7 @@ def test_pure_simulation_is_repeatable_non_mutating_and_matches_db(scenario):
                 assert result.state == before and not result.events
             old_logs = db.query(models.GameLog).filter_by(player_id=player.id).count()
             try:
-                game_logic.apply_action(db, player, action.type, action.node_id, action.passcode)
+                game_logic.apply_action(db, player, action.type, action.node_id, action.passcode, action.exploit_mismatch)
                 assert result.accepted
             except game_logic.ActionRejected as error:
                 assert not result.accepted and error.reason == result.reason

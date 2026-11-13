@@ -29,7 +29,7 @@ interface NodeDetailPanelProps {
   alertLevel?: number;
   securityEvents?: Record<string, string[]>;
   notice: string | null;
-  onAction: (type: TimedActionType, passcode?: string) => void;
+  onAction: (type: TimedActionType, passcode?: string, exploitMismatch?: boolean) => void;
 }
 
 export function NodeDetailPanel({
@@ -50,13 +50,23 @@ export function NodeDetailPanel({
   const [passcode, setPasscode] = useState('');
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isExploitOpen, setIsExploitOpen] = useState(false);
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
+  const [penalizedChoiceIds, setPenalizedChoiceIds] = useState<string[]>([]);
 
   useEffect(() => {
     setPasscode('');
     setIsExploitOpen(false);
+    setQuestionIndex(0);
     setSelectedExploitId(null);
+    setPenalizedChoiceIds([]);
   }, [node?.id, stageId]);
+
+  useEffect(() => {
+    if (gameStatus !== 'playing') {
+      setIsExploitOpen(false);
+    }
+  }, [gameStatus]);
 
   useEffect(() => {
     if (!isInfoOpen && !isExploitOpen) return;
@@ -145,8 +155,19 @@ export function NodeDetailPanel({
   const fragA = keyFragments?.a ?? null;
   const fragB = keyFragments?.b ?? null;
   const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
+  const currentQuestion =
+    challenge.questions[questionIndex % challenge.questions.length] ?? challenge.questions[0];
   const selectedChoice =
-    challenge.choices.find((c) => c.id === selectedExploitId) ?? null;
+    currentQuestion.choices.find((c) => c.id === selectedExploitId) ?? null;
+
+  const handleSelectExploitChoice = (choiceId: string, isCorrect: boolean) => {
+    if (!canBreach) return;
+    setSelectedExploitId(choiceId);
+    if (!isCorrect && !penalizedChoiceIds.includes(choiceId)) {
+      setPenalizedChoiceIds((prev) => [...prev, choiceId]);
+      onAction('breach', undefined, true);
+    }
+  };
 
   return (
     <aside className="node-detail">
@@ -300,7 +321,7 @@ export function NodeDetailPanel({
             <div className="node-info-modal__body">
               <div className="exploit-terminal-box">
                 <div className="exploit-terminal-box__line">
-                  <span className="exploit-terminal-box__tag">[TARGET]</span> {node.id} ({node.name}) ／ 階層: {node.layer}
+                  <span className="exploit-terminal-box__tag">[TARGET]</span> {node.id} ({node.name}) ／ 階層: {node.layer} ／ 現在の警戒度: <strong>{alertLevel.toFixed(1)}%</strong>
                 </div>
                 <div className="exploit-terminal-box__line">
                   <span className="exploit-terminal-box__tag exploit-terminal-box__tag--vuln">[VULN]</span>{' '}
@@ -309,33 +330,62 @@ export function NodeDetailPanel({
                 <div className="exploit-terminal-box__log">
                   {challenge.scanTerminalLog}
                 </div>
-                <div className="exploit-terminal-box__prompt">
-                  &gt; 検出された脆弱性とスキャン解析ログを読み取り、有効な攻撃ペイロードを1つ選択してください：
+                <div className="exploit-terminal-box__qhead">
+                  <span className="exploit-terminal-box__qtype">
+                    {currentQuestion.questionType}（{questionIndex + 1} / {challenge.questions.length}）
+                  </span>
+                  {challenge.questions.length > 1 && (
+                    <button
+                      type="button"
+                      className="exploit-terminal-box__qswitch"
+                      onClick={() => {
+                        setQuestionIndex((prev) => (prev + 1) % challenge.questions.length);
+                        setSelectedExploitId(null);
+                      }}
+                    >
+                      別の問題に切り替え ↻
+                    </button>
+                  )}
                 </div>
+                <div className="exploit-terminal-box__prompt">
+                  &gt; {currentQuestion.prompt}
+                  <span className="exploit-terminal-box__penalty-note">
+                    （※不正解を選ぶとIDSに検知され、警戒度が +8% 上昇します）
+                  </span>
+                </div>
+                {currentQuestion.codeSnippet && (
+                  <pre className="exploit-terminal-box__snippet">
+                    <code>{currentQuestion.codeSnippet}</code>
+                  </pre>
+                )}
               </div>
 
               <div className="exploit-choices" role="radiogroup" aria-label="攻撃手法の選択肢">
-                {challenge.choices.map((choice, idx) => {
+                {currentQuestion.choices.map((choice, idx) => {
                   const isSelected = selectedExploitId === choice.id;
+                  const wasPenalized = penalizedChoiceIds.includes(choice.id);
                   const stateClass = isSelected
                     ? choice.isCorrect
                       ? 'exploit-choice--correct'
                       : 'exploit-choice--wrong'
-                    : '';
+                    : wasPenalized
+                      ? 'exploit-choice--wrong'
+                      : '';
                   return (
                     <button
                       key={choice.id}
                       type="button"
                       className={`exploit-choice ${stateClass}`}
-                      onClick={() => setSelectedExploitId(choice.id)}
+                      disabled={!canBreach}
+                      onClick={() => handleSelectExploitChoice(choice.id, choice.isCorrect)}
                     >
                       <div className="exploit-choice__head">
                         <span className="exploit-choice__title">
                           [{idx + 1}] {choice.title}
                         </span>
-                        {isSelected && (
+                        {(isSelected || wasPenalized) && (
                           <span className={`exploit-choice__badge ${choice.isCorrect ? 'exploit-choice__badge--ok' : 'exploit-choice__badge--ng'}`}>
-                            {choice.isCorrect ? '有効 (MATCH)' : '無効 (MISMATCH)'}
+                            {choice.isCorrect ? '有効 (MATCH)' : 'IDS検知 (警戒度 +8%)'}
                           </span>
                         )}
                       </div>
@@ -353,8 +403,8 @@ export function NodeDetailPanel({
                 >
                   <div className="exploit-feedback__title">
                     {selectedChoice.isCorrect
-                      ? '[+] EXPLOIT READY — 脆弱性に合致する攻撃手法を確認しました'
-                      : '[!] EXPLOIT MISMATCH — この攻撃手法では突破できません'}
+                      ? '[+] EXPLOIT READY — 脆弱性に合致する解答を確認しました！'
+                      : `🚨 [!] IDS ALERT — 不適切な選択が検知され、警戒度が +8% 上昇しました（現在: ${alertLevel.toFixed(1)}%）`}
                   </div>
                   <p className="exploit-feedback__text">{selectedChoice.feedback}</p>
                   {selectedChoice.isCorrect && (

@@ -56,7 +56,7 @@ def simulate(scenario, engine):
         for action in actions_for(scenario):
             accepted, reason = True, None
             try:
-                game_logic.apply_action(db, player, action["type"], action.get("nodeId"), action.get("passcode"))
+                game_logic.apply_action(db, player, action["type"], action.get("nodeId"), action.get("passcode"), action.get("exploitMismatch", False))
             except game_logic.ActionRejected as error:
                 db.rollback()
                 accepted, reason = False, error.reason

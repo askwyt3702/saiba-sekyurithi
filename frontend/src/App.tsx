@@ -84,14 +84,18 @@ function App() {
   };
 
   // ノードに対するアクション
-  const handleAction = async (type: TimedActionType, passcode?: string) => {
+  const handleAction = async (
+    type: TimedActionType,
+    passcode?: string,
+    exploitMismatch?: boolean,
+  ) => {
     if (!selectedNode) return;
 
     const nodeId = selectedNode.id;
     setNotice(null);
 
     try {
-      const result = await sendAction({ type, nodeId, passcode });
+      const result = await sendAction({ type, nodeId, passcode, exploitMismatch });
 
       if (!result.accepted) {
         setNotice({

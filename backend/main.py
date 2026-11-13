@@ -116,6 +116,7 @@ class ActionRequest(BaseModel):
     ]
     nodeId: Optional[str] = None
     passcode: Optional[str] = None
+    exploitMismatch: Optional[bool] = False
 
 
 
@@ -172,7 +173,14 @@ def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_d
 
     player = _get_game_or_404(db, game_id)
     try:
-        game_logic.apply_action(db, player, action.type, action.nodeId, passcode=action.passcode)
+        game_logic.apply_action(
+            db,
+            player,
+            action.type,
+            action.nodeId,
+            passcode=action.passcode,
+            exploit_mismatch=bool(action.exploitMismatch),
+        )
     except game_logic.ActionRejected as e:
         db.rollback()
         return {

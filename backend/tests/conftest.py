@@ -72,12 +72,14 @@ def set_player():
 def act(client):
     """アクションを送り、レスポンス全体(accepted/reason/state)を返す。"""
 
-    def _act(game_id, type_, node=None, passcode=None):
+    def _act(game_id, type_, node=None, passcode=None, exploitMismatch=False):
         body = {"type": type_}
         if node is not None:
             body["nodeId"] = node
         if passcode is not None:
             body["passcode"] = passcode
+        if exploitMismatch:
+            body["exploitMismatch"] = True
         res = client.post(f"/api/games/{game_id}/actions", json=body)
         assert res.status_code == 200, res.text
         return res.json()

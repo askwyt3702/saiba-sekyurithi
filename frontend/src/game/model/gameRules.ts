@@ -7,6 +7,7 @@ import { calculateMissionResult } from './missionResult';
 export interface RuleContext { fragmentA: string; fragmentB: string; }
 export interface TransitionResult extends ActionResult { state: GameState; events: ServerEvent[]; }
 type TimedActionType = 'scan' | 'remoteScan' | 'breach' | 'dataExtract';
+const EXPLOIT_MISMATCH_ALERT = 8;
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function clampAlert(value: number): number { return Math.min(100, Math.max(0, value)); }
 function normalizePasscode(value: string): string { return value.replace(/[\s-]/g, '').toUpperCase(); }
@@ -71,6 +72,12 @@ class RuleRunner {
 
   private applyTimedAction(action: ActionRequest, type: TimedActionType): ActionResult {
     const node = this.state.nodes.find((n) => n.id === action.nodeId)!;
+    if (type === 'breach' && action.exploitMismatch) {
+      this.state.alertLevel = clampAlert(this.state.alertLevel + EXPLOIT_MISMATCH_ALERT);
+      this.log('danger', `【IDS検知警告】${node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: ${Math.round(this.state.alertLevel)}%）。`);
+      this.checkGameOver();
+      return { accepted: true };
+    }
     const stage = this.map;
     const silentBreach = type === 'breach' && Boolean(action.passcode?.trim());
 
@@ -293,7 +300,7 @@ class RuleRunner {
     if (!node || !this.map.nodes.some((n) => n.id === node.id)) return 'invalid_state';
     const rejection = this.validate(type as TimedActionType, node);
     if (rejection) return rejection;
-    if (type === 'breach' && action.passcode !== undefined && action.passcode.trim() !== '') {
+    if (type === 'breach' && !action.exploitMismatch && action.passcode !== undefined && action.passcode.trim() !== '') {
       if (!this.isTarget(node) || !this.hasAllKeyFragments() || normalizePasscode(action.passcode) !== normalizePasscode(this.fragmentA + this.fragmentB)) return 'invalid_passcode';
     }
     return undefined;
