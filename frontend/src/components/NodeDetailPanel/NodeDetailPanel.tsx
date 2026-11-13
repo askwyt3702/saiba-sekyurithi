@@ -26,6 +26,7 @@ interface NodeDetailPanelProps {
   analysisResource: number;
   alertLevel?: number;
   notice: string | null;
+  logs?: Array<{ message: string }>;
   onAction: (
     type: TimedActionType,
     passcode?: string,
@@ -45,6 +46,7 @@ export function NodeDetailPanel({
   analysisResource,
   alertLevel = 0,
   notice,
+  logs,
   onAction,
 }: NodeDetailPanelProps) {
   const stage = getStageData(stageId);
@@ -149,6 +151,12 @@ export function NodeDetailPanel({
   const fragA = keyFragments?.a ?? null;
   const fragB = keyFragments?.b ?? null;
   const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
+  const isInvestigated =
+    logs?.some(
+      (l) =>
+        l.message.includes(`[SECURITY:${node.id}:INFO_CONFIRMED]`) ||
+        l.message.includes(`【調査完了】${node.id}`)
+    ) ?? false;
   const currentQuestion =
     challenge.questions[questionIndex % challenge.questions.length] ?? challenge.questions[0];
   const selectedChoice =
@@ -164,7 +172,10 @@ export function NodeDetailPanel({
 
   return (
     <aside className="node-detail">
-      <h2>{isUnscanned ? '不明ノード' : node.name}</h2>
+      <h2>
+        {isUnscanned ? '不明ノード' : node.name}
+        {isInvestigated && <span className="node-detail__investigated-badge">調査済 ✓</span>}
+      </h2>
       {stage.entryNodeIds.includes(node.id) && <p>初期侵入口：{node.id}</p>}
       {monitored && monitor && (
         <section className="node-detail__mechanics" aria-label="監視情報">
@@ -194,7 +205,23 @@ export function NodeDetailPanel({
         <dd>{isUnscanned ? '-' : node.info ?? '-'}</dd>
 
         <dt>脆弱性</dt>
-        <dd>{isUnscanned ? '-' : node.vulnerability ?? '-'}</dd>
+        <dd>
+          {isUnscanned ? (
+            '-'
+          ) : (
+            <div>
+              <span>{node.vulnerability ?? '-'}</span>
+              {challenge.mitreId && (
+                <div className="node-detail__mitre-tags">
+                  <span className="mitre-tag mitre-tag--attck">ATT&CK: {challenge.mitreId}</span>
+                  {challenge.cweId && (
+                    <span className="mitre-tag mitre-tag--cwe">{challenge.cweId}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </dd>
       </dl>
       {!isUnscanned && effect && (
         <p>初回侵入効果：資源 {effect.resourceBonus >= 0 ? '+' : ''}{effect.resourceBonus}（上限{MAX_ANALYSIS_RESOURCE}）、警戒度 {effect.alertDelta >= 0 ? '+' : ''}{effect.alertDelta}%</p>
@@ -263,13 +290,13 @@ export function NodeDetailPanel({
 
         <button
           type="button"
-          className="node-detail__info-button"
+          className={`node-detail__info-button ${isInvestigated ? 'node-detail__info-button--checked' : ''}`}
           onClick={() => {
             onAction('confirmInfo' as TimedActionType);
             setIsInfoOpen(true);
           }}
         >
-          情報確認
+          {isInvestigated ? '調査ログ再確認 ✓' : '情報確認'}
         </button>
       </div>
 
@@ -313,6 +340,20 @@ export function NodeDetailPanel({
                   <span className="exploit-terminal-box__tag exploit-terminal-box__tag--vuln">[VULN]</span>{' '}
                   <strong>{node.vulnerability ?? '不明'}</strong>（{challenge.category}）
                 </div>
+                {(challenge.mitreId || challenge.cweId) && (
+                  <div className="exploit-terminal-box__line">
+                    {challenge.mitreId && (
+                      <>
+                        <span className="exploit-terminal-box__tag">[ATT&CK]</span> {challenge.mitreId}
+                      </>
+                    )}
+                    {challenge.cweId && (
+                      <>
+                        {' '}／ <span className="exploit-terminal-box__tag">[CWE]</span> {challenge.cweId}
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="exploit-terminal-box__log">
                   {challenge.scanTerminalLog}
                 </div>

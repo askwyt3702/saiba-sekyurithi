@@ -59,12 +59,31 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [idsAlertActive, setIdsAlertActive] = useState(false);
+  const [prevLogLength, setPrevLogLength] = useState(0);
 
   useEffect(() => {
     if (hasAutostartParam()) {
       window.history.replaceState({}, '', '/');
     }
   }, []);
+
+  useEffect(() => {
+    if (!state?.log) return;
+    if (state.log.length > prevLogLength) {
+      const newLogs = state.log.slice(prevLogLength);
+      setPrevLogLength(state.log.length);
+      if (
+        newLogs.some(
+          (l) => l.message.includes('【IDS検知警告】') || l.message.includes('検知されました！')
+        )
+      ) {
+        setIdsAlertActive(true);
+        const timer = setTimeout(() => setIdsAlertActive(false), 1600);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [state?.log, prevLogLength]);
 
   // 選択中のノード
   const selectedNode =
@@ -198,7 +217,12 @@ function App() {
 
   // ゲーム画面
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${idsAlertActive ? 'app-shell--ids-alert' : ''}`}>
+      {idsAlertActive && (
+        <div className="ids-alert-banner" role="alert">
+          ⚠ [CRITICAL IDS ALERT] 侵入検知センサー作動 // 不正エクスプロイト遮断
+        </div>
+      )}
       <StatusBar
         elapsedSeconds={state.elapsedSeconds}
         alertLevel={state.alertLevel}
@@ -263,6 +287,7 @@ function App() {
               ? notice.message
               : null
           }
+          logs={state.log}
           onAction={handleAction}
         />
       </div>

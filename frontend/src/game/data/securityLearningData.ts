@@ -22,6 +22,8 @@ export interface ChallengeQuestion {
 
 export interface SecurityChallenge {
   category: string;
+  mitreId?: string;
+  cweId?: string;
   scanTerminalLog: string;
   whyDangerous: string;
   defenseMeasure: string;
@@ -50,6 +52,8 @@ interface RawQuestion {
 interface ChallengeGroupDef {
   match: string[];
   category: string;
+  mitreId?: string;
+  cweId?: string;
   scanTerminalLog: string;
   whyDangerous: string;
   defenseMeasure: string;
@@ -68,6 +72,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['弱いSSHパスワード', '調査用アカウントの弱い認証'],
     category: '認証・パスワード管理の不備 (Brute Force / Weak Auth)',
+    mitreId: 'T1110.001 (Password Guessing)',
+    cweId: 'CWE-521 (Weak Password Requirements)',
     scanTerminalLog:
       '[SCAN LOG] 22/tcp (OpenSSH) OPEN — PasswordAuthentication yes / MaxAuthTries 無制限。辞書攻撃に対するアカウントロック機構が未設定です。',
     whyDangerous:
@@ -148,6 +154,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['DNS設定情報の漏洩', '中継サービスの設定不備', '集約サービスの権限設定不備'],
     category: 'ネットワーク構成・DNS/中継情報漏洩 (Reconnaissance)',
+    mitreId: 'T1590.002 (DNS Reconnaissance)',
+    cweId: 'CWE-200 (Information Exposure)',
     scanTerminalLog:
       '[SCAN LOG] 53/tcp (DNS) / 8081/tcp (Relay) OPEN — allow-transfer { any; }; が設定されており、外部ホストからのゾーン転送・ルーティングテーブル照会が無制限に許可されています。',
     whyDangerous:
@@ -233,6 +241,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       'バックアップ領域の設定不備',
     ],
     category: 'アクセス制御（ACL）・ストレージ設定不備',
+    mitreId: 'T1039 (Data from Network Shared Drive)',
+    cweId: 'CWE-732 (Incorrect Permission Assignment)',
     scanTerminalLog:
       '[SCAN LOG] 445/tcp (SMB) / 8080/tcp (Archive) OPEN — Guest / Everyone に対して Read 権限が開放されています。機密バックアップ・鍵断片ファイルへ無認証でアクセス可能です。',
     whyDangerous:
@@ -320,6 +330,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '管理プロキシの認証不備',
     ],
     category: 'Webサーバー・管理APIの脆弱性 (OWASP Broken Access Control / Vuln Components)',
+    mitreId: 'T1190 (Exploit Public-Facing Application)',
+    cweId: 'CWE-22 (Path Traversal) / CWE-284',
     scanTerminalLog:
       '[SCAN LOG] 80/tcp, 443/tcp (HTTP/API) OPEN — パストラバーサル可能な旧バージョンWebサーバー、および認証ミドルウェアを通過しない `/admin`・`/api/v1/internal` エンドポイントを検出。',
     whyDangerous:
@@ -400,6 +412,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['漏洩した社員アドレスへのフィッシング', 'メール認証設定の不備'],
     category: 'メール認証不備・なりすまし (SPF / DKIM / DMARC & Phishing)',
+    mitreId: 'T1566.002 (Spearphishing Link)',
+    cweId: 'CWE-346 (Origin Validation Error)',
     scanTerminalLog:
       '[SCAN LOG] 25/tcp (SMTP) OPEN — ドメインのTXTレコードに `v=spf1 +all`（全送信元許可）が設定されており、DMARCポリシーが `p=none` です。送信元詐称メールがそのまま届きます。',
     whyDangerous:
@@ -480,6 +494,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['古いVPN認証方式', '古い暗号認証設定', '証明書管理APIの保護不足', '認証ゲートの設定不備'],
     category: '暗号・証明書・VPN認証の不備 (Cryptographic Failures)',
+    mitreId: 'T1588.004 (Digital Certificates) / T1556',
+    cweId: 'CWE-326 (Inadequate Encryption Strength)',
     scanTerminalLog:
       '[SCAN LOG] 443/udp, 8443/tcp OPEN — レガシー認証（MS-CHAPv1 / TLS 1.0）へのフォールバック許可、およびクライアント証明書発行APIの認可不備を検出。',
     whyDangerous:
@@ -560,6 +576,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['認証情報の不適切な保存', '管理用資格情報の保存不備'],
     category: '資格情報（クレデンシャル）の平文保存・キャッシュ漏洩',
+    mitreId: 'T1552.001 (Credentials in Files)',
+    cweId: 'CWE-256 (Plaintext Storage of Password)',
     scanTerminalLog:
       '[SCAN LOG] LOCAL/ENV — `.env` ファイルおよび認証キャッシュDB内に、暗号化されていないAPIシークレットとNTLM/SHA1ハッシュが平文相当で残存しています。',
     whyDangerous:
@@ -646,6 +664,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '解析基盤のアクセス制御不備',
     ],
     category: '権限昇格・特権ID管理の不備 (Privilege Escalation / IAM Misconfig)',
+    mitreId: 'T1068 (Privilege Escalation) / T1484',
+    cweId: 'CWE-269 (Improper Privilege Management)',
     scanTerminalLog:
       '[SCAN LOG] 389/tcp (LDAP), 88/tcp (Kerberos), 9000/tcp (DevOps) — 一般ユーザーロール（USER）に対して、上位ロール（ADMIN/ROOT）のトークン発行・sudo実行が許可された権限設定ミスを検出。',
     whyDangerous:
@@ -735,6 +755,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '迂回ゲートの管理設定不備',
     ],
     category: '監視・監査ログ基盤の保護不備 (Security Logging & Monitoring Failures)',
+    mitreId: 'T1070.002 (Clear Event Logs) / T1562.001',
+    cweId: 'CWE-778 (Insufficient Logging)',
     scanTerminalLog:
       '[SCAN LOG] 9200/tcp (SIEM/Log), 3128/tcp (Proxy) — 監視制御APIおよび監査ログストレージに削除・書き換え権限（DELETE/PUT）が開放されており、認証トークン検証が無効です。',
     whyDangerous:
@@ -819,6 +841,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '転送ゲートの権限設定不備',
     ],
     category: 'ネットワーク境界・ファイアウォール設定不備 (Network Segmentation Failure)',
+    mitreId: 'T1556.004 (Network Device Config Modification)',
+    cweId: 'CWE-284 (Improper Access Control)',
     scanTerminalLog:
       '[SCAN LOG] 161/udp (SNMP), 443/tcp (FW-Mgmt) — ネットワーク機器の管理インターフェースがデータ用VLANと同じセグメントに露出しており、ルーティング・ACL書き換えが可能です。',
     whyDangerous:
@@ -899,6 +923,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['SQLインジェクション', 'データベース権限設定の不備', '証跡DBの権限設定不備'],
     category: 'データベース脆弱性・SQLインジェクション／過剰DB権限',
+    mitreId: 'T1190 (Exploit Public-Facing Application)',
+    cweId: 'CWE-89 (SQL Injection)',
     scanTerminalLog:
       '[SCAN LOG] 5432/tcp (PostgreSQL) OPEN — 検索パラメータの文字列連結によるSQLインジェクション脆弱性、およびアプリ用接続ロールに `SUPERUSER / BYPASSRLS` 権限が付与されています。',
     whyDangerous:
@@ -1000,6 +1026,8 @@ export function getSecurityChallenge(
 
     return {
       category: found.category,
+      mitreId: found.mitreId,
+      cweId: found.cweId,
       scanTerminalLog: found.scanTerminalLog,
       whyDangerous: found.whyDangerous,
       defenseMeasure: found.defenseMeasure,
@@ -1048,6 +1076,8 @@ export function getSecurityChallenge(
 
   return {
     category: 'アクセス制御・構成設定の不備（Security Misconfiguration）',
+    mitreId: 'T1068 (Privilege Escalation) / T1190',
+    cweId: 'CWE-16 (Configuration)',
     scanTerminalLog: `[SCAN LOG] NODE ${nodeId} — 「${vulnText || '設定不備'}」を検出。${nodeInfo ? `補足情報: ${nodeInfo}` : ''}`,
     whyDangerous: `サーバーやネットワーク機器の「${vulnText || '設定不備'}」を放置すると、本来許可されていない経路から管理機能を操作され、内部深部への踏み台にされます。`,
     defenseMeasure: '【対策】管理画面や制御ポートへのアクセス元IP制限、デフォルト設定の見直し、最小権限の原則に基づいた構成管理を実施します。',

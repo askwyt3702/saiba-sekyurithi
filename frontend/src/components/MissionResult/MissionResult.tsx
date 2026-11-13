@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../../game/model/types';
 import { RESULT_RANK_CONFIG, calculateMissionResult, formatMissionTime } from '../../game/model/missionResult';
+import { getSecurityChallenge } from '../../game/data/securityLearningData';
 import './MissionResult.css';
 
 interface MissionResultProps {
@@ -58,6 +59,40 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
           <div><dt>攻略したノード数（侵入済み）</dt><dd>{result.hackedNodes}<small> / {state.nodes.length}</small></dd></div>
         </dl>
         <p className="mission-result__note">クリア時間・警戒度・残り解析資源による共通評価（資源加点は{RESULT_RANK_CONFIG.resourceBonusCap}まで）</p>
+
+        {/* ペネトレーションテスト診断レポート */}
+        <div className="mission-result__report">
+          <h2 className="mission-result__report-title">
+            <span className="mission-result__report-tag">SECURITY AUDIT</span>
+            ペネトレーションテスト診断レポート（悪用された脆弱性と防御提言）
+          </h2>
+          <div className="mission-result__report-list">
+            {state.nodes
+              .filter((n) => n.status === 'hacked')
+              .map((n) => {
+                const ch = getSecurityChallenge(n.id, n.vulnerability, n.info);
+                return (
+                  <div key={n.id} className="mission-result__report-item">
+                    <div className="mission-result__report-item-head">
+                      <span className="mission-result__report-node-id">{n.id}</span>
+                      <span className="mission-result__report-node-name">{n.name || n.id}</span>
+                      {ch.mitreId && (
+                        <span className="report-badge report-badge--attck">ATT&CK: {ch.mitreId}</span>
+                      )}
+                      {ch.cweId && <span className="report-badge report-badge--cwe">{ch.cweId}</span>}
+                    </div>
+                    <div className="mission-result__report-item-vuln">
+                      <strong>脆弱性:</strong> {n.vulnerability || ch.category}
+                    </div>
+                    <div className="mission-result__report-item-defense">
+                      {ch.defenseMeasure}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+
         {error && <p className="mission-result__error" role="alert">{error}</p>}
         <div className="mission-result__actions" aria-busy={pending}>
           <button type="button" disabled={pending} onClick={() => void navigate(onRetry)}>RETRY</button>
