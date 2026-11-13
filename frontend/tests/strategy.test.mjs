@@ -120,3 +120,41 @@ test('node panel disables all E02/E03 operations until E01 is hacked, then permi
   await client.sendAction({ type: 'scan', nodeId: 'E02' });
   assert.equal((markup('E02').match(/disabled=""/g) ?? []).length, 3);
 });
+
+test('tutorial supply grants five resources and reduces alert ten only on first breach', { skip: paritySkip }, () => {
+  assert.ok(backend, parityFailure);
+  const steps = backend.find(result => result.name === 'tutorial_supply_once').steps;
+  assert.equal(steps[2].state.analysisResource, 27);
+  assert.equal(steps[2].state.alertLevel, 25.5);
+  assert.equal(steps[2].state.elapsedSeconds, 30);
+  assert.equal(steps[3].accepted, false);
+  assert.deepEqual(steps[3].state, steps[2].state);
+});
+
+test('all 45 stage nodes have every correct exploit choice accepted by generated question rules and accurate penalties', () => {
+  const { STAGES, SECURITY_RULES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
+  const { getSecurityChallenge, getNodeSecurityMeta } = load(new URL('../src/game/data/securityLearningData.ts', import.meta.url));
+
+
+  for (const stage of Object.values(STAGES)) {
+    for (const node of stage.nodes) {
+      const vuln = stage.vulnerabilities[node.id] ?? node.vulnerability;
+      const challenge = getSecurityChallenge(node.id, vuln, node.info);
+      const rule = SECURITY_RULES[node.id];
+      const allowed = rule.correct_exploits;
+      assert.ok(Array.isArray(allowed) && allowed.length > 0, `Missing CORRECT_EXPLOITS for ${node.id}`);
+      for (const q of challenge.questions) {
+        const correctChoices = q.choices.filter((c) => c.isCorrect);
+        assert.equal(correctChoices.length, 1, `Expected exactly 1 correct choice in ${node.id} ${q.id}`);
+        assert.ok(
+          rule.question_answers[q.id]?.includes(correctChoices[0].id),
+          `Node ${node.id} question ${q.id} correct choice ${correctChoices[0].id} is not in CORRECT_EXPLOITS (${allowed.join(',')})`,
+        );
+      }
+      const meta = getNodeSecurityMeta(node.id);
+      const penalty = { alert: rule.exploit_failure_alert ?? 8, resource: rule.failure_resource ?? 0 };
+      assert.equal(meta.failureAlert, penalty.alert, `Penalty alert mismatch on ${node.id}`);
+      assert.equal(meta.failureResource, penalty.resource, `Penalty resource mismatch on ${node.id}`);
+    }
+  }
+});

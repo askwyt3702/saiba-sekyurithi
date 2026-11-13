@@ -470,7 +470,13 @@ STAGES = {
         "entry_node_ids": {"external-1"},
         "target_node_ids": {"core-1"},
         "key_fragment_node_ids": set(),
-        "node_effects": {},
+        "node_effects": {
+            "dmz-2": {
+                "resource_bonus": 5,
+                "alert_delta": -10.0,
+                "log": "踏み台メールサーバーの通信ログを消去！警戒度が -10% 低下し、解析資源 +5 を回収しました。",
+            },
+        },
     },
     1: {
         "id": 1,

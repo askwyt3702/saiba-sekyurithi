@@ -27,6 +27,7 @@ function loadSource(path, overrides = {}) {
 const evaluation = loadSource('../src/game/model/missionResult.ts');
 const overrides = { '../../game/model/missionResult': evaluation };
 const { MissionResult } = loadSource('../src/components/MissionResult/MissionResult.tsx', overrides);
+const { MissionFailure } = loadSource('../src/components/MissionFailure/MissionFailure.tsx', overrides);
 const state = {
   gameId: 'actual-game', status: 'won', elapsedSeconds: 245, alertLevel: 21.75,
   analysisResource: 7, privilege: 'ROOT', edges: [], log: [],
@@ -97,7 +98,7 @@ test('audit report lists hacked nodes with vulnerability and defense metadata', 
   assert.ok(!html.includes('Unhacked target'));
 });
 
-function mountResult(props) {
+function mountResult(props, componentName = 'MissionResult') {
   const values = [];
   const refs = [];
   let cursor = 0;
@@ -114,7 +115,7 @@ function mountResult(props) {
     },
     useEffect() {},
   };
-  const component = loadSource('../src/components/MissionResult/MissionResult.tsx', { ...overrides, react }).MissionResult;
+  const component = loadSource(`../src/components/${componentName}/${componentName}.tsx`, { ...overrides, react })[componentName];
   const render = () => { cursor = 0; refCursor = 0; return component(props); };
   return { render };
 }
@@ -153,6 +154,29 @@ test('failed reset keeps the result available and allows another attempt', async
   assert.ok(findElements(tree, 'button').every((button) => !button.props.disabled));
 });
 
+test('incident report uses actual failure cause and logs and supports retry/title', async () => {
+  for (const [alertLevel, expected] of [[100, 'CRITICAL DETECTED'], [32, 'RESOURCE EXHAUSTED']]) {
+    const html = renderToStaticMarkup(createElement(MissionFailure, {
+      state: { ...state, status: 'lost', alertLevel, analysisResource: 0,
+        log: [{ id: 'incident', severity: 'danger', message: 'Actual incident evidence' }] },
+      onRetry: async () => {}, onTitle: async () => {},
+    }));
+    assert.ok(html.includes(expected));
+    assert.ok(html.includes('Actual incident evidence'));
+    assert.ok(!html.includes('MISSION COMPLETE'));
+  }
+  let retries = 0;
+  let titles = 0;
+  const mounted = mountResult({ state: { ...state, status: 'lost' },
+    onRetry: async () => { retries++; }, onTitle: async () => { titles++; } }, 'MissionFailure');
+  findElements(mounted.render(), 'button')[0].props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  findElements(mounted.render(), 'button')[1].props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(retries, 1);
+  assert.equal(titles, 1);
+});
+
 function mountApp(gameState, reset, sendAction = async () => ({ accepted: true })) {
   const effects = [];
   const values = ['game'];
@@ -171,6 +195,7 @@ function mountApp(gameState, reset, sendAction = async () => ({ accepted: true }
     './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction }) },
     './game/data/stageData': { MAX_ANALYSIS_RESOURCE: 30, DEFAULT_STAGE_ID: 1, getStageData: () => ({ prototypeNotice: '' }) },
     './components/MissionResult/MissionResult': { MissionResult },
+    './components/MissionFailure/MissionFailure': { MissionFailure },
     './components/StageMechanics/StageMechanicsStatus': { StageMechanicsStatus: 'StageMechanicsStatus' },
   };
   for (const name of ['MapView', 'StatusBar', 'NodeDetailPanel', 'EventLog', 'TitleScreen', 'MissionScreen', 'ToolPanel']) {
@@ -180,10 +205,12 @@ function mountApp(gameState, reset, sendAction = async () => ({ accepted: true }
   return { render: () => { cursor = 0; return App(); }, values, flushEffects: () => effects.splice(0).forEach(effect => effect()) };
 }
 
-test('App opens the result only for won games', () => {
+test('App opens the result only for won games and failure modal only for lost games', () => {
   for (const status of ['playing', 'paused', 'lost', 'won']) {
     const app = mountApp({ ...state, status }, async () => {});
-    assert.equal(findElements(app.render(), MissionResult).length, status === 'won' ? 1 : 0);
+    const rendered = app.render();
+    assert.equal(findElements(rendered, MissionResult).length, status === 'won' ? 1 : 0);
+    assert.equal(findElements(rendered, MissionFailure).length, status === 'lost' ? 1 : 0);
   }
 });
 
