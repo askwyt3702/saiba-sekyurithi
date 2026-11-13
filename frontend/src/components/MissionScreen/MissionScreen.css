@@ -4,7 +4,7 @@
 
 .ms-root {
   position: relative;
-  min-height: 100vh;
+  height: var(--app-h);
   width: 100%;
   background-color: #010603;
   background-image:
@@ -64,7 +64,7 @@
     transform: translate3d(0, -110px, 0);
   }
   100% {
-    transform: translate3d(0, 112vh, 0);
+    transform: translate3d(0, calc(var(--app-h) * 1.15), 0);
   }
 }
 
@@ -73,6 +73,8 @@
 .ms-container {
   position: relative;
   z-index: 5;
+  /* 左右の余白を幅に含める(含めないと画面より広くなり、右のカードが切れる) */
+  box-sizing: border-box;
   width: 100%;
   max-width: 1340px;
   margin: 0 auto;
@@ -177,7 +179,7 @@
 .ms-title {
   display: inline-block;
   margin: 2px 0 4px;
-  font-size: clamp(22px, 2.6vw, 32px);
+  font-size: clamp(22px, calc(var(--app-w) * 0.026), 32px);
   font-weight: 600;
   letter-spacing: 6px;
   color: #f4fff8;

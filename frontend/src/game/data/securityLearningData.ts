@@ -1,7 +1,7 @@
 export type QuestionTypeLabel =
   | 'TYPE A: エクスプロイト選択（攻撃手法の特定）'
-  | 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）'
-  | 'TYPE C: ペイロード＆防御コマンド解析（実践応用）';
+  | 'TYPE B: 設定・コード解析（悪用箇所の特定）'
+  | 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）';
 
 export interface ExploitChoice {
   id: string;
@@ -22,6 +22,8 @@ export interface ChallengeQuestion {
 
 export interface SecurityChallenge {
   category: string;
+  mitreId?: string;
+  cweId?: string;
   scanTerminalLog: string;
   whyDangerous: string;
   defenseMeasure: string;
@@ -50,6 +52,8 @@ interface RawQuestion {
 interface ChallengeGroupDef {
   match: string[];
   category: string;
+  mitreId?: string;
+  cweId?: string;
   scanTerminalLog: string;
   whyDangerous: string;
   defenseMeasure: string;
@@ -68,6 +72,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['弱いSSHパスワード', '調査用アカウントの弱い認証'],
     category: '認証・パスワード管理の不備 (Brute Force / Weak Auth)',
+    mitreId: 'T1110.001 (Password Guessing)',
+    cweId: 'CWE-521 (Weak Password Requirements)',
     scanTerminalLog:
       '[SCAN LOG] 22/tcp (OpenSSH) OPEN — PasswordAuthentication yes / MaxAuthTries 無制限。辞書攻撃に対するアカウントロック機構が未設定です。',
     whyDangerous:
@@ -108,8 +114,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'ssh-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: '対象サーバーの `/etc/ssh/sshd_config` の抜粋です。今回の脆弱性の直接の原因となっている危険な設定行はどれですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: '対象サーバーの `/etc/ssh/sshd_config` を入手しました。攻撃者として侵入に悪用できる危険な設定行はどれですか？',
         codeSnippet:
           'Line A: Port 22\nLine B: PermitRootLogin yes / PasswordAuthentication yes\nLine C: UsePAM yes',
         choices: [
@@ -139,6 +145,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'ssh-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: 'SSHポート(22/tcp)で試行回数制限がなく、パスワード認証が有効のまま残っています。入手したアカウント候補リストを使って最も確実に侵入を突破する攻撃コマンドはどれですか？',
+        choices: [
+          {
+            id: 'ssh_def_c',
+            title: 'ユーザー名・パスワード辞書を組み合わせた並列SSHブルートフォース攻撃',
+            command: '> hydra -L users.txt -P passlist.txt ssh://target:22 -t 8 -f',
+            description: 'アカウントロックやFail2banがない状態を突き、ユーザー名とパスワードの辞書を並列で総当たり試行してログインを突破する。',
+            isCorrect: true,
+            feedback: '【正解！】試行回数制限も公開鍵強制もないため、並列辞書攻撃で認証を突破できました！',
+          },
+          {
+            id: 'ssh_def_ng1',
+            title: '未登録のダミー秘密鍵ファイルを指定してSSH公開鍵認証を強行する',
+            command: '> ssh -i /tmp/fake_id_rsa admin@target',
+            description: 'サーバー側の authorized_keys に登録されていない鍵でそのまま認証通過を狙う。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】公開鍵認証は暗号署名で検証されるため、未登録の鍵では即座に拒否され失敗ログが残ります。',
+          },
+          {
+            id: 'ssh_def_ng2',
+            title: '22番ポートへHTTPのBasic認証ヘッダを送信してバイパスを狙う',
+            command: '> curl -H "Authorization: Basic YWRtaW46" http://target:22/login',
+            description: 'SSHポートに対してWeb用のHTTPリクエストを送りつける。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】22/tcpはSSHプロトコル専用であり、HTTPリクエストはプロトコルエラーとして即座に遮断・検知されます！',
+          },
+        ],
+      },
     ],
   },
 
@@ -148,6 +185,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['DNS設定情報の漏洩', '中継サービスの設定不備', '集約サービスの権限設定不備'],
     category: 'ネットワーク構成・DNS/中継情報漏洩 (Reconnaissance)',
+    mitreId: 'T1590.002 (DNS Reconnaissance)',
+    cweId: 'CWE-200 (Information Exposure)',
     scanTerminalLog:
       '[SCAN LOG] 53/tcp (DNS) / 8081/tcp (Relay) OPEN — allow-transfer { any; }; が設定されており、外部ホストからのゾーン転送・ルーティングテーブル照会が無制限に許可されています。',
     whyDangerous:
@@ -188,18 +227,18 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'dns-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: '以下はDNSサーバー（BIND `named.conf`）の設定抜粋です。情報漏洩を引き起こしている致命的な設定はどれですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: 'DNSサーバー（BIND `named.conf`）の設定抜粋です。攻撃者として内部ホスト一覧を抜き取るために悪用できる設定はどれですか？',
         codeSnippet:
           'zone "internal.corp.local" {\n  type master;\n  file "/etc/bind/db.internal";\n  allow-transfer { any; };\n};',
         choices: [
           {
             id: 'dns_cfg_ok',
             title: 'allow-transfer { any; }; （全ホストへのゾーン転送許可）',
-            command: 'fix: allow-transfer { 10.0.0.2; }; // セカンダリDNSのみに制限',
+            command: '悪用箇所: allow-transfer { any; };  -->  外部からAXFRで全レコード取得可能',
             description: 'インターネット上の誰からでも内部ゾーン情報の丸ごとコピー（AXFR）を許可してしまっている行。',
             isCorrect: true,
-            feedback: '【正解！】`allow-transfer { any; };` があると誰でも全ホスト一覧を取得できます。信頼できるセカンダリサーバーのIPだけに絞る必要があります。',
+            feedback: '【正解！】`allow-transfer { any; };` を突けば、外部からでも全ホスト名とIP一覧を一括取得できます！',
           },
           {
             id: 'dns_cfg_ng1',
@@ -219,6 +258,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'dns-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: 'ターゲットのDNSサーバー(53/tcp)で外部からのゾーン転送制限と内外分離が抜けています。攻撃者として社内ネットワークの全ホスト名とIPアドレスを一括で抜き出すコマンドはどれですか？',
+        choices: [
+          {
+            id: 'dns_def_c',
+            title: 'TCP 53番でAXFR（全ゾーン転送）リクエストを送信して内部レコードを一括ダンプする',
+            command: '> dig @target internal.corp.local AXFR +tcp',
+            description: '制限されていないAXFRクエリを送り、非公開サーバーを含むドメイン内の全DNSレコードを丸ごと取得する。',
+            isCorrect: true,
+            feedback: '【正解！】AXFRゾーン転送をそのまま実行することで、社内ネットワークの全構成を一度に把握できました！',
+          },
+          {
+            id: 'dns_def_ng1',
+            title: 'ランダムな文字列をUDPで1件ずつ問い合わせてTTL値の違いだけから全IPを推測する',
+            command: '> dig @target random-test.internal.corp.local A',
+            description: '存在しないホスト名を1件だけ検索し、キャッシュ時間（TTL）の差を確認する。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】存在しないホスト名の問い合わせ（NXDOMAIN）を繰り返しても内部ホスト一覧は一括取得できず、異常クエリとして検知されます。',
+          },
+          {
+            id: 'dns_def_ng2',
+            title: '53番ポートへSMTPのHELOコマンドを送り、ゾーンファイルをメール返信させる',
+            command: '> nc target 53 <<< "HELO internal.corp.local"',
+            description: 'DNSポートに対してメールサーバー用のテキストコマンドを送信する。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】53番ポートはDNSプロトコル専用であり、SMTPコマンドは不正パケットとして破棄・検知されます！',
+          },
+        ],
+      },
     ],
   },
 
@@ -233,6 +303,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       'バックアップ領域の設定不備',
     ],
     category: 'アクセス制御（ACL）・ストレージ設定不備',
+    mitreId: 'T1039 (Data from Network Shared Drive)',
+    cweId: 'CWE-732 (Incorrect Permission Assignment)',
     scanTerminalLog:
       '[SCAN LOG] 445/tcp (SMB) / 8080/tcp (Archive) OPEN — Guest / Everyone に対して Read 権限が開放されています。機密バックアップ・鍵断片ファイルへ無認証でアクセス可能です。',
     whyDangerous:
@@ -273,18 +345,18 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'acl-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: 'ファイルサーバーの `/etc/samba/smb.conf` の設定です。無認証で機密ファイルが読めてしまう原因となっている行はどれですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: 'ファイルサーバーの `/etc/samba/smb.conf` の設定です。攻撃者として無認証で機密ファイルを奪取できる原因となっている行はどれですか？',
         codeSnippet:
           '[corporate_archive]\n  path = /srv/samba/archive\n  guest ok = yes\n  read only = yes',
         choices: [
           {
             id: 'acl_cfg_ok',
             title: 'guest ok = yes （ゲスト・匿名アクセスの許可）',
-            command: 'smb.conf: guest ok = yes  -->  guest ok = no に修正すべき',
+            command: '悪用箇所: guest ok = yes  -->  認証不要で共有フォルダへ接続可能',
             description: '認証していないユーザー（Guest）でもフォルダ内の全ファイルを閲覧可能にしている設定。',
             isCorrect: true,
-            feedback: '【正解！】`guest ok = yes` があると誰でも認証なしで中身を取得できます。社内機密やバックアップでは必ず `guest ok = no` と `valid users` 指定が必要です。',
+            feedback: '【正解！】`guest ok = yes` が設定されているため、パスワードなしで共有フォルダの中身をそのまま抜き取れます！',
           },
           {
             id: 'acl_cfg_ng1',
@@ -304,6 +376,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'acl-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: '共有ストレージ（445/tcp）のACL設定に不備があり、認証なし（Guest）での読み取りが許可されています。攻撃者として機密バックアップや暗号鍵断片をすべて回収するコマンドはどれですか？',
+        choices: [
+          {
+            id: 'acl_def_c',
+            title: 'Null Session（空パスワード `-N`）で共有を列挙し、全ファイルを再帰ダウンロードする',
+            command: '> smbclient -L //target -N && smbclient //target/archive -N -c "recurse; prompt; mget *"',
+            description: '匿名認証で接続可能な共有フォルダを一覧表示したうえで、配下のバックアップファイルを一括取得する。',
+            isCorrect: true,
+            feedback: '【正解！】Null Session（`-N`）と再帰取得（`mget *`）により、認証を一切突破せずに全機密ファイルを回収できました！',
+          },
+          {
+            id: 'acl_def_ng1',
+            title: 'SSH経由でログインせずに `chmod -R 777` を送りつけて権限を書き換える',
+            command: '> ssh target "chmod -R 777 /srv/samba/archive"',
+            description: '認証情報がない状態でSSHコマンドを実行しようとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】SSHの認証情報がないため接続が拒否され、不審な権限変更試行としてアラートが発報されました！',
+          },
+          {
+            id: 'acl_def_ng2',
+            title: 'ICMPパケットのペイロードに拡張子変更命令を入れて送信する',
+            command: '> ping -p 2e747874 target',
+            description: 'Ping通信のデータ部に文字を埋め込んでファイルサーバーを操作しようとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】Ping(ICMP)でSMB共有ディレクトリのファイルや権限を操作することはできません。',
+          },
+        ],
+      },
     ],
   },
 
@@ -320,6 +423,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '管理プロキシの認証不備',
     ],
     category: 'Webサーバー・管理APIの脆弱性 (OWASP Broken Access Control / Vuln Components)',
+    mitreId: 'T1190 (Exploit Public-Facing Application)',
+    cweId: 'CWE-22 (Path Traversal) / CWE-284',
     scanTerminalLog:
       '[SCAN LOG] 80/tcp, 443/tcp (HTTP/API) OPEN — パストラバーサル可能な旧バージョンWebサーバー、および認証ミドルウェアを通過しない `/admin`・`/api/v1/internal` エンドポイントを検出。',
     whyDangerous:
@@ -360,34 +465,67 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'web-q2',
-        questionType: 'TYPE C: ペイロード＆防御コマンド解析（実践応用）',
-        prompt: 'リバースプロキシ（Nginx）で `/admin/` への外部アクセスを遮断し、社内管理ネットワーク（`10.10.0.0/16`）からのみ許可する正しい防御設定はどれですか？',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: 'Webプロキシで `/admin/` への直接アクセスは制限されていますが、バックエンド側がパスの正規化不備と `X-Forwarded-For` ヘッダを無検証で信頼しています。管理画面の制限をバイパスする攻撃コマンドはどれですか？',
         codeSnippet:
-          'location /admin/ {\n  # ここに入れるべきアクセス制御ディレクティブは？\n  proxy_pass http://backend_admin;\n}',
+          'location /public/ { proxy_pass http://backend/; }\n# backend checks: req.headers["x-forwarded-for"] === "127.0.0.1"',
         choices: [
           {
             id: 'web_def_ok',
-            title: 'allow 10.10.0.0/16; deny all;',
-            command: 'location /admin/ { allow 10.10.0.0/16; deny all; }',
-            description: '信頼された管理サブネットのみを許可し、それ以外の全IPからのアクセスを拒否（ホワイトリスト方式）する。',
+            title: 'パストラバーサル（`/public/../admin/`）＋ `X-Forwarded-For: 127.0.0.1` 偽装',
+            command: '> curl -i --path-as-is "https://target/public/../admin/" -H "X-Forwarded-For: 127.0.0.1"',
+            description: 'プロキシのパス解釈のズレを突いて `/admin/` へ到達し、送信元IPヘッダ偽装でローカル管理者として認識させる。',
             isCorrect: true,
-            feedback: '【正解！】アクセス制御の基本は「原則すべて拒否（deny all）＋必要な送信元だけ許可（ホワイトリスト）」です！',
+            feedback: '【正解！】パストラバーサルと信頼できないHTTPヘッダの悪用を組み合わせ、管理コンソールのアクセス制限を突破しました！',
           },
           {
             id: 'web_def_ng1',
-            title: 'autoindex on; allow all;',
-            command: 'location /admin/ { autoindex on; allow all; }',
-            description: 'ディレクトリ内のファイル一覧表示を有効にし、全ホストからの接続を許可する。',
+            title: '`X-Frame-Options: ALLOWALL` ヘッダを自分のリクエストに付けて送信する',
+            command: '> curl -H "X-Frame-Options: ALLOWALL" https://target/admin/',
+            description: 'レスポンス用のフレーム許可ヘッダをリクエスト側に付与してアクセスする。',
             isCorrect: false,
-            feedback: '【不正解・IDS検知！】`autoindex on; allow all;` は逆にファイル一覧を全世界に公開してしまう危険な設定です！',
+            feedback: '【不正解・IDS検知！】`X-Frame-Options` はサーバーがブラウザに返す応答ヘッダであり、クライアントから送っても認可バイパスにはなりません！',
           },
           {
             id: 'web_def_ng2',
-            title: 'X-Frame-Options: ALLOWALL のみ設定',
-            command: 'add_header X-Frame-Options "ALLOWALL";',
-            description: '外部サイトからのiframe埋め込みを無制限に許可するヘッダを追加する。',
+            title: 'リクエストボディに `display: none` のCSSを送りつけてログイン画面を消す',
+            command: '> curl -X POST https://target/admin/ -d "style=display:none"',
+            description: 'CSSスタイルをPOSTして認証チェックを無効化しようとする。',
             isCorrect: false,
-            feedback: '【不正解・IDS検知！】それはクリックジャッキング攻撃を許してしまう逆効果な設定であり、管理画面のアクセス制限にもなりません。',
+            feedback: '【不正解・IDS検知！】サーバー側の認可処理はCSSの見た目には依存せず、不正なPOSTとして検知・拒否されました！',
+          },
+        ],
+      },
+      {
+        id: 'web-q3',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: 'Webサーバーのソースコードを調査しました。攻撃者として管理者権限を奪取するために悪用できる脆弱な実装箇所はどれですか？',
+        codeSnippet:
+          'Line 1: const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;\nLine 2: if (clientIp === "127.0.0.1") { return grantAdminAccess(req); }\nLine 3: res.setHeader("Content-Type", "application/json");',
+        choices: [
+          {
+            id: 'web_cfg_b',
+            title: 'Line 1-2: クライアントが偽装可能な `X-Forwarded-For` ヘッダを無検証で信頼して管理者判定している',
+            command: '脆弱箇所: req.headers["x-forwarded-for"] === "127.0.0.1" で認可バイパス成立',
+            description: '信頼できるプロキシ経由か確認せずにHTTPヘッダでIP判定しているため、ヘッダを1行足すだけで管理者になりすませる。',
+            isCorrect: true,
+            feedback: '【正解！】`X-Forwarded-For` ヘッダは攻撃者が自由に書き換えられます。プロキシの信頼設定（trust proxy）なしに認可判定に使うのは重大な脆弱性です！',
+          },
+          {
+            id: 'web_cfg_ng1',
+            title: 'Line 3: Content-Type ヘッダに application/json を指定している行',
+            command: 'res.setHeader("Content-Type", "application/json");',
+            description: 'レスポンスがJSON形式であることをブラウザに伝える標準ヘッダ。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】`Content-Type: application/json` の明示はXSS防止にも有効な正しい実装です。',
+          },
+          {
+            id: 'web_cfg_ng2',
+            title: '変数名にキャメルケース（clientIp）を使っていること',
+            command: 'const clientIp = ...',
+            description: 'JavaScriptの命名規則に関する記述。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】変数名のスタイルはセキュリティ上の脆弱性とは無関係です。',
           },
         ],
       },
@@ -400,6 +538,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['漏洩した社員アドレスへのフィッシング', 'メール認証設定の不備'],
     category: 'メール認証不備・なりすまし (SPF / DKIM / DMARC & Phishing)',
+    mitreId: 'T1566.002 (Spearphishing Link)',
+    cweId: 'CWE-346 (Origin Validation Error)',
     scanTerminalLog:
       '[SCAN LOG] 25/tcp (SMTP) OPEN — ドメインのTXTレコードに `v=spf1 +all`（全送信元許可）が設定されており、DMARCポリシーが `p=none` です。送信元詐称メールがそのまま届きます。',
     whyDangerous:
@@ -409,8 +549,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
     questions: [
       {
         id: 'mail-q1',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: '対象組織のDNSに登録されているSPFレコードを確認したところ、決定的な設定ミスが見つかりました。どれが危険な記述ですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: '対象組織のDNSに登録されているレコード一覧です。攻撃者としてなりすましメールを送り込むために悪用できる設定ミスはどれですか？',
         codeSnippet:
           'Record A: "v=spf1 ip4:198.51.100.10 -all"\nRecord B: "v=spf1 +all"\nRecord C: "v=DMARC1; p=reject;"',
         choices: [
@@ -471,6 +611,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'mail-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: '対象ドメインのSPFレコードが `+all` になっており、送信元IPの検証が機能していません。攻撃者として社内セキュリティ担当になりすまして社員から認証トークンを奪う攻撃コマンドはどれですか？',
+        choices: [
+          {
+            id: 'mail_def_c',
+            title: 'FromヘッダとエンベロープFromを `security@corp.local` に詐称して偽装メールを送信する',
+            command: '> swaks --to staff@corp.local --from security@corp.local --header "Subject: 緊急認証確認" --server target:25',
+            description: 'SPFが `+all` で全IPを許可している状態を突き、自社セキュリティ部門になりすました認証誘導メールを受信箱へ届ける。',
+            isCorrect: true,
+            feedback: '【正解！】送信元詐称（SMTPスプーフィング）が正規メールとして通過し、認証情報を奪取できました！',
+          },
+          {
+            id: 'mail_def_ng1',
+            title: '件名に【公式】とだけ書いた外部のフリーメール（@gmail.com）を送信する',
+            command: '> swaks --to staff@corp.local --from attacker@gmail.com --header "Subject: 【公式】"',
+            description: '送信元アドレスは外部のまま、件名文字列だけで社内連絡に見せかける。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】送信元ドメインが外部アドレスのままでは不審メール警告が表示されやすく、標的型フィッシングとして検知されました。',
+          },
+          {
+            id: 'mail_def_ng2',
+            title: 'SMTPの25番ポートへ `v=DMARC1; p=none;` と直接送信して認証DBを無効化する',
+            command: '> nc target 25 <<< "v=DMARC1; p=none;"',
+            description: 'DNSのTXTレコード用文字列をSMTPコマンドとして送信する。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】DMARCテキストをSMTPセッションに送っても構文エラーになるだけで、異常接続として検知されます！',
+          },
+        ],
+      },
     ],
   },
 
@@ -480,6 +651,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['古いVPN認証方式', '古い暗号認証設定', '証明書管理APIの保護不足', '認証ゲートの設定不備'],
     category: '暗号・証明書・VPN認証の不備 (Cryptographic Failures)',
+    mitreId: 'T1588.004 (Digital Certificates) / T1556',
+    cweId: 'CWE-326 (Inadequate Encryption Strength)',
     scanTerminalLog:
       '[SCAN LOG] 443/udp, 8443/tcp OPEN — レガシー認証（MS-CHAPv1 / TLS 1.0）へのフォールバック許可、およびクライアント証明書発行APIの認可不備を検出。',
     whyDangerous:
@@ -520,18 +693,18 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'vpn-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: '暗号認証サーバーの設定ファイルを確認しました。ダウングレード攻撃を許してしまっている危険な設定行はどれですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: '暗号認証サーバーの設定ファイルを確認しました。攻撃者としてダウングレード攻撃を成功させるために悪用できる設定行はどれですか？',
         codeSnippet:
           'Line 1: ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;\nLine 2: ssl_prefer_server_ciphers on;\nLine 3: ssl_session_timeout 10m;',
         choices: [
           {
             id: 'vpn_cfg_ok',
             title: 'Line 1: TLSv1 と TLSv1.1 が有効のまま残っている',
-            command: '修正案: ssl_protocols TLSv1.2 TLSv1.3; （旧規格を無効化）',
+            command: '悪用箇所: ssl_protocols TLSv1 TLSv1.1 ...  -->  旧規格へ強制フォールバック可能',
             description: '既知の解読手法が存在する古いTLS 1.0 / 1.1を許可しているため、ダウングレード攻撃が成立してしまう。',
             isCorrect: true,
-            feedback: '【正解！】`TLSv1` と `TLSv1.1` が残っていると、TLS 1.3に対応していても古い方式へ引きずり下ろされます。`TLSv1.2 TLSv1.3` のみに制限するのが正解です。',
+            feedback: '【正解！】`TLSv1` と `TLSv1.1` が有効なまま残っているため、意図的に古い暗号方式を選ばせて解読できます！',
           },
           {
             id: 'vpn_cfg_ng1',
@@ -551,6 +724,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'vpn-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: '認証ゲートウェイが旧式プロトコル（TLS 1.0/1.1）へのフォールバックを許可し、弱い暗号スイートを受け入れています。攻撃者として認証通信をダウングレードさせて突破するコマンドはどれですか？',
+        choices: [
+          {
+            id: 'vpn_def_c',
+            title: 'TLSハンドシェイクで旧式バージョン（TLSv1）と脆弱暗号スイートを指定しダウングレードさせる',
+            command: '> openssl s_client -connect target:8443 -tls1 -cipher RC4-SHA',
+            description: 'クライアント側から古いTLS 1.0と解読可能な暗号スイートのみを提示してフォールバックを強制し、セッションや証明書トークンを奪取する。',
+            isCorrect: true,
+            feedback: '【正解！】サーバーが旧プロトコルを許可していたため、TLS 1.0へのダウングレード攻撃で認証ゲートを突破できました！',
+          },
+          {
+            id: 'vpn_def_ng1',
+            title: '自分のクライアント側で `--insecure` を付けてサーバー証明書の検証をスキップする',
+            command: '> curl --insecure https://target:8443/vpn/admin',
+            description: '自分の端末側だけで証明書エラーを無視して接続を試みる。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】`--insecure` はクライアント側がサーバー証明書を検証しないだけであり、サーバー側の認証要求は突破できません！',
+          },
+          {
+            id: 'vpn_def_ng2',
+            title: '自分で作成した有効期限100年の自己署名証明書をそのまま送信して認証を通そうとする',
+            command: '> openssl req -x509 -days 36500 -out fake.crt && curl --cert fake.crt https://target:8443/',
+            description: '正規CAの署名がないオレオレ証明書をクライアント証明書として提示する。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】正規のルートCAで署名されていない自己署名証明書は即座に署名検証エラーで拒否・検知されます！',
+          },
+        ],
+      },
     ],
   },
 
@@ -560,6 +764,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['認証情報の不適切な保存', '管理用資格情報の保存不備'],
     category: '資格情報（クレデンシャル）の平文保存・キャッシュ漏洩',
+    mitreId: 'T1552.001 (Credentials in Files)',
+    cweId: 'CWE-256 (Plaintext Storage of Password)',
     scanTerminalLog:
       '[SCAN LOG] LOCAL/ENV — `.env` ファイルおよび認証キャッシュDB内に、暗号化されていないAPIシークレットとNTLM/SHA1ハッシュが平文相当で残存しています。',
     whyDangerous:
@@ -600,15 +806,15 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'cred-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: '管理端末で見つかったスクリプトの抜粋です。セキュリティ上もっともやってはいけない「資格情報の管理ミス」はどれですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: '管理端末で見つかったスクリプトの抜粋です。攻撃者として管理者資格情報を直接抜き取れる「ハードコード不備」はどれですか？',
         codeSnippet:
           'A: export DB_HOST="10.0.4.20"\nB: const ADMIN_SECRET = "NR-MASTER-KEY-9941-PLAIN"; // 直書き\nC: const TIMEOUT_MS = 5000;',
         choices: [
           {
             id: 'cred_code_b',
             title: 'B: ソースコード内に秘密鍵・パスワードをハードコード（直書き）している',
-            command: 'NG: const ADMIN_SECRET = "NR-MASTER-KEY-..."',
+            command: '悪用箇所: const ADMIN_SECRET = "NR-MASTER-KEY-..."',
             description: '秘密情報をコードや設定に平文で直書きすると、ファイルを閲覧された瞬間に全権限が漏洩する。',
             isCorrect: true,
             feedback: '【正解！】パスワードやAPIキーのハードコード（直書き）は重大な脆弱性（CWE-798）です。シークレット管理基盤から実行時に安全に注入すべきです。',
@@ -631,6 +837,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'cred-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: '管理端末のアプリケーションディレクトリ内に平文のAPIキーや過去のGitコミット履歴が残されている形跡があります。攻撃者として隠されたマスターキーを確実に抽出するコマンドはどれですか？',
+        choices: [
+          {
+            id: 'cred_def_c',
+            title: '設定ファイルとGitの過去コミット履歴（`git log -p`）を横断検索して平文シークレットを抽出する',
+            command: '> grep -rnE "SECRET|API_KEY|PASSWORD" /opt/app/ && git -C /opt/app log -p -S "MASTER-KEY"',
+            description: '最新版から削除されていても過去コミットや `.env` に残る秘密鍵・トークンを正規表現で一括検索して回収する。',
+            isCorrect: true,
+            feedback: '【正解！】コード内の検索とGit履歴の調査により、平文で保存・コミットされていたマスターキーを奪取できました！',
+          },
+          {
+            id: 'cred_def_ng1',
+            title: '設定ファイルのタイムアウト値（`TIMEOUT_MS = 5000`）を `0` に書き換えて権限昇格を試みる',
+            command: '> sed -i "s/5000/0/" /opt/app/config.js',
+            description: '通信の待ち時間設定を0に変更して認証チェックを飛び越えようとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】タイムアウト定数を変えても資格情報は手に入らず、設定改ざんとして検知されました！',
+          },
+          {
+            id: 'cred_def_ng2',
+            title: '適当なダミー文字列をBase64エンコードして暗号鍵として認証APIへ送信する',
+            command: '> echo "fake_key" | base64 | curl -d @- https://target/auth',
+            description: '正規の秘密鍵を探さず、自分で作ったBase64文字列を送りつける。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】不正なトークンを送信したため認証エラーが記録され、警戒度が上昇しました！',
+          },
+        ],
+      },
     ],
   },
 
@@ -646,6 +883,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '解析基盤のアクセス制御不備',
     ],
     category: '権限昇格・特権ID管理の不備 (Privilege Escalation / IAM Misconfig)',
+    mitreId: 'T1068 (Privilege Escalation) / T1484',
+    cweId: 'CWE-269 (Improper Privilege Management)',
     scanTerminalLog:
       '[SCAN LOG] 389/tcp (LDAP), 88/tcp (Kerberos), 9000/tcp (DevOps) — 一般ユーザーロール（USER）に対して、上位ロール（ADMIN/ROOT）のトークン発行・sudo実行が許可された権限設定ミスを検出。',
     whyDangerous:
@@ -686,8 +925,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'priv-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: '開発サーバーの `/etc/sudoers` の設定を確認しました。一般ユーザー `devuser` に無制限のroot権限奪取を許してしまっている危険な行はどれですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: '開発サーバーの `/etc/sudoers` の設定を確認しました。攻撃者として `devuser` からroot権限を奪取するために悪用できる設定行はどれですか？',
         codeSnippet:
           'Line A: Defaults env_reset\nLine B: devuser ALL=(ALL) NOPASSWD: ALL\nLine C: root ALL=(ALL:ALL) ALL',
         choices: [
@@ -717,6 +956,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'priv-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: '一般ユーザー `devuser` として開発サーバーに侵入しました。`sudoers` の設定ミス（`NOPASSWD: ALL`）を突いて即座にroot権限（ADMIN/ROOT）へ昇格するコマンドはどれですか？',
+        choices: [
+          {
+            id: 'priv_def_c',
+            title: '`sudo -l` で許可コマンドを確認し、`sudo` 経由で特権シェルを起動する',
+            command: '> sudo -l && sudo /bin/bash -p',
+            description: 'パスワード不要で許可された特権実行権限（NOPASSWD: ALL）を行使し、UID 0のシェルを奪取する。',
+            isCorrect: true,
+            feedback: '【正解！】`NOPASSWD: ALL` の設定不備を突き、パスワードなしでrootシェルへの昇格に成功しました！',
+          },
+          {
+            id: 'priv_def_ng1',
+            title: '自分のアカウント表示名だけを `admin` に変更して権限昇格したことにする',
+            command: '> usermod -l admin devuser',
+            description: 'UIDやロール権限は変えず、ログイン名だけを変更しようとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】一般ユーザーは `usermod` を実行できず、名前が変わってもUIDは一般ユーザーのままです！',
+          },
+          {
+            id: 'priv_def_ng2',
+            title: '`/tmp` に巨大なZip爆弾を展開してディスクを枯渇させ、自動昇格を待つ',
+            command: '> unzip 42.zip -d /tmp',
+            description: '一時領域を埋め尽くしてサービスを異常終了させようとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】ディスク枯渇攻撃は障害監視アラートを引き起こすだけで、root権限は奪えません！',
+          },
+        ],
+      },
     ],
   },
 
@@ -735,6 +1005,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '迂回ゲートの管理設定不備',
     ],
     category: '監視・監査ログ基盤の保護不備 (Security Logging & Monitoring Failures)',
+    mitreId: 'T1070.002 (Clear Event Logs) / T1562.001',
+    cweId: 'CWE-778 (Insufficient Logging)',
     scanTerminalLog:
       '[SCAN LOG] 9200/tcp (SIEM/Log), 3128/tcp (Proxy) — 監視制御APIおよび監査ログストレージに削除・書き換え権限（DELETE/PUT）が開放されており、認証トークン検証が無効です。',
     whyDangerous:
@@ -775,32 +1047,65 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'log-q2',
-        questionType: 'TYPE C: ペイロード＆防御コマンド解析（実践応用）',
-        prompt: '【防衛側の視点】攻撃者にサーバーへ侵入された際でも「過去の監査ログを絶対に消去・改ざんさせない」ための正しいセキュリティ設計はどれですか？',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: '対象サーバーの監視制御APIは認証不要（`auth_required: false`）で開放されており、ログも追記専用（WORM）に保護されていません。攻撃者として侵入痕跡を消し去り警戒度を下げるコマンドはどれですか？',
         choices: [
           {
             id: 'log_def_ok',
-            title: '別ネットワークの追記専用（WORM）ログサーバーへリアルタイム転送する',
-            command: 'rsyslog/fluentd -> WORM S3 Object Lock (Governance/Compliance Mode)',
-            description: '万一対象サーバーのroot権限を奪われても、すでに別基盤へ送られたログは削除・上書きできないようにする。',
+            title: '未認証の監視ログAPIへDELETEリクエストを送り、自身の侵入ログとアラート履歴を削除・抑制する',
+            command: '> curl -X DELETE "https://target:9200/api/logs?source_ip=attacker" -d \'{"suppress":true}\'',
+            description: 'WORM保護されていない監査ログ削除APIを叩き、接続元IPの証跡を消去して警戒レベルを下げる。',
             isCorrect: true,
-            feedback: '【正解！】ログを同じサーバー内だけに置くと、侵入者に真っ先に消されます。「別基盤への即時転送＋追記専用（WORM）ロック」が鉄則です！',
+            feedback: '【正解！】未保護のログ削除APIを悪用し、監視AIから侵入の痕跡を消去して警戒度を低下させました！',
           },
           {
             id: 'log_def_ng1',
-            title: 'ログファイルのファイル名を `.hidden_log` に変えて隠すだけにする',
-            command: 'mv /var/log/auth.log /var/log/.hidden_log',
-            description: '権限は変えず、ドットファイルにして見えにくくする（Security through Obscurity）。',
+            title: '権限のないままローカルの `/var/log/auth.log` をドットファイルにリネームしようと試みる',
+            command: '> mv /var/log/auth.log /var/log/.hidden_log',
+            description: 'ファイル名だけを変えて監視システムから見えなくしようとする。',
             isCorrect: false,
-            feedback: '【不正解・IDS検知！】ファイル名を隠すだけ（Security through Obscurity）では、プロセス一覧や設定ファイルから数秒で見つかり消去されます。',
+            feedback: '【不正解・IDS検知！】SIEMにすでに転送・インデックスされたログはローカルファイルのリネームでは消えず、不審操作として検知されました！',
           },
           {
             id: 'log_def_ng2',
-            title: 'ログが改ざんされないよう、最初からログ出力をすべて停止（OFF）にする',
-            command: 'systemctl stop rsyslog && systemctl disable rsyslog',
-            description: 'ログを一切記録しないように設定する。',
+            title: 'ランサムウェアでサーバー全体を暗号化して画面をロックし、ログを読めなくする',
+            command: '> encrypt-all --display-ransom-note',
+            description: '全ファイルを暗号化して身代金要求画面を表示する。',
             isCorrect: false,
-            feedback: '【不正解・IDS検知！】ログ出力を止めてしまったら、侵入された事実も被害範囲も永遠に調査できなくなります！',
+            feedback: '【不正解・IDS検知！】隠密に警戒度を下げるどころか、最も派手な破壊行動として即時アラートが鳴り響きました！',
+          },
+        ],
+      },
+      {
+        id: 'log-q3',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: '監視制御API（SIEMエージェント）の設定ファイルを確認しました。攻撃者としてアラート停止やログ消去に悪用できる致命的な設定はどれですか？',
+        codeSnippet:
+          'Line 1: log_level: "INFO"\nLine 2: admin_api: { auth_required: false, allow_log_delete: true }\nLine 3: retention_days: 90',
+        choices: [
+          {
+            id: 'log_cfg_b',
+            title: 'Line 2: `auth_required: false` かつ `allow_log_delete: true`（無認証でのログ削除許可）',
+            command: '悪用箇所: auth_required: false, allow_log_delete: true',
+            description: '認証なしで管理APIを叩けるうえに、監査ログの削除（DELETE）まで許可してしまっている設定。',
+            isCorrect: true,
+            feedback: '【正解！】監視制御APIが無認証かつログ削除可能になっているため、侵入者に自ら痕跡を消されてしまいます。認証強制と削除禁止（WORM）が必須です！',
+          },
+          {
+            id: 'log_cfg_ng1',
+            title: 'Line 1: `log_level: "INFO"`（情報レベルのログ出力）',
+            command: 'log_level: "INFO"',
+            description: '通常の動作イベントからエラーまでを記録する標準ログレベル。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】`INFO` レベルでのログ記録は標準的な運用設定です。',
+          },
+          {
+            id: 'log_cfg_ng2',
+            title: 'Line 3: `retention_days: 90`（90日間のログ保存期間）',
+            command: 'retention_days: 90',
+            description: '監査ログを90日間保持する設定。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】保存期間の設定自体は、無認証でのログ改ざん・削除を許す原因ではありません。',
           },
         ],
       },
@@ -819,6 +1124,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       '転送ゲートの権限設定不備',
     ],
     category: 'ネットワーク境界・ファイアウォール設定不備 (Network Segmentation Failure)',
+    mitreId: 'T1556.004 (Network Device Config Modification)',
+    cweId: 'CWE-284 (Improper Access Control)',
     scanTerminalLog:
       '[SCAN LOG] 161/udp (SNMP), 443/tcp (FW-Mgmt) — ネットワーク機器の管理インターフェースがデータ用VLANと同じセグメントに露出しており、ルーティング・ACL書き換えが可能です。',
     whyDangerous:
@@ -859,15 +1166,15 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'net-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: 'Coreファイアウォールのルール一覧（上から順に評価）を確認しました。本来遮断されるべき攻撃通信が素通りしてしまう原因はどのルールですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: 'Coreファイアウォールのルール一覧（上から順に評価）を確認しました。攻撃者として最深部へ通信を通すために悪用できる設定ミスはどれですか？',
         codeSnippet:
           'Rule 1: ALLOW src=ANY dst=CORE_NET port=ALL  (テスト用ルール)\nRule 2: ALLOW src=ADMIN_VLAN dst=CORE_NET port=443\nRule 3: DENY  src=ANY dst=CORE_NET port=ALL',
         choices: [
           {
             id: 'net_fw_r1',
             title: 'Rule 1: 最上位に「ALLOW src=ANY（全許可）」のテスト用ルールが残っている',
-            command: 'Rule 1: ALLOW src=ANY dst=CORE_NET port=ALL  -->  削除すべき',
+            command: '悪用箇所: Rule 1 (ALLOW src=ANY)  -->  下のDENYルールをバイパスして通信可能',
             description: 'ファイアウォールは上から順に評価（First Match）されるため、1番上に全許可があると下のRule 3（DENY）が一切機能しなくなる。',
             isCorrect: true,
             feedback: '【正解！】ファイアウォールは「上から順に評価（最初に一致したルールを適用）」します。テスト用の全許可ルールが1行目に残っていると、後ろのDENYルールはすべて無効化されてしまいます！',
@@ -890,6 +1197,37 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'net-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: 'Coreファイアウォールの管理インターフェースが業務ネットワークと分離されておらず、SNMPの読み書き（RW）操作も許可されています。攻撃者としてCore層への通信を全面開放するコマンドはどれですか？',
+        choices: [
+          {
+            id: 'net_def_c',
+            title: '露出したSNMP RW権限を悪用し、Coreサブネットへの全通信を許可するルールを書き込む',
+            command: '> snmpset -v2c -c private target 1.3.6.1.4.1.9.9.109 s "ALLOW ANY -> CORE_NET"',
+            description: '分離されていない管理プレーンへSNMP書き込みリクエストを送り、ファイアウォールのアクセス制御ルールを書き換える。',
+            isCorrect: true,
+            feedback: '【正解！】管理プレーンの隔離不備とSNMP RW設定を突き、Coreネットワークへのルートを開放しました！',
+          },
+          {
+            id: 'net_def_ng1',
+            title: '自分のPCのブラウザCookie属性（SameSite=None）を書き換えてパケットフィルタを通過する',
+            command: '> document.cookie = "fw=bypass; SameSite=None"',
+            description: 'クライアント側のCookie設定を変更してルーターのACLを無効化しようとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】ネットワーク層のファイアウォールはブラウザのCookieでは突破できません！',
+          },
+          {
+            id: 'net_def_ng2',
+            title: 'ターゲットへPingを1回だけ送り、ICMP応答からCore DBのデータを直接受信する',
+            command: '> ping -c 1 target',
+            description: '疎通確認用のICMPパケットだけでファイアウォールの背後にあるデータを抜き取ろうとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】通常のPing（ICMP Echo）ではファイアウォールのルール変更やDB抽出はできません。',
+          },
+        ],
+      },
     ],
   },
 
@@ -899,6 +1237,8 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
   {
     match: ['SQLインジェクション', 'データベース権限設定の不備', '証跡DBの権限設定不備'],
     category: 'データベース脆弱性・SQLインジェクション／過剰DB権限',
+    mitreId: 'T1190 (Exploit Public-Facing Application)',
+    cweId: 'CWE-89 (SQL Injection)',
     scanTerminalLog:
       '[SCAN LOG] 5432/tcp (PostgreSQL) OPEN — 検索パラメータの文字列連結によるSQLインジェクション脆弱性、およびアプリ用接続ロールに `SUPERUSER / BYPASSRLS` 権限が付与されています。',
     whyDangerous:
@@ -939,15 +1279,15 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
       },
       {
         id: 'db-q2',
-        questionType: 'TYPE B: 設定ファイル・ログ解析（弱点箇所の特定）',
-        prompt: 'データベース接続コードの比較です。SQLインジェクションを許してしまう「脆弱なコード」はどれですか？',
+        questionType: 'TYPE B: 設定・コード解析（悪用箇所の特定）',
+        prompt: 'データベース接続コードの比較です。攻撃者としてSQLインジェクションを送り込める「脆弱な実装」はどれですか？',
         codeSnippet:
           'Code A: db.query(`SELECT * FROM records WHERE id = \'${userInput}\'`);\nCode B: db.query("SELECT * FROM records WHERE id = $1", [userInput]);\nCode C: GRANT SELECT ON public_summary TO app_readonly;',
         choices: [
           {
             id: 'db_code_a',
             title: 'Code A: テンプレート文字列で `userInput` を直接SQL文に連結している',
-            command: 'NG: `SELECT * FROM records WHERE id = \'${userInput}\'`',
+            command: '悪用箇所: `SELECT * FROM records WHERE id = \'${userInput}\'`',
             description: '入力値に `\' OR \'1\'=\'1` などが含まれるとSQLの構造そのものが書き換わってしまう（SQLインジェクション）。',
             isCorrect: true,
             feedback: '【正解！】文字列連結（Code A）がSQLインジェクションの原因です。必ずCode Bのようにプレースホルダ（`$1` や `?`）を使ったプリペアドステートメントにします。',
@@ -970,9 +1310,108 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
           },
         ],
       },
+      {
+        id: 'db-q3',
+        questionType: 'TYPE C: 実践攻撃コマンド＆ペイロード選択（応用）',
+        prompt: '機密データベースの検索APIが入力値を文字列連結でSQL文に組み込んでおり、DB接続ロールにも過剰な参照権限があります。攻撃者として機密テーブルのデータを抽出するペイロードはどれですか？',
+        choices: [
+          {
+            id: 'db_def_c',
+            title: '検索パラメータに `\' UNION SELECT ... --` を注入して機密テーブルを結合抽出する',
+            command: `> curl "https://target/api/records?id=1' UNION SELECT table_name, secret_data FROM classified_records--"`,
+            description: 'シングルクォートで元のSQL文を閉じ、UNION SELECT句を連結して別テーブルの極秘レコードを画面へ出力させる。',
+            isCorrect: true,
+            feedback: '【正解！】文字列連結の不備と過剰なDBロール権限を突いて、UNIONベースのSQLインジェクションで機密データを抽出しました！',
+          },
+          {
+            id: 'db_def_ng1',
+            title: '入力値に小文字ではなく大文字の `SELECT` だけを1単語送信して自動抽出を待つ',
+            command: '> curl "https://target/api/records?id=SELECT"',
+            description: '構文の連結やコメントアウトを行わず、キーワード単体を入力する。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】文字列の途中（`WHERE id = \'SELECT\'`）として処理されるだけで、SQLインジェクションは成立しません！',
+          },
+          {
+            id: 'db_def_ng2',
+            title: 'データベースの5432番ポートに対してWi-Fiパスワード解析ツールを実行する',
+            command: '> aircrack-ng -w rockyou.txt db_capture.cap',
+            description: '無線LANのWPA2クラッキングツールを使ってPostgreSQLを突破しようとする。',
+            isCorrect: false,
+            feedback: '【不正解・IDS検知！】データベースのSQL脆弱性に対して無線LAN解析ツールは全く無関係であり、異常操作として検知されました！',
+          },
+        ],
+      },
     ],
   },
 ];
+
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface NodeSecurityMeta {
+  riskLevel: RiskLevel;
+  failureAlert: number;
+  failureResource: number;
+  infoHint: string;
+}
+
+const NODE_SECURITY_META: Record<string, NodeSecurityMeta> = {
+  E01: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、試行制限が未導入です。辞書攻撃（hydra）またはsshd_configの設定不備特定が有効です。' },
+  E02: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'DNSサーバーのゾーン転送設定（allow-transfer { any; };）の不備を確認。AXFRクエリにより内部ドメインのレコード一覧を取得可能です。' },
+  E03: { riskLevel: 'LOW', failureAlert: 3, failureResource: 1, infoHint: '共有アーカイブの匿名アクセス（guest ok = yes）が有効です。Null Session接続により資源（RESOURCE +5）を回収可能です。' },
+  D01: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '古いApacheのパストラバーサル脆弱性が残存しており、非公開の管理APIへの不正リクエストが可能です。' },
+  D02: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'メールサーバーのSPFレコードが「+all（全許可）」となっており、送信元ドメイン詐称（SMTPスプーフィング）が可能です。' },
+  D03: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '古い暗号化プロトコル（TLSv1/TLSv1.1）が有効化されており、プロトコル・ダウングレード攻撃が可能です。' },
+  D04: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'Web管理コンソールのIP制限が不十分で、X-Forwarded-Forヘッダ偽装による管理権限バイパスが可能です。' },
+  D05: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '設定ファイルおよびメモリキャッシュに認証シークレットが平文（ハードコード）で残存しています。' },
+  D06: { riskLevel: 'LOW', failureAlert: 4, failureResource: 1, infoHint: 'プロキシ・監査ログの書き込み権限が開放されており、ログ改ざんにより警戒度を削減可能です。' },
+  D07: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '監視装置の制御APIが無認証で露出しており、アラート抑制およびログ改ざんが可能です。' },
+  I01: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '社内Active Directory/IAMで過剰なロール権限またはsudoersのNOPASSWD設定ミスがあり、特権昇格が可能です。' },
+  I02: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '開発環境の `/etc/sudoers` でパスワードなし実行（NOPASSWD: ALL）が許可されており、ADMIN権限への昇格が可能です。' },
+  I03: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '監査ログサーバーが追記専用（WORM）になっておらず、侵入証跡の消去により警戒度を-15%削減可能です。' },
+  I04: { riskLevel: 'HIGH', failureAlert: 7, failureResource: 1, infoHint: 'ARGUS監視AIの制御APIが無認証で露出しており、ポリシー書き換えにより警戒度を-20%引き下げ可能です。' },
+  I05: { riskLevel: 'LOW', failureAlert: 4, failureResource: 1, infoHint: 'バックアップ共有（smb.conf）でゲスト接続が許可されており、解析資源を最大+10補給可能です。' },
+  I06: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '社内ファイル共有のACL設定不備により、無認証で「暗号鍵の断片A」を回収可能です。' },
+  I07: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '管理スクリプト内に秘密鍵・資格情報がハードコード（平文保存）されており、「暗号鍵の断片B」を抽出可能です。' },
+  I08: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '内部ルーターの管理プレーンが分離されておらず、ACL・ルーティング書き換えが可能です。' },
+  I09: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: 'ファイアウォール最上位にテスト用の全許可ルール（ALLOW ANY）が残っており、資源+3と警戒度-10%を獲得可能です。' },
+  I10: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '研究開発用REST APIの認可チェック漏れを突き、最深部Coreノードへの最短侵入ルートを開けます。' },
+  C01: { riskLevel: 'CRITICAL', failureAlert: 8, failureResource: 1, infoHint: 'CoreファイアウォールのACL設定不備（最上位のALLOW ANYルール）を突いて最深部へ到達可能です。' },
+  C02: { riskLevel: 'HIGH', failureAlert: 7, failureResource: 1, infoHint: '古いTLS 1.0/1.1プロトコルが有効なままであり、ダウングレード攻撃が通用します。' },
+  C03: { riskLevel: 'CRITICAL', failureAlert: 10, failureResource: 1, infoHint: 'SQL文の文字列連結（プレースホルダ未使用）によるSQLインジェクション脆弱性で極秘データを抽出可能です！' },
+  C04: { riskLevel: 'HIGH', failureAlert: 8, failureResource: 1, infoHint: 'ARGUS緊急防衛システムの未認証APIを操作し、警戒度を-15%大幅低下させます。' },
+  'S2-E01': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '調査用アカウントのSSHパスワード認証が有効で試行制限がなく、辞書攻撃が有効です。' },
+  'S2-D01': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'DNSゾーン転送（allow-transfer { any; };）の露出により、内部通信ルートを取得可能です。' },
+  'S2-D02': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'Web認証窓口のパストラバーサルおよびアクセス制御不備を突いて経路バイパスが可能です。' },
+  'S2-D03': { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: 'トラフィック集約装置のDNS/中継設定不備を確認。S2-I07攻略による監視解除を推奨します。' },
+  'S2-D04': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '社内管理プロキシのアクセス制御不備により、内部サーバーへの通信中継が許可されます。' },
+  'S2-I01': { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '保守用アカウントの過剰権限（IAMロール／sudoers NOPASSWD）からADMIN権限への昇格が可能です。' },
+  'S2-I02': { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '内部ルーターのACL/ファイアウォール設定不備を突いて転送ゲートへの経路を開放できます。' },
+  'S2-I03': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '予備解析基盤の特権設定ミス（NOPASSWD / 過剰ACL）を突き、解析資源を最大+7補給可能です。' },
+  'S2-I04': { riskLevel: 'HIGH', failureAlert: 7, failureResource: 1, infoHint: '証明書管理APIのレガシーTLS設定・認可不備を突き、S2-C02のゲートロックを解除できます！' },
+  'S2-I05': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '監査ログ中継サーバーのログ改ざん（WORM未設定）により、警戒度を-8%削減可能です。' },
+  'S2-I06': { riskLevel: 'LOW', failureAlert: 4, failureResource: 1, infoHint: '証跡バックアップ共有のゲスト権限開放（guest ok = yes）から解析資源を最大+5回収可能です。' },
+  'S2-I07': { riskLevel: 'CRITICAL', failureAlert: 7, failureResource: 1, infoHint: '常時監視センサーの未認証制御APIを停止することで、追加警戒度+12%を無効化しS2-C04を解放します！' },
+  'S2-C01': { riskLevel: 'HIGH', failureAlert: 8, failureResource: 1, infoHint: 'Core直接転送ゲートのファイアウォールルール不備を突いて原本DBへ接続可能です。' },
+  'S2-C02': { riskLevel: 'CRITICAL', failureAlert: 8, failureResource: 1, infoHint: '相互TLSゲートの旧プロトコル許容・証明書不備を突き、安全に原本DBへ到達できます。' },
+  'S2-C03': { riskLevel: 'CRITICAL', failureAlert: 10, failureResource: 1, infoHint: '原本通信証跡DBのSQLインジェクション（文字列連結）を突いて原本ログを回収します！' },
+  'S2-C04': { riskLevel: 'HIGH', failureAlert: 8, failureResource: 1, infoHint: '監視網の迂回ゲートで未保護の監査ログを消去し、警戒度を-10%削減できます。' },
+  'external-1': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '公開SSHサーバー(22/tcp)でパスワード認証とrootログインが許可されており、辞書攻撃が有効です。' },
+  'dmz-1': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '古いApache Webサーバーのパストラバーサルおよび管理URLのアクセス制御不備を突けます。' },
+  'dmz-2': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'メールサーバーのSPF設定ミス（+all）により、送信元ドメイン詐称が可能です。' },
+  'internal-1': { riskLevel: 'HIGH', failureAlert: 5, failureResource: 1, infoHint: 'Active Directory/sudoersの過剰権限設定を利用してADMIN権限へ昇格可能です。' },
+  'core-1': { riskLevel: 'CRITICAL', failureAlert: 8, failureResource: 1, infoHint: '機密データベースのSQL文字列連結不備（SQLインジェクション）により機密データを抽出可能です！' },
+};
+
+export function getNodeSecurityMeta(nodeId: string): NodeSecurityMeta {
+  return (
+    NODE_SECURITY_META[nodeId] ?? {
+      riskLevel: 'MEDIUM',
+      failureAlert: 5,
+      failureResource: 1,
+      infoHint: '対象ノードの開放ポートと脆弱性情報に合致するエクスプロイトを選択してください。',
+    }
+  );
+}
 
 export function getSecurityChallenge(
   nodeId: string,
@@ -998,9 +1437,16 @@ export function getSecurityChallenge(
     const startIdx = nodeId.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % questions.length;
     const orderedQuestions = [...questions.slice(startIdx), ...questions.slice(0, startIdx)];
 
+    const hasRealInfo = Boolean(nodeInfo && !nodeInfo.includes('不明'));
+    const fullScanLog = hasRealInfo
+      ? `[NODE BANNER // ${nodeId}] ${nodeInfo}\n${found.scanTerminalLog}`
+      : found.scanTerminalLog;
+
     return {
       category: found.category,
-      scanTerminalLog: found.scanTerminalLog,
+      mitreId: found.mitreId,
+      cweId: found.cweId,
+      scanTerminalLog: fullScanLog,
       whyDangerous: found.whyDangerous,
       defenseMeasure: found.defenseMeasure,
       questions: orderedQuestions,
@@ -1048,6 +1494,8 @@ export function getSecurityChallenge(
 
   return {
     category: 'アクセス制御・構成設定の不備（Security Misconfiguration）',
+    mitreId: 'T1068 (Privilege Escalation) / T1190',
+    cweId: 'CWE-16 (Configuration)',
     scanTerminalLog: `[SCAN LOG] NODE ${nodeId} — 「${vulnText || '設定不備'}」を検出。${nodeInfo ? `補足情報: ${nodeInfo}` : ''}`,
     whyDangerous: `サーバーやネットワーク機器の「${vulnText || '設定不備'}」を放置すると、本来許可されていない経路から管理機能を操作され、内部深部への踏み台にされます。`,
     defenseMeasure: '【対策】管理画面や制御ポートへのアクセス元IP制限、デフォルト設定の見直し、最小権限の原則に基づいた構成管理を実施します。',

@@ -16,6 +16,8 @@ export interface NetworkNodeData {
   isMonitored?: boolean;
   monitoringExtra?: number;
   gateState?: 'locked' | 'unlocked' | 'hacked';
+  effect?: { resourceBonus: number; alertDelta: number; log?: string };
+  isKeyFragment?: boolean;
   [key: string]: unknown;
 }
 
@@ -30,7 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function NetworkNodeView({
   data,
 }: NodeProps<NetworkFlowNode>) {
-  const { node, selected, isEntry, isMonitored, monitoringExtra = 0, gateState } = data;
+  const { node, selected, isEntry, isMonitored, monitoringExtra = 0, gateState, effect, isKeyFragment } = data;
 
   const displayName =
     node.status === 'unscanned'
@@ -67,6 +69,28 @@ export function NetworkNodeView({
         <span className="network-node__status-dot" />
         {statusLabel}
       </div>
+      {/* 特殊作戦効果バッジ（スキャン済み以上で表示） */}
+      {node.status !== 'unscanned' && effect && (
+        <div className="network-node__effect">
+          {effect.alertDelta < 0 && (
+            <span className="node-effect-tag node-effect-tag--stealth">
+              痕跡消去 {effect.alertDelta}%
+            </span>
+          )}
+          {effect.resourceBonus > 0 && (
+            <span className="node-effect-tag node-effect-tag--supply">
+              資源 +{effect.resourceBonus}
+            </span>
+          )}
+        </div>
+      )}
+      {node.status !== 'unscanned' && isKeyFragment && (
+        <div className="network-node__effect">
+          <span className="node-effect-tag node-effect-tag--key">
+            🔑 暗号鍵断片
+          </span>
+        </div>
+      )}
       {isMonitored && <div className="network-node__mechanic">{monitoringExtra > 0 ? `監視 +${monitoringExtra}%` : '監視解除済み'}</div>}
       {gateState && <div className="network-node__mechanic">ゲート：{gateState === 'locked' ? 'ロック中' : gateState === 'hacked' ? '攻略済み' : '解除済み'}</div>}
 

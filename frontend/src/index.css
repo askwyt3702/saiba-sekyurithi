@@ -50,8 +50,12 @@
   }
 }
 
+/* 画面全体の拡大・縮小(src/uiScale.ts が --ui-scale / --app-w / --app-h を設定する) */
 #root {
-  min-height: 100svh;
+  zoom: var(--ui-scale, 1);
+  width: var(--app-w, 100vw);
+  height: var(--app-h, 100vh);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -59,6 +63,7 @@
 
 body {
   margin: 0;
+  overflow: hidden;
 }
 
 h1,

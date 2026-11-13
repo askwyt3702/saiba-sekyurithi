@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameClient } from './game/hooks/useGameClient';
 import type {
   ActionRejectReason,
@@ -12,7 +12,9 @@ import { EventLog } from './components/EventLog/EventLog';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { MissionResult } from './components/MissionResult/MissionResult';
+import { MissionFailure } from './components/MissionFailure/MissionFailure';
 import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
+import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import './App.css';
@@ -50,7 +52,30 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [idsAlertActive, setIdsAlertActive] = useState(false);
+  const [prevLogLength, setPrevLogLength] = useState(0);
 
+  const triggerIdsAlert = () => {
+    setIdsAlertActive(true);
+    setTimeout(() => {
+      setIdsAlertActive(false);
+    }, 900);
+  };
+
+  useEffect(() => {
+    if (!state?.log) return;
+    if (state.log.length > prevLogLength) {
+      const newLogs = state.log.slice(prevLogLength);
+      setPrevLogLength(state.log.length);
+      if (
+        newLogs.some(
+          (l) => l.message.includes('【IDS検知警告】') || l.message.includes('検知されました！')
+        )
+      ) {
+        triggerIdsAlert();
+      }
+    }
+  }, [state?.log, prevLogLength]);
   // 選択中のノード
   const selectedNode =
     state?.nodes.find((node) => node.id === selectedNodeId) ?? null;
@@ -78,6 +103,10 @@ function App() {
 
     const nodeId = selectedNode.id;
     setNotice(null);
+
+    if (exploitMismatch) {
+      triggerIdsAlert();
+    }
 
     try {
       if (type === 'breach' && !exploitMismatch && (nodeId === 'E01' || nodeId === 'E02' || nodeId === 'E03')) {
@@ -183,7 +212,12 @@ function App() {
 
   // ゲーム画面
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${idsAlertActive ? 'app-shell--ids-alert' : ''}`}>
+      {idsAlertActive && (
+        <div className="ids-alert-banner" role="alert">
+          ⚠ [CRITICAL IDS ALERT] 侵入検知センサー作動 // 不正エクスプロイト遮断
+        </div>
+      )}
       <StatusBar
         elapsedSeconds={state.elapsedSeconds}
         alertLevel={state.alertLevel}
@@ -203,15 +237,25 @@ function App() {
         <div className="app-banner" role="note">{getStageData(state.stageId ?? stageId).prototypeNotice}</div>
       )}
       <StageMechanicsStatus stageId={state.stageId ?? stageId} nodes={state.nodes} />
+      <TutorialBanner
+        stageId={state.stageId ?? stageId}
+        nodes={state.nodes}
+        logs={state.log}
+        selectedNodeId={selectedNodeId}
+        onSelectNode={handleSelectNode}
+      />
       {state.status === 'won' && (
         <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
       )}
       {state.status === 'lost' && (
-        <div className="app-banner app-banner--lost">
-          {state.alertLevel < 100
-            ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
-            : '作戦失敗：警戒度が限界に達しました。'}
-        </div>
+        <>
+          <div className="app-banner app-banner--lost">
+            {state.alertLevel < 100
+              ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
+              : '作戦失敗：警戒度が限界に達しました。'}
+          </div>
+          <MissionFailure state={state} onRetry={restartMission} onTitle={returnToTitle} />
+        </>
       )}
       <div className="app-body">
         <ToolPanel
@@ -248,6 +292,7 @@ function App() {
               ? notice.message
               : null
           }
+          logs={state.log}
           onAction={handleAction}
         />
       </div>

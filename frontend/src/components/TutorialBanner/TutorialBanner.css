@@ -1,0 +1,144 @@
+.tutorial-banner {
+  flex-shrink: 0;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(52, 211, 153, 0.45);
+  background: linear-gradient(90deg, rgba(6, 36, 30, 0.96) 0%, rgba(12, 26, 38, 0.96) 100%);
+  color: #e2e8f0;
+  font-family: ui-monospace, Consolas, monospace;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.tutorial-banner__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tutorial-banner__badge-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tutorial-banner__badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(16, 185, 129, 0.22);
+  border: 1px solid #10b981;
+  color: #6ee7b7;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.tutorial-banner__phase {
+  color: #94a3b8;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.tutorial-banner__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+}
+
+.tutorial-banner__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  transition: all 0.2s ease;
+}
+
+.tutorial-banner__dot--done {
+  background: #10b981;
+  border-color: #34d399;
+}
+
+.tutorial-banner__dot--active {
+  width: 18px;
+  background: #38bdf8;
+  border-color: #7dd3fc;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.75);
+}
+
+.tutorial-banner__toggle {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 4px;
+  padding: 3px 10px;
+  color: #cbd5e1;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tutorial-banner__toggle:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.tutorial-banner__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.tutorial-banner__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.tutorial-banner__title {
+  color: #34d399;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.tutorial-banner__desc {
+  margin: 0 0 4px;
+  color: #f1f5f9;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tutorial-banner__hint {
+  color: #93c5fd;
+  font-size: 11px;
+}
+
+.tutorial-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tutorial-banner__action-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid #34d399;
+  color: #a7f3d0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tutorial-banner__action-btn:hover {
+  background: rgba(16, 185, 129, 0.32);
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.45);
+  color: #ffffff;
+}

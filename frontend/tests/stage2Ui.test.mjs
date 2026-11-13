@@ -38,11 +38,16 @@ test('stage2 card starts stage2 while mission3 remains locked', () => {
   const { MissionScreen } = load(new URL('../src/components/MissionScreen/MissionScreen.tsx', import.meta.url));
   let selected;
   const tree = MissionScreen({ onSelectMission: (id) => { selected = id; }, onBack() {} });
-  const card = elements(tree, 'button').find((button) => button.props.className === 'mission-card');
+  const card =
+    elements(tree, 'article').find((el) => el.props.className?.includes('ms-card--amber')) ??
+    elements(tree, 'button').find((button) => button.props.className === 'mission-card');
   assert.ok(card);
   card.props.onClick();
   assert.equal(selected, 2);
-  assert.equal(elements(tree, 'div').filter((div) => div.props.className === 'mission-card locked').length, 1);
+  const lockedCard =
+    elements(tree, 'article').find((el) => el.props.className?.includes('is-locked')) ??
+    elements(tree, 'div').find((div) => div.props.className === 'mission-card locked');
+  assert.ok(lockedCard);
 });
 
 test('MapView supplies all 16 stage2 nodes and 21 edges to React Flow with its own entry', () => {
@@ -133,4 +138,36 @@ test('monitor panel previews +12 and detection at 100, and removes the extra aft
   assert.ok(textOf(panel()).includes('追加警戒度：+0%'));
   assert.ok(textOf(panel()).includes('88.00%'));
   assert.ok(!textOf(panel()).includes('検知され敗北'));
+});
+
+test('TutorialBanner guides Stage 0 through steps 1-7 and hides on Stage 1/2', () => {
+  const { TutorialBanner } = load(
+    new URL('../src/components/TutorialBanner/TutorialBanner.tsx', import.meta.url),
+  );
+  const { createMockGameState } = load(new URL('../src/game/data/mockGameState.ts', import.meta.url));
+  const state0 = createMockGameState('tut', 0);
+
+  assert.equal(TutorialBanner({ stageId: 1, nodes: state0.nodes, logs: [], selectedNodeId: null, onSelectNode() {} }), null);
+  assert.equal(TutorialBanner({ stageId: 2, nodes: state0.nodes, logs: [], selectedNodeId: null, onSelectNode() {} }), null);
+
+  const renderStep = (selectedNodeId) =>
+    textOf(TutorialBanner({ stageId: 0, nodes: state0.nodes, logs: [], selectedNodeId, onSelectNode() {} }));
+
+  assert.ok(renderStep(null).includes('STEP 1 / 7'));
+  assert.ok(renderStep('external-1').includes('STEP 2 / 7'));
+
+  state0.nodes.find((n) => n.id === 'external-1').status = 'scanned';
+  assert.ok(renderStep('external-1').includes('STEP 3 / 7'));
+
+  state0.nodes.find((n) => n.id === 'external-1').status = 'hacked';
+  assert.ok(renderStep('external-1').includes('STEP 4 / 7'));
+
+  state0.nodes.find((n) => n.id === 'dmz-2').status = 'hacked';
+  assert.ok(renderStep('dmz-2').includes('STEP 5 / 7'));
+
+  state0.nodes.find((n) => n.id === 'internal-1').status = 'hacked';
+  assert.ok(renderStep('internal-1').includes('STEP 6 / 7'));
+
+  state0.nodes.find((n) => n.id === 'core-1').status = 'hacked';
+  assert.ok(renderStep('core-1').includes('STEP 7 / 7'));
 });

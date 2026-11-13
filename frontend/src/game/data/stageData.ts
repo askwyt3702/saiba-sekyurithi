@@ -232,7 +232,9 @@ export const STAGES: Record<number, StageDefinition> = {
     entryNodeIds: ['external-1'],
     targetNodeIds: ['core-1'],
     keyFragmentNodeIds: [],
-    nodeEffects: {},
+    nodeEffects: {
+      'dmz-2': { resourceBonus: 5, alertDelta: -10, log: '踏み台メールサーバーの通信ログを消去！警戒度が -10% 低下し、解析資源 +5 を回収しました。' },
+    },
   },
   1: {
     id: 1,
