@@ -40,6 +40,18 @@ const SECURITY_INFO_HINTS: Record<string, string> = {
   E03: 'E03: アーカイブサーバーの公開ディレクトリを確認。旧システム移行用バックアップファイルがアクセス制限なしで露出。内部ツールの解析資源（RESOURCE +5）を回収可能です。',
 };
 
+const CORRECT_EXPLOITS: Record<string, string[]> = {
+  E01: ['ssh_bf', 'ssh_cfg_b'],
+  E02: ['dns_axfr', 'dns_cfg_ok'],
+  E03: ['acl_smb', 'acl_cfg_ok'],
+};
+
+const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = {
+  E01: { alert: 5, resource: 1 },
+  E02: { alert: 5, resource: 1 },
+  E03: { alert: 3, resource: 1 },
+};
+
 function generateKeyFragment(): string {
   let out = '';
   for (let i = 0; i < 4; i++) {
@@ -173,15 +185,29 @@ export class MockGameClient implements GameClient {
     const rejection = this.validate(type, node);
     if (rejection) return { accepted: false, reason: rejection };
 
-    if (type === 'breach' && action.exploitMismatch) {
-      this.state.alertLevel = clampAlert(this.state.alertLevel + 8);
-      this.log(
-        'danger',
-        `【IDS検知警告】${node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: ${Math.round(this.state.alertLevel)}%）。`,
-      );
-      this.checkGameOver();
-      this.emit({ type: 'state_snapshot', state: this.cloneState() });
-      return { accepted: true };
+    if (type === 'breach') {
+      const correctList = CORRECT_EXPLOITS[node.id];
+      let isWrong = false;
+      if (action.exploitId !== undefined) {
+        if (correctList && !correctList.includes(action.exploitId)) {
+          isWrong = true;
+        }
+      } else if (action.exploitMismatch) {
+        isWrong = true;
+      }
+
+      if (isWrong) {
+        const penalty = SECURITY_PENALTIES[node.id] ?? { alert: 8, resource: 1 };
+        this.state.analysisResource = Math.max(0, this.state.analysisResource - penalty.resource);
+        this.state.alertLevel = clampAlert(this.state.alertLevel + penalty.alert);
+        this.log(
+          'danger',
+          `【IDS検知警告】${node.name}への不適切な攻撃手法が検知されました！解析資源 -${penalty.resource}、警戒度 +${Math.round(penalty.alert)}%（現在: ${Math.round(this.state.alertLevel)}%）。`,
+        );
+        this.checkGameOver();
+        this.emit({ type: 'state_snapshot', state: this.cloneState() });
+        return { accepted: true };
+      }
     }
 
     const stage = getStageData(this.stageId);

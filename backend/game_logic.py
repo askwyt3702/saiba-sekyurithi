@@ -652,6 +652,7 @@ def apply_action(
     node_id: Optional[str],
     passcode: Optional[str] = None,
     exploit_mismatch: bool = False,
+    exploit_id: Optional[str] = None,
 ) -> None:
     """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
 
@@ -774,17 +775,34 @@ def apply_action(
         node,
     )
 
-    if action_type == "breach" and exploit_mismatch:
-        player.alert_level = _clamp_alert(player.alert_level + 8.0)
-        add_log(
-            db,
-            player,
-            "danger",
-            f"【IDS検知警告】{node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: {player.alert_level:.0f}%）。",
-        )
-        _check_game_over(db, player)
-        db.commit()
-        return
+    # セキュリティロジック：侵入手法（エクスプロイト）の判定
+    if action_type == "breach":
+        rule = SECURITY_RULES.get(node.id, {}) if node else {}
+        correct_exploits = rule.get("correct_exploits", [])
+
+        # exploit_id が指定されている場合はバックエンド側で正誤判定
+        is_wrong = False
+        if exploit_id is not None:
+            if correct_exploits and exploit_id not in correct_exploits:
+                is_wrong = True
+        elif exploit_mismatch:
+            is_wrong = True
+
+        if is_wrong:
+            alert_penalty = rule.get("failure_alert", 8.0)
+            res_penalty = rule.get("failure_resource", 1)
+
+            player.analysis_resource = max(0, player.analysis_resource - res_penalty)
+            player.alert_level = _clamp_alert(player.alert_level + alert_penalty)
+            add_log(
+                db,
+                player,
+                "danger",
+                f"【IDS検知警告】{node.name}への不適切な攻撃手法が検知されました！解析資源 -{res_penalty}、警戒度 +{alert_penalty:.0f}%（現在: {player.alert_level:.0f}%）。",
+            )
+            _check_game_over(db, player)
+            db.commit()
+            return
 
     # E02：情報確認が完了しているかチェック（既存バランス設計維持のためコメントアウト）
     # if action_type == "breach" and node.id == "E02":

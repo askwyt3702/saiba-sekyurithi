@@ -26,7 +26,12 @@ interface NodeDetailPanelProps {
   analysisResource: number;
   alertLevel?: number;
   notice: string | null;
-  onAction: (type: TimedActionType, passcode?: string, exploitMismatch?: boolean) => void;
+  onAction: (
+    type: TimedActionType,
+    passcode?: string,
+    exploitMismatch?: boolean,
+    exploitId?: string,
+  ) => void;
 }
 
 export function NodeDetailPanel({
@@ -153,7 +158,7 @@ export function NodeDetailPanel({
     setSelectedExploitId(choiceId);
     if (!isCorrect && !penalizedChoiceIds.includes(choiceId)) {
       setPenalizedChoiceIds((prev) => [...prev, choiceId]);
-      onAction('breach', undefined, true);
+      onAction('breach', undefined, true, choiceId);
     }
   };
 
@@ -443,7 +448,12 @@ export function NodeDetailPanel({
                   disabled={!selectedChoice?.isCorrect || !canBreach}
                   onClick={() => {
                     setIsExploitOpen(false);
-                    onAction('breach', showPasscodeInput ? passcode : undefined);
+                    onAction(
+                      'breach',
+                      showPasscodeInput ? passcode : undefined,
+                      false,
+                      selectedExploitId ?? undefined,
+                    );
                   }}
                 >
                   {showPasscodeInput && passcode.trim() !== ''

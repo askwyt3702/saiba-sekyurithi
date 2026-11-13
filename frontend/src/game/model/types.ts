@@ -136,6 +136,7 @@ export interface ActionRequest {
   nodeId?: string;
   passcode?: string;
   exploitMismatch?: boolean;
+  exploitId?: string;
 }
 
 export type ActionRejectReason =

@@ -87,6 +87,7 @@ function App() {
     type: TimedActionType,
     passcode?: string,
     exploitMismatch?: boolean,
+    exploitId?: string,
   ) => {
     if (!selectedNode) return;
 
@@ -97,7 +98,7 @@ function App() {
       if (type === 'breach' && !exploitMismatch && (nodeId === 'E01' || nodeId === 'E02' || nodeId === 'E03')) {
         await sendAction({ type: 'confirmInfo' as ActionType, nodeId }).catch(() => {});
       }
-      const result = await sendAction({ type, nodeId, passcode, exploitMismatch });
+      const result = await sendAction({ type, nodeId, passcode, exploitMismatch, exploitId });
 
       if (!result.accepted) {
         setNotice({
