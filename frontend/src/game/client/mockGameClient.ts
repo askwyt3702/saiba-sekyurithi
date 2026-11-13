@@ -45,6 +45,16 @@ const SECURITY_INFO_HINTS: Record<string, string> = {
   D05: 'D05: メモリキャッシュサーバーの設定を確認。セッショントークンおよびVPN認証情報が平文でキャッシュに残存しています。',
   D06: 'D06: 社内プロキシサーバーの転送設定を確認。アクセス制御リスト（ACL）の誤設定により、通信経路を偽装して警戒度を削減可能です。',
   D07: 'D07: DMZ境界の監視装置を確認。SNMPコミュニティ名がデフォルト（public）のままであり、監視センサーのシグネチャ設定を読み取れます。',
+  I01: 'I01: 社内Active Directory/認証基盤の設定を確認。サービスアカウントに過剰な権限（DCSync/特権ロール）が付与されており、特権トークンの奪取が可能です。',
+  I02: 'I02: 開発環境のデバッグ設定を確認。sudo設定でパスワードなし実行（NOPASSWD）が許可された開発ツールがあり、ADMIN権限への昇格が可能です。',
+  I03: 'I03: 監査ログサーバーの書き換え権限を確認。ローカルログストレージへの書き込み権限が開放されており、侵入証跡の消去により警戒度を-15%削減可能です。',
+  I04: 'I04: ARGUS監視AIの制御APIを確認。管理APIエンドポイントが無認証で露出しており、ポリシー書き換えにより警戒度を-20%引き下げ可能です。',
+  I05: 'I05: バックアップストレージの共有設定を確認。ゲスト接続可能な共有ディレクトリから計算リソースアーカイブを回収し、解析資源を最大+10補給可能です。',
+  I06: 'I06: 社内ファイル共有サーバーを確認。パーミッション設定不備により、Core層への隠密侵入に不可欠な「暗号鍵の断片A」を回収可能です。',
+  I07: 'I07: システム管理者端末のレジストリと設定を確認。平文で保存された管理者資格情報から「暗号鍵の断片B」を抽出可能です。',
+  I08: 'I08: 内部ルーターのACLルーティング設定を確認。管理プレーンの保護が不十分で、Core層へのパケット転送ルールを書き換え可能です。',
+  I09: 'I09: セキュリティ管理コンソールの設定を確認。Core層ファイアウォールのポリシーを弱体化させ、資源+3獲得と警戒度-10%を同時に実現可能です。',
+  I10: 'I10: 研究開発用REST APIの認証を確認。認証トークンの検証がバイパス可能で、最深部Coreノードへの最短侵入ルートが開かれます。',
 };
 
 const CORRECT_EXPLOITS: Record<string, string[]> = {
@@ -58,6 +68,16 @@ const CORRECT_EXPLOITS: Record<string, string[]> = {
   D05: ['cred_dump', 'cred_code_b'],
   D06: ['log_tamper', 'log_def_ok'],
   D07: ['log_tamper', 'log_def_ok'],
+  I01: ['priv_esc'],
+  I02: ['priv_esc'],
+  I03: ['log_tamper', 'log_def_ok'],
+  I04: ['log_tamper', 'log_def_ok'],
+  I05: ['acl_smb', 'acl_cfg_ok'],
+  I06: ['acl_smb', 'acl_cfg_ok'],
+  I07: ['cred_dump', 'cred_code_b'],
+  I08: ['net_route', 'net_fw_r1'],
+  I09: ['net_route', 'net_fw_r1'],
+  I10: ['web_bypass', 'web_def_ok'],
 };
 
 const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = {
@@ -71,6 +91,16 @@ const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = 
   D05: { alert: 5, resource: 1 },
   D06: { alert: 4, resource: 1 },
   D07: { alert: 6, resource: 1 },
+  I01: { alert: 6, resource: 1 },
+  I02: { alert: 5, resource: 1 },
+  I03: { alert: 5, resource: 1 },
+  I04: { alert: 7, resource: 1 },
+  I05: { alert: 4, resource: 1 },
+  I06: { alert: 5, resource: 1 },
+  I07: { alert: 5, resource: 1 },
+  I08: { alert: 6, resource: 1 },
+  I09: { alert: 6, resource: 1 },
+  I10: { alert: 5, resource: 1 },
 };
 
 function generateKeyFragment(): string {
