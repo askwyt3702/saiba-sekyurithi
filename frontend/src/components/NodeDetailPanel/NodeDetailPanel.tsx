@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData, isExtractTarget } from '../../game/data/stageData';
-import { getSecurityChallenge } from '../../game/data/securityLearningData';
+import { getNodeSecurityMeta, getSecurityChallenge } from '../../game/data/securityLearningData';
 import { canReachNode, canRemoteScanNode, isMonitoringActive, missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
@@ -56,6 +56,7 @@ export function NodeDetailPanel({
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
   const [penalizedChoiceIds, setPenalizedChoiceIds] = useState<string[]>([]);
+  const [solvedQuestionIds, setSolvedQuestionIds] = useState<string[]>([]);
   const [modalAlert, setModalAlert] = useState(false);
 
   useEffect(() => {
@@ -153,6 +154,7 @@ export function NodeDetailPanel({
   const fragA = keyFragments?.a ?? null;
   const fragB = keyFragments?.b ?? null;
   const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
+  const securityMeta = getNodeSecurityMeta(node.id);
   const isInvestigated =
     logs?.some(
       (l) =>
@@ -163,6 +165,17 @@ export function NodeDetailPanel({
     challenge.questions[questionIndex % challenge.questions.length] ?? challenge.questions[0];
   const selectedChoice =
     currentQuestion.choices.find((c) => c.id === selectedExploitId) ?? null;
+  // 事前調査（情報確認）済みの場合は、不正解のダミー選択肢1つを「調査により除外済」として特定する
+  const filteredOutChoiceId = isInvestigated
+    ? (currentQuestion.choices.find((c) => !c.isCorrect)?.id ?? null)
+    : null;
+
+  const openExploitModal = () => {
+    const firstUnsolvedIdx = challenge.questions.findIndex((q) => !solvedQuestionIds.includes(q.id));
+    setQuestionIndex(firstUnsolvedIdx >= 0 ? firstUnsolvedIdx : 0);
+    setSelectedExploitId(null);
+    setIsExploitOpen(true);
+  };
 
   const handleSelectExploitChoice = (choiceId: string, isCorrect: boolean) => {
     setSelectedExploitId(choiceId);
@@ -230,7 +243,35 @@ export function NodeDetailPanel({
         </dd>
       </dl>
       {!isUnscanned && effect && (
-        <p>初回侵入効果：資源 {effect.resourceBonus >= 0 ? '+' : ''}{effect.resourceBonus}（上限{MAX_ANALYSIS_RESOURCE}）、警戒度 {effect.alertDelta >= 0 ? '+' : ''}{effect.alertDelta}%</p>
+        <div className="node-detail__effect-card">
+          <div className="node-detail__effect-head">
+            <span className="node-detail__effect-title">⚡ 作戦ボーナス（初回侵入時）</span>
+            <div className="node-detail__effect-pills">
+              {effect.alertDelta < 0 && (
+                <span className="effect-pill effect-pill--stealth">
+                  警戒度 {effect.alertDelta}%
+                </span>
+              )}
+              {effect.resourceBonus > 0 && (
+                <span className="effect-pill effect-pill--supply">
+                  資源 +{effect.resourceBonus}
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="node-detail__effect-desc">{effect.log}</p>
+        </div>
+      )}
+      {!isUnscanned && stage.keyFragmentNodeIds.includes(node.id) && (
+        <div className="node-detail__effect-card node-detail__effect-card--key">
+          <div className="node-detail__effect-head">
+            <span className="node-detail__effect-title">🔑 暗号鍵ターゲット</span>
+            <span className="effect-pill effect-pill--key">KEY FRAGMENT</span>
+          </div>
+          <p className="node-detail__effect-desc">
+            最終目標（Core）への安全侵入に必要な暗号鍵断片を保持しています。
+          </p>
+        </div>
       )}
       {stage.keyFragmentNodeIds.length > 0 && (
         <div className="node-detail__cipher-box">
@@ -276,10 +317,7 @@ export function NodeDetailPanel({
         <button
           type="button"
           disabled={!canBreach}
-          onClick={() => {
-            setSelectedExploitId(null);
-            setIsExploitOpen(true);
-          }}
+          onClick={openExploitModal}
         >
           {showPasscodeInput && passcode.trim() !== ''
             ? `暗号キーで隠密侵入 (R${balanceConfig.breach.resource})`
@@ -341,6 +379,7 @@ export function NodeDetailPanel({
               <div className="exploit-terminal-box">
                 <div className="exploit-terminal-box__line">
                   <span className="exploit-terminal-box__tag">[TARGET]</span> {node.id} ({node.name}) ／ 階層: {node.layer} ／ 現在の警戒度: <strong>{alertLevel.toFixed(1)}%</strong>
+                  {' '}／ <span className={`risk-badge risk-badge--${securityMeta.riskLevel.toLowerCase()}`}>RISK: {securityMeta.riskLevel}</span>
                 </div>
                 <div className="exploit-terminal-box__line">
                   <span className="exploit-terminal-box__tag exploit-terminal-box__tag--vuln">[VULN]</span>{' '}
@@ -363,6 +402,28 @@ export function NodeDetailPanel({
                 <div className="exploit-terminal-box__log">
                   {challenge.scanTerminalLog}
                 </div>
+                {isInvestigated ? (
+                  <div className="exploit-recon-box exploit-recon-box--done">
+                    <div className="exploit-recon-box__head">
+                      <span className="exploit-recon-box__badge">RECON INTEL ✓</span>
+                      <strong>事前調査（情報確認）完了 — 無関係なダミー攻撃手法を1つ除外しました</strong>
+                    </div>
+                    <p className="exploit-recon-box__text">{securityMeta.infoHint}</p>
+                  </div>
+                ) : (
+                  <div className="exploit-recon-box">
+                    <span className="exploit-recon-box__prompt">
+                      💡 攻撃手法に迷ったら、無料の「事前調査（情報確認）」でヒント取得＆ダミー選択肢を1つ除外できます
+                    </span>
+                    <button
+                      type="button"
+                      className="exploit-recon-box__btn"
+                      onClick={() => onAction('confirmInfo' as TimedActionType)}
+                    >
+                      🔍 事前調査を実行（無料）
+                    </button>
+                  </div>
+                )}
                 <div className="exploit-terminal-box__qhead">
                   <span className="exploit-terminal-box__qtype">
                     {currentQuestion.questionType}（{questionIndex + 1} / {challenge.questions.length}）
@@ -383,7 +444,7 @@ export function NodeDetailPanel({
                 <div className="exploit-terminal-box__prompt">
                   &gt; {currentQuestion.prompt}
                   <span className="exploit-terminal-box__penalty-note">
-                    （※不正解を選ぶとIDSに検知され、警戒度が +8% 上昇します）
+                    （※不正解を選ぶとIDSに検知され、警戒度 +{securityMeta.failureAlert}%・解析資源 -{securityMeta.failureResource} のペナルティが発生します）
                   </span>
                 </div>
                 {currentQuestion.codeSnippet && (
@@ -397,13 +458,16 @@ export function NodeDetailPanel({
                 {currentQuestion.choices.map((choice, idx) => {
                   const isSelected = selectedExploitId === choice.id;
                   const wasPenalized = penalizedChoiceIds.includes(choice.id);
+                  const isFilteredOut = filteredOutChoiceId === choice.id && !isSelected && !wasPenalized;
                   const stateClass = isSelected
                     ? choice.isCorrect
                       ? 'exploit-choice--correct'
                       : 'exploit-choice--wrong'
                     : wasPenalized
                       ? 'exploit-choice--wrong'
-                      : '';
+                      : isFilteredOut
+                        ? 'exploit-choice--filtered'
+                        : '';
                   return (
                     <button
                       key={choice.id}
@@ -415,11 +479,15 @@ export function NodeDetailPanel({
                         <span className="exploit-choice__title">
                           [{idx + 1}] {choice.title}
                         </span>
-                        {(isSelected || wasPenalized) && (
+                        {(isSelected || wasPenalized) ? (
                           <span className={`exploit-choice__badge ${choice.isCorrect ? 'exploit-choice__badge--ok' : 'exploit-choice__badge--ng'}`}>
-                            {choice.isCorrect ? '有効 (MATCH)' : 'IDS検知 (警戒度 +8%)'}
+                            {choice.isCorrect ? '有効 (MATCH)' : `IDS検知 (警戒度 +${securityMeta.failureAlert}% / 資源 -${securityMeta.failureResource})`}
                           </span>
-                        )}
+                        ) : isFilteredOut ? (
+                          <span className="exploit-choice__badge exploit-choice__badge--filtered">
+                            調査により除外済（対象外）
+                          </span>
+                        ) : null}
                       </div>
                       <code className="exploit-choice__cmd">{choice.command}</code>
                       <p className="exploit-choice__desc">{choice.description}</p>
@@ -436,7 +504,7 @@ export function NodeDetailPanel({
                   <div className="exploit-feedback__title">
                     {selectedChoice.isCorrect
                       ? '[+] EXPLOIT READY — 脆弱性に合致する解答を確認しました！'
-                      : `🚨 [!] IDS ALERT — 不適切な選択が検知され、警戒度が +8% 上昇しました（現在: ${alertLevel.toFixed(1)}%）`}
+                      : `🚨 [!] IDS ALERT — 不適切な選択が検知され、警戒度 +${securityMeta.failureAlert}%・解析資源 -${securityMeta.failureResource} のペナルティを受けました（現在警戒度: ${alertLevel.toFixed(1)}%）`}
                   </div>
                   <p className="exploit-feedback__text">{selectedChoice.feedback}</p>
                   {selectedChoice.isCorrect && (
@@ -494,6 +562,9 @@ export function NodeDetailPanel({
                   className="exploit-modal__execute-btn"
                   disabled={!selectedChoice?.isCorrect || !canBreach}
                   onClick={() => {
+                    setSolvedQuestionIds((prev) =>
+                      prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id],
+                    );
                     setIsExploitOpen(false);
                     onAction(
                       'breach',
@@ -657,8 +728,7 @@ export function NodeDetailPanel({
                   onClick={() => {
                     onAction('confirmInfo' as TimedActionType);
                     setIsInfoOpen(false);
-                    setSelectedExploitId(null);
-                    setIsExploitOpen(true);
+                    openExploitModal();
                   }}
                 >
                   ハッキング端末（侵入）へ進む →

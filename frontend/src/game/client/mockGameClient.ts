@@ -34,7 +34,7 @@ function clampAlert(value: number): number {
 
 const KEY_FRAGMENT_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-const SECURITY_INFO_HINTS: Record<string, string> = {
+export const SECURITY_INFO_HINTS: Record<string, string> = {
   E01: 'E01: 公開SSHゲートウェイの構成を確認。Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、ログイン試行制限（Fail2ban等）が未導入です。辞書攻撃（hydra）による突破が有効です。',
   E02: 'E02: DNSサーバーのゾーン転送設定（AXFR）の不備を確認。内部ドメイン「corp.local」のレコード一覧を取得可能。DMZ層の Web(D01)・Mail(D02) の内部通信経路を特定しました。',
   E03: 'E03: アーカイブサーバーの公開ディレクトリを確認。旧システム移行用バックアップファイルがアクセス制限なしで露出。内部ツールの解析資源（RESOURCE +5）を回収可能です。',
@@ -82,7 +82,7 @@ const SECURITY_INFO_HINTS: Record<string, string> = {
   'core-1': 'core-1: 機密データベースのクエリ処理を確認。SQLインジェクション脆弱性により、機密データの抽出が可能です！',
 };
 
-const CORRECT_EXPLOITS: Record<string, string[]> = {
+export const CORRECT_EXPLOITS: Record<string, string[]> = {
   E01: ['ssh_bf', 'ssh_cfg_b'],
   E02: ['dns_axfr', 'dns_cfg_ok'],
   E03: ['acl_smb', 'acl_cfg_ok'],
@@ -93,8 +93,8 @@ const CORRECT_EXPLOITS: Record<string, string[]> = {
   D05: ['cred_dump', 'cred_code_b'],
   D06: ['log_tamper', 'log_def_ok'],
   D07: ['log_tamper', 'log_def_ok'],
-  I01: ['priv_esc'],
-  I02: ['priv_esc'],
+  I01: ['priv_esc', 'priv_sudo_b'],
+  I02: ['priv_esc', 'priv_sudo_b'],
   I03: ['log_tamper', 'log_def_ok'],
   I04: ['log_tamper', 'log_def_ok'],
   I05: ['acl_smb', 'acl_cfg_ok'],
@@ -130,7 +130,7 @@ const CORRECT_EXPLOITS: Record<string, string[]> = {
   'core-1': ['db_sqli_union', 'db_code_a'],
 };
 
-const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = {
+export const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = {
   E01: { alert: 5, resource: 1 },
   E02: { alert: 5, resource: 1 },
   E03: { alert: 3, resource: 1 },

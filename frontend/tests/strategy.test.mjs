@@ -111,3 +111,30 @@ test('node panel disables all E02/E03 operations until E01 is hacked, then permi
   await client.sendAction({ type: 'scan', nodeId: 'E02' });
   assert.equal((markup('E02').match(/disabled=""/g) ?? []).length, 3);
 });
+
+test('all 45 stage nodes have every correct exploit choice accepted by CORRECT_EXPLOITS and accurate penalties', () => {
+  const { STAGES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
+  const { getSecurityChallenge, getNodeSecurityMeta } = load(new URL('../src/game/data/securityLearningData.ts', import.meta.url));
+  const { CORRECT_EXPLOITS, SECURITY_PENALTIES } = load(new URL('../src/game/client/mockGameClient.ts', import.meta.url));
+
+  for (const stage of Object.values(STAGES)) {
+    for (const node of stage.nodes) {
+      const vuln = stage.vulnerabilities[node.id] ?? node.vulnerability;
+      const challenge = getSecurityChallenge(node.id, vuln, node.info);
+      const allowed = CORRECT_EXPLOITS[node.id];
+      assert.ok(Array.isArray(allowed) && allowed.length > 0, `Missing CORRECT_EXPLOITS for ${node.id}`);
+      for (const q of challenge.questions) {
+        const correctChoices = q.choices.filter((c) => c.isCorrect);
+        assert.equal(correctChoices.length, 1, `Expected exactly 1 correct choice in ${node.id} ${q.id}`);
+        assert.ok(
+          allowed.includes(correctChoices[0].id),
+          `Node ${node.id} question ${q.id} correct choice ${correctChoices[0].id} is not in CORRECT_EXPLOITS (${allowed.join(',')})`,
+        );
+      }
+      const meta = getNodeSecurityMeta(node.id);
+      const penalty = SECURITY_PENALTIES[node.id];
+      assert.equal(meta.failureAlert, penalty.alert, `Penalty alert mismatch on ${node.id}`);
+      assert.equal(meta.failureResource, penalty.resource, `Penalty resource mismatch on ${node.id}`);
+    }
+  }
+});

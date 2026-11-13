@@ -109,6 +109,8 @@ function MapContent({
           gateState: stage.breachRequirements[node.id]
             ? node.status === 'hacked' ? 'hacked' : missingGateRequirements(node.id, nodes, stage).length ? 'locked' : 'unlocked'
             : undefined,
+          effect: stage.nodeEffects[node.id],
+          isKeyFragment: stage.keyFragmentNodeIds.includes(node.id),
         },
         draggable: false,
         className:

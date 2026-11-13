@@ -1,0 +1,313 @@
+.mission-failure {
+  width: min(780px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 0;
+  color: #fce7f3;
+  background: #14080c;
+  border: 1px solid #ef4444;
+  border-radius: 12px;
+  box-shadow: 0 0 80px rgba(239, 68, 68, 0.28);
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.mission-failure[open] {
+  animation: mission-failure-enter 350ms ease-out;
+}
+
+.mission-failure::backdrop {
+  background: rgba(10, 2, 5, 0.88);
+  backdrop-filter: blur(3px);
+}
+
+.mission-failure__content {
+  padding: clamp(22px, 3.8vw, 40px);
+  text-align: center;
+  background: radial-gradient(ellipse at top, rgba(153, 27, 27, 0.35), transparent 65%);
+}
+
+.mission-failure__eyebrow {
+  color: #fca5a5;
+  font-size: 11px;
+  letter-spacing: 3px;
+  margin: 0;
+}
+
+.mission-failure h1 {
+  color: #f87171;
+  font-size: clamp(26px, 4.5vw, 42px);
+  letter-spacing: 3px;
+  margin: 16px 0 8px;
+  text-shadow: 0 0 24px rgba(239, 68, 68, 0.5);
+}
+
+#mission-failure-description {
+  color: #fecdd3;
+  font-size: 13.5px;
+  margin: 0 0 22px;
+}
+
+/* 根本原因ボックス */
+.mission-failure__cause-box {
+  text-align: left;
+  background: rgba(69, 10, 10, 0.45);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-left: 4px solid #ef4444;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+
+.mission-failure__cause-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.mission-failure__cause-badge {
+  background: #ef4444;
+  color: #180407;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+}
+
+.mission-failure__cause-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fecaca;
+}
+
+.mission-failure__cause-text {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #f1f5f9;
+  margin: 0 0 10px;
+}
+
+.mission-failure__cause-mitre {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* セクション共通 */
+.mission-failure__section {
+  text-align: left;
+  background: #0d0609;
+  border: 1px solid #3f1520;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+
+.mission-failure__section-title {
+  font-size: 12.5px;
+  color: #fda4af;
+  letter-spacing: 1px;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mission-failure__section-tag {
+  background: rgba(190, 18, 60, 0.35);
+  border: 1px solid #f43f5e;
+  color: #fecdd3;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+/* インシデントログ */
+.mission-failure__log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mission-failure__log-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+  padding: 6px 10px;
+  background: rgba(24, 9, 14, 0.9);
+  border-left: 3px solid #f43f5e;
+  border-radius: 4px;
+}
+
+.mission-failure__log-item--warning {
+  border-left-color: #f59e0b;
+}
+
+.mission-failure__log-severity {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fb7185;
+  flex-shrink: 0;
+}
+
+.mission-failure__log-item--warning .mission-failure__log-severity {
+  color: #fbbf24;
+}
+
+.mission-failure__log-msg {
+  color: #e2e8f0;
+  line-height: 1.4;
+}
+
+/* 戦術アドバイスグリッド */
+.mission-failure__advice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.mission-failure__advice-card {
+  background: rgba(30, 14, 22, 0.85);
+  border: 1px solid #4c1d2e;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.mission-failure__advice-card strong {
+  display: block;
+  font-size: 12px;
+  color: #fda4af;
+  margin-bottom: 6px;
+}
+
+.mission-failure__advice-card p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+/* スタッツ */
+.mission-failure__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: #4c1d29;
+  border: 1px solid #4c1d29;
+  text-align: left;
+  margin: 18px 0;
+}
+
+.mission-failure__stats > div {
+  padding: 12px 16px;
+  background: #16090e;
+}
+
+.mission-failure__stats > div:last-child {
+  grid-column: 1 / -1;
+}
+
+.mission-failure__stats dt {
+  color: #fda4af;
+  font-size: 11.5px;
+}
+
+.mission-failure__stats dd {
+  margin: 6px 0 0;
+  font-size: 20px;
+  color: #fff1f2;
+  overflow-wrap: anywhere;
+}
+
+.mission-failure__stats dd.stat-danger {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.mission-failure__stats dd small {
+  color: #fda4af;
+  font-size: 13px;
+}
+
+.mission-failure__error {
+  color: #fda4af;
+  font-size: 13px;
+}
+
+/* アクションボタン */
+.mission-failure__actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.mission-failure__actions button {
+  flex: 1;
+  padding: 14px;
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+
+.mission-failure__actions .btn-retry {
+  background: #ef4444;
+  border: 1px solid #f87171;
+  color: #180407;
+}
+
+.mission-failure__actions .btn-title {
+  background: transparent;
+  border: 1px solid #7f1d1d;
+  color: #fecaca;
+}
+
+.mission-failure__actions button:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.mission-failure__actions button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+
+.mission-failure__actions button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.mission-failure__pending {
+  color: #fda4af;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+@keyframes mission-failure-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mission-failure[open] {
+    animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .mission-failure__stats {
+    grid-template-columns: 1fr;
+  }
+}

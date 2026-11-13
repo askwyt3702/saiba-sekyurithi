@@ -12,6 +12,7 @@ import { EventLog } from './components/EventLog/EventLog';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { MissionResult } from './components/MissionResult/MissionResult';
+import { MissionFailure } from './components/MissionFailure/MissionFailure';
 import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
@@ -255,11 +256,14 @@ function App() {
         <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
       )}
       {state.status === 'lost' && (
-        <div className="app-banner app-banner--lost">
-          {state.alertLevel < 100
-            ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
-            : '作戦失敗：警戒度が限界に達しました。'}
-        </div>
+        <>
+          <div className="app-banner app-banner--lost">
+            {state.alertLevel < 100
+              ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
+              : '作戦失敗：警戒度が限界に達しました。'}
+          </div>
+          <MissionFailure state={state} onRetry={restartMission} onTitle={returnToTitle} />
+        </>
       )}
       <div className="app-body">
         <ToolPanel
