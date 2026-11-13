@@ -9,9 +9,17 @@
   background: #101218;
 }
 
+/* 画面全体の zoom(src/uiScale.ts)を打ち消し、React Flow は実際の画面ピクセルで動かす。
+   見た目の大きさは MapView.tsx で React Flow のズームに倍率を掛けて合わせる。 */
 .map-view .react-flow {
-  width: 100%;
-  height: 100%;
+  zoom: calc(1 / var(--ui-scale, 1));
+  width: calc(100% * var(--ui-scale, 1));
+  height: calc(100% * var(--ui-scale, 1));
+}
+
+/* ズームボタンは他のUIと同じ大きさに戻す */
+.map-view .react-flow__controls {
+  zoom: var(--ui-scale, 1);
 }
 
 .map-view .react-flow__controls button {

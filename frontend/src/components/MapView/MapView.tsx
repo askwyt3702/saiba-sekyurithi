@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   Controls,
@@ -12,6 +12,7 @@ import {
 
 import '@xyflow/react/dist/style.css';
 import { DEFAULT_STAGE_ID, getStageData } from '../../game/data/stageData';
+import { useUiScale } from '../../useUiScale';
 import { missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
@@ -52,10 +53,16 @@ function MapContent({
   onSelectNode,
 }: MapViewProps) {
   const stage = getStageData(stageId);
-  const { setViewport } = useReactFlow();
+  const { setViewport, getViewport } = useReactFlow();
+  // 画面全体の拡大(#root の zoom)はマップには効かせず(MapView.css)、React Flow 自身のズームで同じ大きさに見せる。
+  // 外側の zoom が残っていると、ドラッグでマップがマウスより速く動いてしまうため。
+  const uiScale = useUiScale();
+  const appliedScale = useRef(uiScale);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const initializedEntryId = useRef<string | null>(null);
+  // React Flow の準備ができる前に setViewport しても無視されるため、onInit を待つ
+  const [flowReady, setFlowReady] = useState(false);
 
   // ノードの状態
   const nodeStatusMap = useMemo(
@@ -165,7 +172,7 @@ function MapContent({
 
   // 初期表示を入口ノード（E01 または External階層の先頭ノード）付近に設定
   useEffect(() => {
-    if (nodes.length === 0) return;
+    if (!flowReady || nodes.length === 0) return;
 
     const entryNode =
       nodes.find((node) => stage.entryNodeIds.includes(node.id)) ??
@@ -175,11 +182,12 @@ function MapContent({
 
     if (!entryNode || !container || initializedEntryId.current === entryNode.id) return;
 
-    const width = container.clientWidth;
+    // マップの中は実際の画面ピクセルで動くので、デザイン上の幅に倍率を掛ける
+    const width = container.clientWidth * uiScale;
     if (width === 0) return;
 
     const nodeWidth = 180;
-    const initialZoom = 1;
+    const initialZoom = uiScale;
 
     setViewport(
       {
@@ -187,14 +195,24 @@ function MapContent({
           width / 2 -
           (entryNode.position.x + nodeWidth / 2) *
             initialZoom,
-        y: 65 - entryNode.position.y * initialZoom,
+        y: 65 * uiScale - entryNode.position.y * initialZoom,
         zoom: initialZoom,
       },
       { duration: 0 },
     );
 
     initializedEntryId.current = entryNode.id;
-  }, [nodes, setViewport, stage]);
+    appliedScale.current = uiScale;
+  }, [flowReady, nodes, setViewport, stage, uiScale]);
+
+  // ウィンドウの大きさが変わって倍率が変わったら、見えている範囲を保ったままズームを合わせ直す
+  useEffect(() => {
+    const ratio = uiScale / appliedScale.current;
+    if (ratio === 1) return;
+    const { x, y, zoom } = getViewport();
+    setViewport({ x: x * ratio, y: y * ratio, zoom: zoom * ratio }, { duration: 0 });
+    appliedScale.current = uiScale;
+  }, [uiScale, getViewport, setViewport]);
 
   return (
     <div className="map-view" ref={containerRef}>
@@ -204,9 +222,10 @@ function MapContent({
         nodeTypes={nodeTypes}
         translateExtent={MAP_BOUNDS}
         onNodeClick={(_, node) => onSelectNode(node.id)}
+        onInit={() => setFlowReady(true)}
         fitView={false}
-        minZoom={0.45}
-        maxZoom={1.6}
+        minZoom={0.45 * uiScale}
+        maxZoom={1.6 * uiScale}
         zoomOnScroll={false}
         zoomOnPinch={true}
         zoomOnDoubleClick={false}
