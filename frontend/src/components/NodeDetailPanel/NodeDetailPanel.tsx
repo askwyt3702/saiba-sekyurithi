@@ -259,7 +259,10 @@ export function NodeDetailPanel({
         <button
           type="button"
           className="node-detail__info-button"
-          onClick={() => setIsInfoOpen(true)}
+          onClick={() => {
+            onAction('confirmInfo' as TimedActionType);
+            setIsInfoOpen(true);
+          }}
         >
           情報確認
         </button>
@@ -595,6 +598,7 @@ export function NodeDetailPanel({
                   type="button"
                   className="exploit-modal__execute-btn"
                   onClick={() => {
+                    onAction('confirmInfo' as TimedActionType);
                     setIsInfoOpen(false);
                     setSelectedExploitId(null);
                     setIsExploitOpen(true);

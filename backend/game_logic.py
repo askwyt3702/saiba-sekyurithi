@@ -782,32 +782,32 @@ def apply_action(
         db.commit()
         return
 
-    # E02：情報確認が完了しているかチェック
-    if action_type == "breach" and node.id == "E02":
-        info_done = _security_event_done(
-            db, player, node.id, "INFO_CONFIRMED"
-        )
-
-        if not info_done:
-            cost = ACTION_COSTS[action_type]
-            player.analysis_resource -= cost["resource"]
-
-            _advance_time(
-                player,
-                cost["time"],
-                SECURITY_RULES[node.id]["failure_alert"]
-            )
-
-            add_log(
-                db,
-                player,
-                "warning",
-                f"{node.name} の情報確認が完了していません。"
-            )
-
-            _check_game_over(db, player)
-            db.commit()
-            return
+    # E02：情報確認が完了しているかチェック（既存バランス設計維持のためコメントアウト）
+    # if action_type == "breach" and node.id == "E02":
+    #     info_done = _security_event_done(
+    #         db, player, node.id, "INFO_CONFIRMED"
+    #     )
+    #
+    #     if not info_done:
+    #         cost = ACTION_COSTS[action_type]
+    #         player.analysis_resource -= cost["resource"]
+    #
+    #         _advance_time(
+    #             player,
+    #             cost["time"],
+    #             SECURITY_RULES[node.id]["failure_alert"]
+    #         )
+    #
+    #         add_log(
+    #             db,
+    #             player,
+    #             "warning",
+    #             f"{node.name} の情報確認が完了していません。"
+    #         )
+    #
+    #         _check_game_over(db, player)
+    #         db.commit()
+    #         return
 
     stage = _player_stage(player)
     key_ids = stage["key_fragment_node_ids"]
@@ -912,19 +912,17 @@ def apply_action(
         _apply_node_effect(db, player, node)
         _log_mechanics_unlocked(db, player, node.id)
 
-        # ノードごとの成功報酬
-        rule = SECURITY_RULES.get(node.id)
-
-        if rule:
-            reward = rule.get("success_resource", 0)
-            player.analysis_resource += reward
-
-            add_log(
-                db,
-                player,
-                "success",
-                f"{node.name} の攻略報酬として解析資源を{reward}獲得しました。"
-            )
+        # ノードごとの成功報酬（既存バランス設計維持のためコメントアウト）
+        # rule = SECURITY_RULES.get(node.id)
+        # if rule:
+        #     reward = rule.get("success_resource", 0)
+        #     player.analysis_resource += reward
+        #     add_log(
+        #         db,
+        #         player,
+        #         "success",
+        #         f"{node.name} の攻略報酬として解析資源を{reward}獲得しました。"
+        #     )
 
     elif action_type == "dataExtract":
         if has_all_keys:

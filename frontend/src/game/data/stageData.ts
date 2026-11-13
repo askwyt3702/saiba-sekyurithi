@@ -167,7 +167,7 @@ export interface NodeEffect {
 
 // 侵入(breach)成功時に発動する特殊効果。
 export const NODE_EFFECTS: Record<string, NodeEffect> = {
-  'E03': { resourceBonus: 0, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
+  'E03': { resourceBonus: 5, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
   'D06': { resourceBonus: 0, alertDelta: -8, log: 'プロキシサーバーで通信経路を偽装。警戒度が低下しました。' },
   'I03': { resourceBonus: 0, alertDelta: -15, log: 'ログ管理サーバーの監査ログを改ざんし、侵入痕跡を削減しました（警戒度 -15%）。' },
   'I04': { resourceBonus: 0, alertDelta: -20, log: 'ARGUS監視制御を妨害！監視AIの警戒レベルを大幅に引き下げました（警戒度 -20%）。' },
@@ -339,7 +339,7 @@ export const STAGES: Record<number, StageDefinition> = {
     targetNodeIds: ['C03'],
     keyFragmentNodeIds: ['I06', 'I07'],
     nodeEffects: {
-      'E03': { resourceBonus: 0, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
+      'E03': { resourceBonus: 5, alertDelta: 0, log: '公開情報アーカイブから解析ツールを回収。解析資源が +5 補給されました。' },
       'D06': { resourceBonus: 0, alertDelta: -8, log: 'プロキシサーバーで通信経路を偽装。警戒度が低下しました。' },
       'I03': { resourceBonus: 0, alertDelta: -15, log: 'ログ管理サーバーの監査ログを改ざんし、侵入痕跡を削減しました（警戒度 -15%）。' },
       'I04': { resourceBonus: 0, alertDelta: -20, log: 'ARGUS監視制御を妨害！監視AIの警戒レベルを大幅に引き下げました（警戒度 -20%）。' },
