@@ -79,7 +79,7 @@ function App() {
         )
       ) {
         setIdsAlertActive(true);
-        const timer = setTimeout(() => setIdsAlertActive(false), 1600);
+        const timer = setTimeout(() => setIdsAlertActive(false), 900);
         return () => clearTimeout(timer);
       }
     }
