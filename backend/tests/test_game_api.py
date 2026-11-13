@@ -157,7 +157,7 @@ def test_breach_promotes_privilege(game, act):
     assert node_of(result["state"], ENTRY)["status"] == "hacked"
     assert result["state"]["privilege"] == "USER"
     assert result["state"]["analysisResource"] == (
-        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] + 3
+        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"]
     )
 
 
@@ -552,11 +552,11 @@ def test_recovery_prevents_false_resource_game_over(game, act, set_player):
     assert act(game, "scan", ENTRY)["accepted"]
     set_player(game, analysis_resource=BREACH_COST["resource"])
     state = act(game, "breach", ENTRY)["state"]
-    assert state["analysisResource"] == 3
+    assert state["analysisResource"] == 0
     assert state["status"] == "playing"
     recovered = act(game, "recover")
     assert recovered["accepted"]
-    assert recovered["state"]["analysisResource"] == 8
+    assert recovered["state"]["analysisResource"] == 5
     assert recovered["state"]["elapsedSeconds"] == (
         SCAN_COST["time"] + BREACH_COST["time"] + ACTION_COSTS["recover"]["time"]
     )
@@ -575,7 +575,7 @@ def test_remote_scan_reaches_disconnected_core(game, act):
     remote = act(game, "remoteScan", core)
     assert remote["accepted"] is True
     assert node_of(remote["state"], core)["status"] == "scanned"
-    assert remote["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] - ACTION_COSTS["remoteScan"]["resource"] + 3
+    assert remote["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] - ACTION_COSTS["remoteScan"]["resource"]
 
 
 def test_recovery_requires_hacked_node_and_respects_cap(game, act, set_player):
