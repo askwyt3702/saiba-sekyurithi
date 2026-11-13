@@ -80,7 +80,7 @@
   top: 50px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999;
+  z-index: 99999;
   background: rgba(185, 28, 28, 0.95);
   border: 2px solid #f87171;
   border-radius: 6px;

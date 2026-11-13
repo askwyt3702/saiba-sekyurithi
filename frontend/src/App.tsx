@@ -62,6 +62,13 @@ function App() {
   const [idsAlertActive, setIdsAlertActive] = useState(false);
   const [prevLogLength, setPrevLogLength] = useState(0);
 
+  const triggerIdsAlert = () => {
+    setIdsAlertActive(true);
+    setTimeout(() => {
+      setIdsAlertActive(false);
+    }, 900);
+  };
+
   useEffect(() => {
     if (hasAutostartParam()) {
       window.history.replaceState({}, '', '/');
@@ -78,9 +85,7 @@ function App() {
           (l) => l.message.includes('【IDS検知警告】') || l.message.includes('検知されました！')
         )
       ) {
-        setIdsAlertActive(true);
-        const timer = setTimeout(() => setIdsAlertActive(false), 900);
-        return () => clearTimeout(timer);
+        triggerIdsAlert();
       }
     }
   }, [state?.log, prevLogLength]);
@@ -112,6 +117,10 @@ function App() {
 
     const nodeId = selectedNode.id;
     setNotice(null);
+
+    if (exploitMismatch) {
+      triggerIdsAlert();
+    }
 
     try {
       if (type === 'breach' && !exploitMismatch && (nodeId === 'E01' || nodeId === 'E02' || nodeId === 'E03')) {

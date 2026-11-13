@@ -731,3 +731,35 @@
   border: 1px solid #eab308;
   color: #fde047;
 }
+
+/* ========================================
+   エクスプロイトモーダル IDS検知赤フラッシュ＆シェイク
+======================================== */
+.exploit-modal--ids-alert {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 50px rgba(239, 68, 68, 0.9), inset 0 0 30px rgba(239, 68, 68, 0.5) !important;
+  animation: exploit-modal-shake 0.35s ease-in-out infinite alternate !important;
+}
+
+@keyframes exploit-modal-shake {
+  0% {
+    transform: translate(0, 0);
+    border-color: #ef4444;
+  }
+  25% {
+    transform: translate(-3px, 1px);
+    border-color: #f87171;
+  }
+  50% {
+    transform: translate(3px, -2px);
+    border-color: #b91c1c;
+  }
+  75% {
+    transform: translate(-2px, -1px);
+    border-color: #f87171;
+  }
+  100% {
+    transform: translate(2px, 2px);
+    border-color: #ef4444;
+  }
+}
