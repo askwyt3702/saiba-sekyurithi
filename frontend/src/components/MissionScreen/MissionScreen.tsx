@@ -9,10 +9,11 @@ interface MissionItem {
   id: number;
   code: string;
   badge: string;
+  hazardTag: string;
   title: string;
   description: string;
   targetNode: string;
-  nodeCount: string;
+  idsStatus: string;
   difficultyLabel: string;
   difficultyLevel: number; // 1〜4
   theme: 'cyan' | 'green' | 'amber' | 'locked';
@@ -23,69 +24,72 @@ interface MissionItem {
 const MISSIONS: MissionItem[] = [
   {
     id: 0,
-    code: 'STAGE 00 // TRAINING',
+    code: 'SECTOR 00 // SANDBOX',
     badge: '5 NODES',
+    hazardTag: 'TRACE: ISOLATED',
     title: '基礎侵入訓練',
     description:
-      '5ノードの小規模ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。初期侵入口はE01のみ。',
+      '5ノードの隔離ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。初期侵入口はE01のみ。',
     targetNode: 'C01 (CORE)',
-    nodeCount: '05',
-    difficultyLabel: '訓練 / TRAINING',
+    idsStatus: 'PASSIVE (訓練用監視)',
+    difficultyLabel: '訓練 / LOW RISK',
     difficultyLevel: 1,
     theme: 'cyan',
-    actionText: 'START TRAINING',
+    actionText: 'BREACH SECTOR',
   },
   {
     id: 1,
-    code: 'MISSION 01 // INFILTRATION',
+    code: 'SECTOR 01 // INFILTRATION',
     badge: '24 NODES',
+    hazardTag: 'ALERT 100% = TERMINATED',
     title: '消えた機密データ',
     description:
-      'E01から侵入し、最短・安全・資源回収の方針を選んでC03のデータを回収せよ。回収時も警戒度100%で敗北。',
+      'E01から侵入し、最短・安全・資源回収の方針を選んでC03のデータを回収せよ。回収時も警戒度100%に達した瞬間、逆探知され敗北となる。',
     targetNode: 'C03 (CORE)',
-    nodeCount: '24',
-    difficultyLabel: '初級 / NORMAL',
+    idsStatus: 'ACTIVE (100%で即遮断)',
+    difficultyLabel: '初級 / MONITORED',
     difficultyLevel: 2,
     theme: 'green',
-    actionText: 'LAUNCH MISSION',
+    actionText: 'EXECUTE BREACH',
   },
   {
     id: 2,
-    code: 'MISSION 02 // DEEP TRACE',
+    code: 'SECTOR 02 // DEEP TRACE',
     badge: '16 NODES',
+    hazardTag: 'TRAP: ALERT +12% SPIKE',
     title: '偽装された通信記録',
     description:
-      'S2-E01から侵入し、S2-C03で原本通信証跡を回収せよ。監視の追加警戒度+12%とゲート条件を確認し、攻略方針を選べ。',
+      'S2-E01から侵入し、S2-C03で原本通信証跡を回収せよ。監視の追加警戒度+12%トラップとゲート条件が侵入者を追い詰める。',
     targetNode: 'S2-C03 (CORE)',
-    nodeCount: '16',
-    difficultyLabel: '中〜上級 / HARD',
+    idsStatus: 'HOSTILE (監視トラップ稼働)',
+    difficultyLabel: '中〜上級 / DANGER',
     difficultyLevel: 3,
     theme: 'amber',
-    actionText: 'LAUNCH MISSION',
+    actionText: 'EXECUTE BREACH',
   },
   {
     id: 3,
-    code: 'MISSION 03 // CLASSIFIED',
-    badge: 'LOCKED',
+    code: 'SECTOR 03 // BLACK CORE',
+    badge: 'SEALED',
+    hazardTag: 'LETHAL COUNTERMEASURE',
     title: '封鎖されたセキュリティコア',
     description:
-      'システムの最深部に隠された真実を暴け。現在このセクターへのアクセスルートは暗号化により封鎖されている。',
-    targetNode: 'UNKNOWN',
-    nodeCount: '??',
-    difficultyLabel: '上級 / EXTREME',
+      'システムの最深部に隠された真実を暴け。現在このセクターは防衛AIによって完全封鎖されており、アクセスルートは遮断されている。',
+    targetNode: '0xDEAD_CORE',
+    idsStatus: 'LOCKED (防衛機構ロック中)',
+    difficultyLabel: '上級 / FATAL',
     difficultyLevel: 4,
     theme: 'locked',
     locked: true,
-    actionText: 'ACCESS DENIED',
+    actionText: 'CONNECTION BLOCKED',
   },
 ];
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
   return (
     <main className="ms-root" id="missionScreen">
-      {/* ゆらゆら動く背景＆グリッド＆スキャンライン */}
-      <div className="ms-bg-image" />
-      <div className="ms-bg-grid" />
+      {/* 軽量化した背景オーバーレイ（1枚に統合）＋スキャンレーザー1本 */}
+      <div className="ms-bg-overlay" />
       <div className="ms-scan-beam" />
 
       <div className="ms-container">
@@ -95,37 +99,39 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
             <span className="ms-brand-cyber">CYBER</span>
             <span className="ms-brand-labyrinth">LABYRINTH</span>
             <span className="ms-brand-divider">//</span>
-            <span className="ms-brand-sub">MISSION SELECT</span>
+            <span className="ms-brand-sub">BACKDOOR_TERMINAL</span>
           </div>
 
           <div className="ms-status">
             <span className="ms-status-dot" />
-            <span>SYSTEM ONLINE // DEPTH_SELECT</span>
+            <span>STEALTH LINK: ACTIVE // IDS EVADING</span>
           </div>
         </header>
 
         {/* タイトルセクション */}
         <section className="ms-hero">
           <div className="ms-hero-top">
-            <p className="ms-section-code">OPERATION CONTROL // 001</p>
+            <p className="ms-section-code">
+              &gt; TARGET_SECTOR_LIST // ENCRYPTED_NODES_DETECTED
+            </p>
             <p className="ms-recommend-tag">
-              ✦ 初めてプレイする方は「STAGE 00 基礎侵入訓練」から推奨
+              ✦ 初回潜入時は「SECTOR 00 基礎侵入訓練」での事前シミュレーションを推奨
             </p>
           </div>
-          <h1 className="ms-title">SELECT TARGET SECTOR</h1>
+          <h1 className="ms-title">SELECT BREACH TARGET</h1>
           <p className="ms-subtitle">
-            潜入するネットワークセクターを選択してください。各ミッションでターゲットと監視条件が異なります。
+            侵入するターゲットセクターを選択せよ。各セクターには監視網（IDS）が張られており、警戒度が限界に達すれば逆探知される。
           </p>
         </section>
 
-        {/* ホログラム・カードグリッド（案B） */}
+        {/* ホログラム・カードグリッド（案B・ダーク侵入仕様） */}
         <section className="ms-grid">
           {MISSIONS.map((m, idx) => {
             const isLocked = Boolean(m.locked);
             return (
               <article
                 key={m.id}
-                style={{ animationDelay: `${idx * 0.09}s` }}
+                style={{ animationDelay: `${idx * 0.08}s` }}
                 className={`ms-card ms-card--${m.theme} ${isLocked ? 'is-locked' : ''}`}
                 onClick={() => {
                   if (!isLocked) onSelectMission(m.id);
@@ -139,7 +145,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                   }
                 }}
               >
-                {/* ホバー時に走るホログラム・スキャンライン */}
+                {/* ホバー時に走るスキャンレーザー */}
                 <div className="ms-card-scanner" />
 
                 {/* 四隅のコーナーブラケット */}
@@ -154,20 +160,30 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                   <span className="ms-card-badge">{m.badge}</span>
                 </div>
 
+                {/* 危険度・監視タグ */}
+                <div className="ms-hazard-strip">
+                  <span className="ms-hazard-dot" />
+                  <span>{m.hazardTag}</span>
+                </div>
+
                 {/* カード中央：タイトル＆説明文 */}
                 <div className="ms-card-body">
                   <h2 className="ms-card-title">{m.title}</h2>
                   <p className="ms-card-desc">{m.description}</p>
                 </div>
 
-                {/* メタ情報（ターゲット・難易度バー） */}
+                {/* メタ情報（ターゲット・IDS監視状態・危険度バー） */}
                 <div className="ms-card-meta">
                   <div className="ms-meta-row">
                     <span className="ms-meta-label">TARGET</span>
                     <span className="ms-meta-val">{m.targetNode}</span>
                   </div>
                   <div className="ms-meta-row">
-                    <span className="ms-meta-label">THREAT</span>
+                    <span className="ms-meta-label">IDS_SYS</span>
+                    <span className="ms-meta-ids">{m.idsStatus}</span>
+                  </div>
+                  <div className="ms-meta-row">
+                    <span className="ms-meta-label">DANGER</span>
                     <div className="ms-diff-wrap">
                       <span className="ms-diff-text">{m.difficultyLabel}</span>
                       <div className="ms-diff-bars">
@@ -190,7 +206,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                     {isLocked ? '🔒 ' : '▶ '}
                     {m.actionText}
                   </span>
-                  <span className="ms-action-arrow">{isLocked ? '—' : '→'}</span>
+                  <span className="ms-action-arrow">{isLocked ? '×' : '→'}</span>
                 </div>
               </article>
             );
@@ -201,11 +217,11 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
         <footer className="ms-footer">
           <button type="button" className="ms-back-btn" onClick={onBack}>
             <span className="ms-back-arrow">←</span>
-            <span>RETURN TO TITLE</span>
+            <span>DISCONNECT (タイトルへ戻る)</span>
           </button>
 
           <div className="ms-footer-info">
-            CYBER_LABYRINTH_OS // SECURE TERMINAL v1.0.0
+            ENCRYPTED TUNNEL: ACTIVE // PACKET_LOSS: 0.02% // NO LOGS SAVED
           </div>
         </footer>
       </div>

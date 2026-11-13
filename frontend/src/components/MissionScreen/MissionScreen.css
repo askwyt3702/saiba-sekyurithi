@@ -1,12 +1,18 @@
 /* =============================================
-   CYBER LABYRINTH — ミッション選択画面（案B: ホログラムカード進化版）
+   CYBER LABYRINTH — ミッション選択画面（ダーク潜入・1画面コンパクト・軽量版）
    ============================================= */
 
 .ms-root {
   position: relative;
   min-height: 100vh;
   width: 100%;
-  background-color: #020805;
+  background-color: #010603;
+  background-image:
+    radial-gradient(circle at 50% 45%, rgba(1, 10, 5, 0.76) 35%, rgba(0, 4, 2, 0.94) 85%, rgba(28, 3, 7, 0.96) 100%),
+    url('/title-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   color: #e6f5ec;
   font-family: ui-monospace, 'Courier New', Consolas, monospace;
   overflow-x: hidden;
@@ -14,57 +20,39 @@
   flex-direction: column;
 }
 
-/* ---- 背景レイヤー（軽量GPUアニメーション） ---- */
-
-.ms-bg-image {
-  position: fixed;
-  inset: -5%;
-  z-index: 0;
-  background-image: url('/title-bg.jpg');
-  background-size: cover;
-  background-position: center;
-  opacity: 0.22;
-  filter: saturate(1.15);
-  will-change: transform;
-  animation: ms-bg-drift 18s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes ms-bg-drift {
-  0%, 100% {
-    transform: scale(1.06) translate3d(0px, 0px, 0);
-  }
-  50% {
-    transform: scale(1.09) translate3d(-14px, 10px, 0);
-  }
-}
-
-.ms-bg-grid {
+/* グリッド＋CRT走査線を1枚の静的レイヤーに統合（再描画コスト0） */
+.ms-bg-overlay {
   position: fixed;
   inset: 0;
   z-index: 1;
   background:
-    radial-gradient(ellipse 85% 50% at 50% 0%, rgba(0, 255, 100, 0.12) 0%, transparent 70%),
-    radial-gradient(circle at 50% 50%, rgba(2, 10, 6, 0.5) 0%, rgba(1, 5, 3, 0.94) 100%),
-    linear-gradient(rgba(0, 255, 100, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 100, 0.04) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 3px,
+      rgba(0, 0, 0, 0.22) 3px,
+      rgba(0, 0, 0, 0.22) 4px
+    ),
+    linear-gradient(rgba(0, 255, 100, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 100, 0.03) 1px, transparent 1px);
+  background-size: 100% 4px, 32px 32px, 32px 32px;
   pointer-events: none;
 }
 
-/* 画面全体をゆっくり上から下へ走るスキャンビーム */
+/* 画面全体を上から下へ撫でるダークグリーンの監視スキャンレーザー（GPU transformのみ） */
 .ms-scan-beam {
   position: fixed;
   left: 0;
   right: 0;
-  top: -120px;
-  height: 120px;
+  top: -110px;
+  height: 110px;
   z-index: 2;
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(0, 255, 100, 0.04) 85%,
-    rgba(0, 255, 100, 0.14) 100%
+    rgba(0, 255, 100, 0.03) 75%,
+    rgba(0, 255, 100, 0.12) 98%,
+    rgba(0, 255, 120, 0.28) 100%
   );
   pointer-events: none;
   will-change: transform;
@@ -73,22 +61,22 @@
 
 @keyframes ms-global-scan {
   0% {
-    transform: translate3d(0, -120px, 0);
+    transform: translate3d(0, -110px, 0);
   }
   100% {
-    transform: translate3d(0, 115vh, 0);
+    transform: translate3d(0, 112vh, 0);
   }
 }
 
-/* ---- コンテナ ---- */
+/* ---- コンテナ（ノートPCでもスクロールせず1画面に収まる余白） ---- */
 
 .ms-container {
   position: relative;
   z-index: 5;
   width: 100%;
-  max-width: 1320px;
+  max-width: 1340px;
   margin: 0 auto;
-  padding: 28px 4% 36px;
+  padding: 18px 4% 20px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -101,16 +89,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 18px;
-  border-bottom: 1px solid rgba(0, 255, 100, 0.22);
-  animation: ms-fade-down 0.5s ease both;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 255, 100, 0.2);
 }
 
 .ms-brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: 15px;
   letter-spacing: 4px;
 }
 
@@ -122,7 +109,7 @@
 .ms-brand-labyrinth {
   color: #00ff64;
   font-weight: 600;
-  text-shadow: 0 0 12px rgba(0, 255, 100, 0.65);
+  text-shadow: 0 0 10px rgba(0, 255, 100, 0.55);
 }
 
 .ms-brand-divider {
@@ -131,9 +118,9 @@
 }
 
 .ms-brand-sub {
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 3px;
-  color: rgba(160, 215, 180, 0.8);
+  color: #7ab893;
 }
 
 .ms-status {
@@ -142,11 +129,11 @@
   gap: 8px;
   font-size: 11px;
   letter-spacing: 2px;
-  color: #00ff64;
-  background: rgba(0, 45, 20, 0.45);
-  border: 1px solid rgba(0, 255, 100, 0.3);
-  padding: 6px 14px;
-  border-radius: 999px;
+  color: #7ef0a8;
+  background: rgba(4, 26, 14, 0.7);
+  border: 1px solid rgba(0, 255, 100, 0.32);
+  padding: 5px 13px;
+  border-radius: 3px;
 }
 
 .ms-status-dot {
@@ -154,20 +141,12 @@
   height: 7px;
   border-radius: 50%;
   background: #00ff64;
-  box-shadow: 0 0 8px #00ff64;
-  animation: ms-dot-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes ms-dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.8); }
 }
 
 /* ---- ヒーロータイトル領域 ---- */
 
 .ms-hero {
-  margin: 26px 0 24px;
-  animation: ms-fade-up 0.55s ease both;
+  margin: 12px 0 12px;
 }
 
 .ms-hero-top {
@@ -175,39 +154,58 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .ms-section-code {
   font-size: 11px;
-  letter-spacing: 4px;
-  color: #00ff64;
-  opacity: 0.8;
+  letter-spacing: 3px;
+  color: rgba(0, 255, 100, 0.7);
 }
 
 .ms-recommend-tag {
   font-size: 11px;
   letter-spacing: 1px;
   color: #5ef2d6;
-  background: rgba(0, 220, 180, 0.1);
-  border: 1px solid rgba(0, 220, 180, 0.35);
-  padding: 4px 12px;
-  border-radius: 4px;
+  background: rgba(0, 40, 34, 0.65);
+  border: 1px solid rgba(0, 220, 180, 0.38);
+  padding: 3px 11px;
+  border-radius: 3px;
 }
 
 .ms-title {
-  margin: 4px 0 8px;
-  font-size: clamp(26px, 3.2vw, 38px);
-  font-weight: 300;
+  display: inline-block;
+  margin: 2px 0 4px;
+  font-size: clamp(22px, 2.6vw, 32px);
+  font-weight: 600;
   letter-spacing: 6px;
-  color: #ffffff;
-  text-shadow: 0 0 20px rgba(0, 255, 100, 0.3);
+  color: #f4fff8;
+  text-shadow:
+    -1.5px 0 rgba(255, 45, 65, 0.45),
+    1.5px 0 rgba(0, 255, 100, 0.55);
+  will-change: transform;
+  animation: ms-title-glitch 6s infinite;
+}
+
+@keyframes ms-title-glitch {
+  0%, 94%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  95% {
+    transform: translate3d(-2px, 0, 0);
+  }
+  96% {
+    transform: translate3d(2px, 0, 0);
+  }
+  97% {
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .ms-subtitle {
-  font-size: 13px;
-  color: #8ab89a;
+  font-size: 12px;
+  color: #88ab95;
   letter-spacing: 1px;
 }
 
@@ -216,8 +214,8 @@
 .ms-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
-  margin: 8px 0 28px;
+  gap: 14px;
+  margin: 4px 0 14px;
 }
 
 /* カード本体 */
@@ -225,38 +223,25 @@
   --card-accent: #00ff64;
   --card-accent-rgb: 0, 255, 100;
   position: relative;
-  background: linear-gradient(165deg, rgba(6, 22, 13, 0.92) 0%, rgba(3, 10, 6, 0.95) 100%);
+  background: #030b06;
   border: 1px solid rgba(var(--card-accent-rgb), 0.32);
-  padding: 22px 20px 18px;
+  border-top: 2px solid var(--card-accent);
+  border-radius: 4px;
+  padding: 16px 16px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 330px;
+  min-height: 295px;
   cursor: pointer;
   overflow: hidden;
-  clip-path: polygon(
-    0 0,
-    calc(100% - 16px) 0,
-    100% 16px,
-    100% 100%,
-    16px 100%,
-    0 calc(100% - 16px)
-  );
-  box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.7),
-    inset 0 0 18px rgba(var(--card-accent-rgb), 0.05);
-  transition:
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.28s ease,
-    box-shadow 0.28s ease,
-    background 0.28s ease;
-  animation: ms-card-enter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: ms-card-enter 0.45s ease-out both;
 }
 
 /* テーマカラー定義 */
 .ms-card--cyan {
-  --card-accent: #22f2d0;
-  --card-accent-rgb: 34, 242, 208;
+  --card-accent: #19f0c8;
+  --card-accent-rgb: 25, 240, 200;
 }
 
 .ms-card--green {
@@ -265,27 +250,30 @@
 }
 
 .ms-card--amber {
-  --card-accent: #ffbe2e;
-  --card-accent-rgb: 255, 190, 46;
+  --card-accent: #ff9924;
+  --card-accent-rgb: 255, 153, 36;
 }
 
 .ms-card--locked {
-  --card-accent: #ff4252;
-  --card-accent-rgb: 255, 66, 82;
-  background: linear-gradient(165deg, rgba(18, 7, 9, 0.88) 0%, rgba(7, 4, 5, 0.92) 100%);
-  opacity: 0.68;
+  --card-accent: #d93848;
+  --card-accent-rgb: 217, 56, 72;
+  background: repeating-linear-gradient(
+    -45deg,
+    #0e0406,
+    #0e0406 10px,
+    #070203 10px,
+    #070203 20px
+  );
+  opacity: 0.72;
   cursor: not-allowed;
 }
 
 /* ホバー時の浮き上がり＆発光 */
 .ms-card:not(.is-locked):hover,
 .ms-card:not(.is-locked):focus-visible {
-  transform: translate3d(0, -8px, 0);
+  transform: translate3d(0, -5px, 0);
   border-color: var(--card-accent);
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.85),
-    0 0 22px rgba(var(--card-accent-rgb), 0.32),
-    inset 0 0 24px rgba(var(--card-accent-rgb), 0.14);
+  box-shadow: 0 8px 20px rgba(var(--card-accent-rgb), 0.22);
   outline: none;
 }
 
@@ -295,12 +283,11 @@
   left: 0;
   right: 0;
   top: -100%;
-  height: 75%;
+  height: 70%;
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(var(--card-accent-rgb), 0.03) 65%,
-    rgba(var(--card-accent-rgb), 0.22) 98%,
+    rgba(var(--card-accent-rgb), 0.14) 96%,
     var(--card-accent) 100%
   );
   opacity: 0;
@@ -310,62 +297,55 @@
 
 .ms-card:not(.is-locked):hover .ms-card-scanner {
   opacity: 1;
-  animation: ms-card-scan 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: ms-card-scan 1.3s linear infinite;
 }
 
 @keyframes ms-card-scan {
   0% {
-    transform: translate3d(0, -20%, 0);
+    transform: translate3d(0, -10%, 0);
   }
   100% {
-    transform: translate3d(0, 260%, 0);
+    transform: translate3d(0, 250%, 0);
   }
 }
 
 /* 四隅のL字ブラケット装飾 */
 .ms-corner {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-color: var(--card-accent);
-  opacity: 0.45;
-  transition: opacity 0.25s, width 0.25s, height 0.25s;
+  opacity: 0.5;
   pointer-events: none;
   z-index: 2;
 }
 
 .ms-corner--tl {
-  top: 6px;
-  left: 6px;
+  top: 5px;
+  left: 5px;
   border-top: 2px solid var(--card-accent);
   border-left: 2px solid var(--card-accent);
 }
 
 .ms-corner--tr {
-  top: 6px;
-  right: 16px;
+  top: 5px;
+  right: 5px;
   border-top: 2px solid var(--card-accent);
   border-right: 2px solid var(--card-accent);
 }
 
 .ms-corner--bl {
-  bottom: 6px;
-  left: 16px;
+  bottom: 5px;
+  left: 5px;
   border-bottom: 2px solid var(--card-accent);
   border-left: 2px solid var(--card-accent);
 }
 
 .ms-corner--br {
-  bottom: 6px;
-  right: 6px;
+  bottom: 5px;
+  right: 5px;
   border-bottom: 2px solid var(--card-accent);
   border-right: 2px solid var(--card-accent);
-}
-
-.ms-card:not(.is-locked):hover .ms-corner {
-  opacity: 1;
-  width: 14px;
-  height: 14px;
 }
 
 /* ---- カード内部要素 ---- */
@@ -377,94 +357,126 @@
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(var(--card-accent-rgb), 0.18);
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--card-accent-rgb), 0.2);
 }
 
 .ms-card-code {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   letter-spacing: 1.5px;
   color: var(--card-accent);
 }
 
 .ms-card-badge {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 1px;
-  padding: 3px 8px;
-  border-radius: 3px;
+  padding: 2px 6px;
+  border-radius: 2px;
   color: var(--card-accent);
   background: rgba(var(--card-accent-rgb), 0.14);
-  border: 1px solid rgba(var(--card-accent-rgb), 0.38);
+  border: 1px solid rgba(var(--card-accent-rgb), 0.4);
+}
+
+/* 監視・トラップ警告ストリップ（各カードのテーマ色に合わせ、赤すぎないように調整） */
+.ms-hazard-strip {
+  position: relative;
+  z-index: 2;
+  margin-top: 8px;
+  padding: 3px 8px;
+  background: rgba(var(--card-accent-rgb), 0.09);
+  border-left: 2px solid var(--card-accent);
+  color: var(--card-accent);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ms-hazard-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .ms-card-body {
   position: relative;
   z-index: 2;
-  margin: 18px 0;
+  margin: 10px 0;
   flex: 1;
 }
 
 .ms-card-title {
-  font-size: 20px;
+  font-size: 17.5px;
   font-weight: 600;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.2px;
   color: #ffffff;
-  margin: 0 0 12px;
-  transition: color 0.2s, text-shadow 0.2s;
-}
-
-.ms-card:not(.is-locked):hover .ms-card-title {
-  color: #ffffff;
-  text-shadow: 0 0 14px rgba(var(--card-accent-rgb), 0.55);
+  margin: 0 0 8px;
 }
 
 .ms-card-desc {
-  font-size: 12.5px;
-  line-height: 1.75;
-  color: #9ec0aa;
+  font-size: 11.5px;
+  line-height: 1.62;
+  color: #93b5a0;
 }
 
 .ms-card.is-locked .ms-card-desc {
-  color: #8c7376;
+  color: #967377;
 }
 
-/* ---- カードメタ情報（TARGET / THREAT ゲージ） ---- */
+/* ---- カードメタ情報（TARGET / IDS_SYS / DANGER ゲージ） ---- */
 
 .ms-card-meta {
   position: relative;
   z-index: 2;
-  background: rgba(0, 0, 0, 0.38);
+  background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(var(--card-accent-rgb), 0.18);
-  border-radius: 4px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
+  border-radius: 3px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
 .ms-meta-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .ms-meta-label {
-  color: #6d967b;
+  color: #638c72;
   letter-spacing: 1.5px;
 }
 
 .ms-card.is-locked .ms-meta-label {
-  color: #8c6266;
+  color: #8f5c62;
 }
 
 .ms-meta-val {
   color: #e6f5ec;
   font-weight: 600;
   letter-spacing: 1px;
+}
+
+.ms-meta-ids {
+  color: #a6d4b6;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+}
+
+.ms-card--amber .ms-meta-ids {
+  color: #ffbe6b;
+}
+
+.ms-card--locked .ms-meta-ids {
+  color: #e07b85;
 }
 
 .ms-diff-wrap {
@@ -475,7 +487,7 @@
 
 .ms-diff-text {
   color: var(--card-accent);
-  font-size: 10.5px;
+  font-size: 9.5px;
   letter-spacing: 0.5px;
 }
 
@@ -485,15 +497,14 @@
 }
 
 .ms-diff-bar {
-  width: 10px;
-  height: 6px;
+  width: 9px;
+  height: 5px;
   border-radius: 1px;
   background: rgba(255, 255, 255, 0.12);
 }
 
 .ms-diff-bar.is-active {
   background: var(--card-accent);
-  box-shadow: 0 0 6px rgba(var(--card-accent-rgb), 0.7);
 }
 
 /* ---- カード下部アクションバー ---- */
@@ -504,25 +515,24 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
-  background: rgba(var(--card-accent-rgb), 0.1);
-  border: 1px solid rgba(var(--card-accent-rgb), 0.28);
-  border-radius: 3px;
-  font-size: 11.5px;
+  padding: 8px 11px;
+  background: rgba(var(--card-accent-rgb), 0.12);
+  border: 1px solid rgba(var(--card-accent-rgb), 0.35);
+  border-radius: 2px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 2px;
   color: var(--card-accent);
-  transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+  transition: background 0.2s, color 0.2s;
 }
 
 .ms-card:not(.is-locked):hover .ms-card-foot {
   background: var(--card-accent);
-  color: #020c06;
-  box-shadow: 0 0 16px rgba(var(--card-accent-rgb), 0.5);
+  color: #020804;
 }
 
 .ms-action-arrow {
-  transition: transform 0.25s ease;
+  transition: transform 0.2s ease;
 }
 
 .ms-card:not(.is-locked):hover .ms-action-arrow {
@@ -535,32 +545,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 18px;
+  padding-top: 12px;
   border-top: 1px solid rgba(0, 255, 100, 0.18);
-  animation: ms-fade-up 0.7s ease both;
 }
 
 .ms-back-btn {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 20px;
-  background: rgba(10, 28, 18, 0.75);
-  border: 1px solid rgba(0, 255, 100, 0.35);
-  border-radius: 4px;
+  padding: 8px 18px;
+  background: rgba(6, 22, 13, 0.85);
+  border: 1px solid rgba(0, 255, 100, 0.38);
+  border-radius: 3px;
   color: #b7e4c7;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
-  letter-spacing: 2.5px;
+  font-size: 11.5px;
+  letter-spacing: 2px;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .ms-back-btn:hover {
-  background: rgba(0, 255, 100, 0.16);
+  background: rgba(0, 255, 100, 0.18);
   border-color: #00ff64;
   color: #ffffff;
-  box-shadow: 0 0 14px rgba(0, 255, 100, 0.3);
 }
 
 .ms-back-arrow {
@@ -582,22 +590,12 @@
 @keyframes ms-card-enter {
   from {
     opacity: 0;
-    transform: translate3d(0, 22px, 0) scale(0.97);
+    transform: translate3d(0, 16px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0);
   }
-}
-
-@keyframes ms-fade-down {
-  from { opacity: 0; transform: translate3d(0, -12px, 0); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
-@keyframes ms-fade-up {
-  from { opacity: 0; transform: translate3d(0, 12px, 0); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 /* ---- レスポンシブ ---- */

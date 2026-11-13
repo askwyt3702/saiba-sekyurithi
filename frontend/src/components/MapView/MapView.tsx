@@ -129,17 +129,17 @@ function MapContent({
           (edge.source === selectedNodeId ||
             edge.target === selectedNodeId);
 
-        let stroke = '#8392a8';
-        let strokeWidth = 1.5;
+        let stroke = '#2e6346';
+        let strokeWidth = 1.6;
 
         if (bothHacked) {
-          stroke = '#22c55e';
-          strokeWidth = 2;
+          stroke = '#00ff64';
+          strokeWidth = 2.2;
         }
 
         if (connectedToSelected) {
-          stroke = '#60a5fa';
-          strokeWidth = 2.5;
+          stroke = '#22f2d0';
+          strokeWidth = 2.6;
         }
 
         return {
@@ -217,7 +217,7 @@ function MapContent({
         nodesConnectable={false}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#2a2e38" gap={24} />
+        <Background color="#0e3820" gap={28} />
 
         <Controls
           showInteractive={false}

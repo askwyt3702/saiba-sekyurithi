@@ -1,18 +1,22 @@
+/* ========================================
+   CYBER LABYRINTH - 左側タクティカル・ツールパネル
+======================================== */
+
 .tool-panel {
-  width: 260px;
+  width: 268px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: #15171d;
-  border-right: 1px solid #2a2e38;
-  color: #c7ccd6;
+  background: #030b07;
+  border-right: 1px solid rgba(0, 255, 100, 0.22);
+  color: #c8e6d5;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 12px;
 }
 
 .tool-panel--collapsed {
-  width: 32px;
+  width: 34px;
 }
 
 .tool-panel__expand {
@@ -24,13 +28,13 @@
   padding: 12px 0;
   background: transparent;
   border: none;
-  color: #9ca3af;
+  color: #7ab893;
   font-family: inherit;
   cursor: pointer;
 }
 
 .tool-panel__expand:hover {
-  color: #c084fc;
+  color: #00ff64;
 }
 
 .tool-panel__expand-label {
@@ -42,7 +46,8 @@
 .tool-panel__header {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid #2a2e38;
+  background: #05140c;
+  border-bottom: 1px solid rgba(0, 255, 100, 0.2);
 }
 
 .tool-panel__tabs {
@@ -52,14 +57,17 @@
 
 .tool-panel__tab,
 .tool-panel__collapse {
-  padding: 8px 4px;
+  padding: 9px 4px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #9ca3af;
+  color: #76a388;
   font-family: inherit;
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
   cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 
 .tool-panel__tab {
@@ -67,17 +75,19 @@
 }
 
 .tool-panel__collapse {
-  padding: 8px 10px;
+  padding: 9px 10px;
 }
 
 .tool-panel__tab:hover,
 .tool-panel__collapse:hover {
-  color: #f3f4f6;
+  color: #eafff2;
+  background: rgba(0, 255, 100, 0.06);
 }
 
 .tool-panel__tab--active {
-  color: #c084fc;
-  border-bottom-color: #c084fc;
+  color: #00ff64;
+  border-bottom-color: #00ff64;
+  background: rgba(0, 255, 100, 0.08);
 }
 
 .tool-panel__body {
@@ -85,19 +95,23 @@
   min-height: 0;
   overflow-y: auto;
   padding: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #1f4d33 #030b07;
 }
 
 .tool-panel__summary {
   margin: 0 0 10px;
-  opacity: 0.7;
+  color: #84b396;
+  font-size: 11.5px;
 }
 
 .tool-panel__heading {
   margin: 16px 0 8px;
-  font-size: 11px;
-  letter-spacing: 1px;
-  opacity: 0.6;
-  font-weight: normal;
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+  color: #00ff64;
+  opacity: 0.85;
+  font-weight: 700;
 }
 
 .tool-panel__heading:first-child {
@@ -107,13 +121,13 @@
 .tool-panel__empty,
 .tool-panel__note {
   margin: 0;
-  color: #6b7280;
+  color: #638c72;
   line-height: 1.5;
 }
 
 .tool-panel__note {
   margin-top: 6px;
-  color: #22c55e;
+  color: #00ff64;
 }
 
 .tool-panel__list {
@@ -129,20 +143,21 @@
 .tool-panel__row {
   width: 100%;
   text-align: left;
-  background: #1b1e26;
-  border: 1px solid #2a2e38;
+  background: #06140c;
+  border: 1px solid rgba(0, 255, 100, 0.16);
   border-radius: 4px;
   color: inherit;
   font-family: inherit;
   font-size: 12px;
   cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .tool-panel__node {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px;
+  padding: 8px 10px;
 }
 
 .tool-panel__row {
@@ -155,12 +170,14 @@
 
 .tool-panel__node:hover,
 .tool-panel__row:hover {
-  border-color: #3a3f4b;
-  background: #20232c;
+  border-color: rgba(0, 255, 100, 0.45);
+  background: #0a2114;
 }
 
 .tool-panel__node--selected {
-  border-color: #c084fc;
+  border-color: #00ff64;
+  border-left: 3px solid #00ff64;
+  background: rgba(0, 255, 100, 0.1);
 }
 
 .tool-panel__node-head {
@@ -171,12 +188,13 @@
 }
 
 .tool-panel__node-name {
-  color: #f3f4f6;
+  color: #f0fff5;
+  font-weight: 600;
 }
 
 .tool-panel__node-meta {
-  opacity: 0.55;
-  font-size: 11px;
+  color: #6d9c7e;
+  font-size: 10.5px;
 }
 
 .tool-panel__node-vuln {
@@ -190,80 +208,91 @@
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 10px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .tool-panel__badge--ready {
-  background: #132017;
-  color: #22c55e;
+  background: rgba(0, 200, 80, 0.16);
+  border: 1px solid rgba(0, 255, 100, 0.4);
+  color: #00ff64;
 }
 
 .tool-panel__badge--blocked {
-  background: #23262f;
-  color: #9ca3af;
+  background: rgba(30, 45, 38, 0.6);
+  border: 1px solid rgba(100, 130, 115, 0.3);
+  color: #7c9e8a;
 }
 
 .tool-panel__badge--done {
-  background: #1e1530;
-  color: #c084fc;
+  background: rgba(25, 212, 240, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #67e8f9;
 }
 
 .tool-panel__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   margin-bottom: 10px;
 }
 
 .tool-panel__chip {
-  padding: 2px 8px;
-  background: transparent;
-  border: 1px solid #3a3f4b;
-  border-radius: 10px;
-  color: #9ca3af;
+  padding: 3px 9px;
+  background: rgba(6, 22, 13, 0.7);
+  border: 1px solid rgba(0, 255, 100, 0.22);
+  border-radius: 3px;
+  color: #7ab893;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 10.5px;
   cursor: pointer;
 }
 
 .tool-panel__chip:hover {
-  color: #f3f4f6;
+  color: #f0fff5;
+  border-color: rgba(0, 255, 100, 0.5);
 }
 
 .tool-panel__chip--active {
-  border-color: #c084fc;
-  color: #c084fc;
+  border-color: #00ff64;
+  background: rgba(0, 255, 100, 0.14);
+  color: #00ff64;
+  font-weight: 700;
 }
 
 .tool-panel__chip--danger.tool-panel__chip--active {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: #ff4255;
+  background: rgba(255, 66, 85, 0.15);
+  color: #ff8a96;
 }
 
 .tool-panel__chip--warning.tool-panel__chip--active {
-  border-color: #eab308;
-  color: #eab308;
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fde047;
 }
 
 .tool-panel__chip--success.tool-panel__chip--active {
-  border-color: #22c55e;
-  color: #22c55e;
+  border-color: #00ff64;
+  background: rgba(0, 255, 100, 0.15);
+  color: #00ff64;
 }
 
 .tool-panel__fields {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 4px 10px;
+  gap: 5px 10px;
   margin: 0;
 }
 
 .tool-panel__fields dt {
-  opacity: 0.55;
+  color: #6b9e80;
 }
 
 .tool-panel__fields dd {
   margin: 0;
-  color: #f3f4f6;
+  color: #f0fff5;
+  font-weight: 600;
 }
 
 .tool-panel__log {
@@ -277,17 +306,17 @@
 }
 
 .tool-panel__log-time {
-  opacity: 0.5;
+  color: #5b876d;
 }
 
 .tool-panel__log-entry--success {
-  color: #22c55e;
+  color: #00ff64;
 }
 
 .tool-panel__log-entry--warning {
-  color: #eab308;
+  color: #fbbf24;
 }
 
 .tool-panel__log-entry--danger {
-  color: #ef4444;
+  color: #ff6b78;
 }

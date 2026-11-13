@@ -1,28 +1,38 @@
+/* ========================================
+   CYBER LABYRINTH - タクティカル・ステータスバー
+======================================== */
+
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 20px;
   padding: 10px 20px;
-  background: #15171d;
-  border-bottom: 1px solid #2a2e38;
+  background: linear-gradient(180deg, #05140b 0%, #030b06 100%);
+  border-bottom: 1px solid rgba(0, 255, 100, 0.28);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.65);
   font-family: ui-monospace, Consolas, monospace;
-  color: #c7ccd6;
+  color: #c8e6d5;
+  flex-wrap: wrap;
 }
 
 .status-bar__title {
   font-weight: 700;
-  letter-spacing: 2px;
-  color: #c084fc;
-  margin-right: 8px;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: #00ff64;
+  text-shadow: 0 0 10px rgba(0, 255, 100, 0.55);
+  margin-right: 6px;
+  padding-right: 14px;
+  border-right: 1px solid rgba(0, 255, 100, 0.22);
 }
 
 .status-bar__offline {
   padding: 2px 8px;
-  border: 1px solid #eab308;
-  border-radius: 4px;
-  background: #2a2208;
-  color: #eab308;
-  font-size: 11px;
+  border: 1px solid rgba(255, 180, 30, 0.6);
+  border-radius: 3px;
+  background: rgba(60, 40, 5, 0.65);
+  color: #ffca4b;
+  font-size: 10.5px;
   letter-spacing: 1px;
   white-space: nowrap;
   cursor: help;
@@ -32,30 +42,71 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12.5px;
+  background: rgba(0, 20, 10, 0.55);
+  border: 1px solid rgba(0, 255, 100, 0.16);
+  padding: 4px 10px;
+  border-radius: 3px;
 }
 
 .status-bar__item--grow {
   flex: 1;
-  max-width: 320px;
+  max-width: 300px;
 }
 
 .status-bar__label {
-  opacity: 0.55;
-  letter-spacing: 1px;
-  font-size: 11px;
+  color: #639c7a;
+  letter-spacing: 1.5px;
+  font-size: 10.5px;
+  font-weight: 600;
 }
 
 .status-bar__value {
-  color: #f3f4f6;
+  color: #f0fff5;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* RESOURCE 回復ボタン */
+.status-bar__item button {
+  margin-left: 4px;
+  padding: 2px 8px;
+  background: rgba(0, 180, 80, 0.2);
+  border: 1px solid #00cc55;
+  border-radius: 3px;
+  color: #65ff9f;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.status-bar__item button:hover:not(:disabled) {
+  background: #00cc55;
+  color: #020a05;
+}
+
+.status-bar__item button:disabled {
+  opacity: 0.35;
+  border-color: #3a5244;
+  color: #6d8a78;
+  cursor: not-allowed;
 }
 
 .status-bar__alert-track {
   flex: 1;
   height: 8px;
-  background: #23262f;
-  border-radius: 4px;
+  background: #08140d;
+  border: 1px solid rgba(0, 255, 100, 0.22);
+  border-radius: 2px;
   overflow: hidden;
+}
+
+.status-bar__alert-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00e660 0%, #f59e0b 60%, #ff2e43 100%);
+  transition: width 0.3s ease;
 }
 
 .status-bar__actions {
@@ -67,29 +118,33 @@
 
 .status-bar__mission,
 .status-bar__reset {
-  padding: 4px 12px;
-  background: transparent;
-  border: 1px solid #3a3f4b;
-  border-radius: 4px;
-  color: #9ca3af;
+  padding: 5px 13px;
+  background: rgba(6, 24, 14, 0.75);
+  border: 1px solid rgba(0, 255, 100, 0.32);
+  border-radius: 3px;
+  color: #a6d9b8;
   font-family: inherit;
   font-size: 11px;
-  letter-spacing: 1px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
   cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
 }
 
 .status-bar__mission:hover {
-  border-color: #c084fc;
-  color: #c084fc;
+  background: rgba(0, 255, 100, 0.18);
+  border-color: #00ff64;
+  color: #ffffff;
+}
+
+.status-bar__reset {
+  border-color: rgba(255, 80, 95, 0.4);
+  color: #fca5a5;
+  background: rgba(35, 8, 12, 0.6);
 }
 
 .status-bar__reset:hover {
-  border-color: #ef4444;
-  color: #ef4444;
-}
-
-.status-bar__alert-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
-  transition: width 0.3s ease;
+  background: rgba(255, 50, 70, 0.25);
+  border-color: #ff4255;
+  color: #ffffff;
 }
