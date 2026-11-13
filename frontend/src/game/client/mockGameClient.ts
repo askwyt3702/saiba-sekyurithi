@@ -75,6 +75,11 @@ const SECURITY_INFO_HINTS: Record<string, string> = {
   'S2-C02': 'S2-C02: 相互TLS証明書認証ゲートを確認。S2-I04から取得したクライアント証明書を提示することで、原本DB（S2-C03）への安全な侵入路が開かれます。',
   'S2-C03': 'S2-C03: 原本通信証跡データベースを確認。SQLインジェクション脆弱性を突いて原本ログを抽出し、偽装された通信証跡の真実を回収します！',
   'S2-C04': 'S2-C04: 監視網の迂回ゲートを確認。S2-I07の停止により解放され、侵入時に監視ログを消去して警戒度を-10%削減できます。',
+  'external-1': 'external-1: 公開SSHサーバーのポート22を確認。パスワード試行回数の制限がなく、辞書攻撃による侵入が可能です。',
+  'dmz-1': 'dmz-1: 古いバージョンのApache Webサーバーを確認。既知のパストラバーサル脆弱性により、内部設定ファイルの閲覧が可能です。',
+  'dmz-2': 'dmz-2: 社員向けメールサーバーを確認。送信元ドメイン検証（SPF/DMARC）が甘く、標的型メールの送信が可能です。',
+  'internal-1': 'internal-1: Active Directoryのドメイン構成を確認。サービスアカウントの過剰権限を利用してADMIN権限への昇格が可能です。',
+  'core-1': 'core-1: 機密データベースのクエリ処理を確認。SQLインジェクション脆弱性により、機密データの抽出が可能です！',
 };
 
 const CORRECT_EXPLOITS: Record<string, string[]> = {
@@ -118,6 +123,11 @@ const CORRECT_EXPLOITS: Record<string, string[]> = {
   'S2-C02': ['vpn_downgrade', 'vpn_cfg_ok'],
   'S2-C03': ['db_sqli_union', 'db_code_a'],
   'S2-C04': ['log_tamper', 'log_def_ok'],
+  'external-1': ['ssh_bf', 'ssh_cfg_b'],
+  'dmz-1': ['web_bypass', 'web_def_ok'],
+  'dmz-2': ['mail_spoof', 'mail_spf_ok'],
+  'internal-1': ['priv_esc', 'priv_sudo_b'],
+  'core-1': ['db_sqli_union', 'db_code_a'],
 };
 
 const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = {
@@ -161,6 +171,11 @@ const SECURITY_PENALTIES: Record<string, { alert: number; resource: number }> = 
   'S2-C02': { alert: 8, resource: 1 },
   'S2-C03': { alert: 10, resource: 1 },
   'S2-C04': { alert: 8, resource: 1 },
+  'external-1': { alert: 5, resource: 1 },
+  'dmz-1': { alert: 5, resource: 1 },
+  'dmz-2': { alert: 5, resource: 1 },
+  'internal-1': { alert: 5, resource: 1 },
+  'core-1': { alert: 8, resource: 1 },
 };
 
 function generateKeyFragment(): string {
