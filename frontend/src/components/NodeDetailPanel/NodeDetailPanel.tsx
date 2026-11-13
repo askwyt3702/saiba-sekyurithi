@@ -138,7 +138,7 @@ export function NodeDetailPanel({
 
   const extractResourceCost =
     hasAllKeyFragments &&
-    (Boolean(keyFragments?.unlocked) || analysisResource < balanceConfig.dataExtract.resource)
+      (Boolean(keyFragments?.unlocked) || analysisResource < balanceConfig.dataExtract.resource)
       ? 0
       : balanceConfig.dataExtract.resource;
 
@@ -281,7 +281,9 @@ export function NodeDetailPanel({
         <button
           type="button"
           className="node-detail__info-button"
-          onClick={() => setIsInfoOpen(true)}
+          onClick={() => {
+            setIsInfoOpen(true);
+          }}
         >
           情報確認
         </button>

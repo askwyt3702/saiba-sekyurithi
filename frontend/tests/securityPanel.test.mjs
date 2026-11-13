@@ -98,6 +98,13 @@ for (const id of ['E01', 'E02', 'E03']) {
     assert.ok(elements(panel(), 'div').some((d) => d.props.role === 'dialog'));
     const before = JSON.stringify(client.state);
     assert.equal(client.state.securityEvents[id], undefined, 'opening a modal alone must not confirm');
+    if (id !== 'E03') {
+      const unchanged = JSON.stringify(client.state);
+      elements(panel(), 'button').find((b) => textOf(b).startsWith('ハッキング端末（侵入）')).props.onClick();
+      assert.equal(JSON.stringify(client.state), unchanged, 'opening the exploit terminal must not auto-confirm');
+      button('情報確認・解説を見る').props.onClick();
+      assert.equal(JSON.stringify(client.state), unchanged, 'returning to information must not auto-confirm');
+    }
     if (id === 'E01') assert.equal(button('解析を完了する').props.disabled, true);
     button('情報を確認した').props.onClick();
     assert.equal((await pending).accepted, true);
