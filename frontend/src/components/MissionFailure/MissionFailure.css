@@ -1,6 +1,6 @@
 .mission-failure {
-  width: min(780px, calc(100vw - 40px));
-  max-height: calc(100dvh - 40px);
+  width: min(780px, calc(var(--app-w) - 40px));
+  max-height: calc(var(--app-h) - 40px);
   box-sizing: border-box;
   overflow: auto;
   padding: 0;
@@ -22,7 +22,7 @@
 }
 
 .mission-failure__content {
-  padding: clamp(22px, 3.8vw, 40px);
+  padding: clamp(22px, calc(var(--app-w) * 0.038), 40px);
   text-align: center;
   background: radial-gradient(ellipse at top, rgba(153, 27, 27, 0.35), transparent 65%);
 }
@@ -36,7 +36,7 @@
 
 .mission-failure h1 {
   color: #f87171;
-  font-size: clamp(26px, 4.5vw, 42px);
+  font-size: clamp(26px, calc(var(--app-w) * 0.045), 42px);
   letter-spacing: 3px;
   margin: 16px 0 8px;
   text-shadow: 0 0 24px rgba(239, 68, 68, 0.5);
