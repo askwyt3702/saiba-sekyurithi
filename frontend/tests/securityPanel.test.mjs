@@ -39,7 +39,7 @@ function elements(tree, type) {
 const { NodeDetailPanel } = load(new URL('../src/components/NodeDetailPanel/NodeDetailPanel.tsx', import.meta.url));
 const { MockGameClient } = load(new URL('../src/game/client/mockGameClient.ts', import.meta.url));
 const { getSecurityChallenge } = load(new URL('../src/game/data/securityLearningData.ts', import.meta.url));
-const { STAGES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
+const { STAGES, SECURITY_RULES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
 
 test('stage1 and stage2 questions have one correct answer and unambiguous choice IDs', () => {
   for (const stageId of [1, 2]) {
@@ -88,7 +88,7 @@ for (const id of ['E01', 'E02', 'E03']) {
         gameStatus: client.state.status, analysisResource: client.state.analysisResource,
         privilege: client.state.privilege, alertLevel: client.state.alertLevel,
         securityEvents: client.state.securityEvents, notice: null,
-        onAction(type, passcode, exploitMismatch) { pending = client.sendAction({ type, nodeId: id, passcode, exploitMismatch }); },
+        onAction(type, passcode, exploitMismatch, exploitId) { pending = client.sendAction({ type, nodeId: id, passcode, exploitMismatch, exploitId }); return pending; },
       });
     };
     const button = (label) => elements(panel(), 'button').find((b) => textOf(b) === label);
@@ -150,3 +150,35 @@ for (const id of ['E01', 'E02', 'E03']) {
   });
 }
 
+
+// The complete question bank for every server-controlled node must match both ways.
+test('all E01-E03 question answers exactly match the generated server allowlists', () => {
+  for (const id of ['E01', 'E02', 'E03']) {
+    const challenge = getSecurityChallenge(id, STAGES[1].vulnerabilities[id]);
+    const correct = challenge.questions.flatMap((q) => q.choices.filter((c) => c.isCorrect).map((c) => c.id));
+    assert.deepEqual([...correct].sort(), [...SECURITY_RULES[id].correct_exploits].sort());
+    for (const question of challenge.questions) for (const choice of question.choices) {
+      assert.equal(SECURITY_RULES[id].correct_exploits.includes(choice.id), choice.isCorrect);
+    }
+  }
+});
+
+test('rejected answer is not displayed as penalized and can be retried', async () => {
+  hookValues = []; hookCursor = 0;
+  const client = new MockGameClient('rejection', 1); await client.connect(() => {});
+  for (const type of ['scan','confirmInfo','completeAnalysis']) await client.sendAction({type,nodeId:'E01'});
+  let reject = true;
+  const panel = () => { hookCursor = 0; return NodeDetailPanel({node:client.state.nodes.find(n=>n.id==='E01'),nodes:client.state.nodes,edges:client.state.edges,analysisResource:client.state.analysisResource,securityEvents:client.state.securityEvents,notice:null,
+    onAction(type,passcode,exploitMismatch,exploitId) {return reject ? Promise.resolve({accepted:false,reason:'invalid_state'}) : client.sendAction({type,nodeId:'E01',passcode,exploitMismatch,exploitId});}}); };
+  elements(panel(),'button')[2].props.onClick();
+  const challenge=getSecurityChallenge('E01',STAGES[1].vulnerabilities.E01);
+  const index=challenge.questions[0].choices.findIndex(c=>!c.isCorrect);
+  const wrong=()=>elements(panel(),'button').filter(b=>b.props.className?.startsWith('exploit-choice '))[index];
+  const before=JSON.stringify(client.state);
+  await wrong().props.onClick();
+  assert.equal(JSON.stringify(client.state),before);
+  assert.ok(!elements(panel(),'button').some(b=>b.props.className==='exploit-choice exploit-choice--wrong'));
+  reject=false;await wrong().props.onClick();
+  assert.equal(client.state.alertLevel,9.5);
+  await wrong().props.onClick();assert.equal(client.state.alertLevel,9.5);
+});

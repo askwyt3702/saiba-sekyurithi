@@ -114,7 +114,7 @@ test('node panel disables all E02/E03 operations until E01 is hacked, then permi
   await client.sendAction({ type: 'scan', nodeId: 'E01' });
   await client.sendAction({ type: 'confirmInfo', nodeId: 'E01' });
   await client.sendAction({ type: 'completeAnalysis', nodeId: 'E01' });
-  await client.sendAction({ type: 'breach', nodeId: 'E01' });
+  await client.sendAction({ type: 'breach', nodeId: 'E01', exploitId: 'ssh_bf' });
   for (const id of ['E02', 'E03']) assert.equal((markup(id).match(/disabled=""/g) ?? []).length, 2);
   await client.sendAction({ type: 'scan', nodeId: 'E02' });
   assert.equal((markup('E02').match(/disabled=""/g) ?? []).length, 3);

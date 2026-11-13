@@ -139,9 +139,11 @@ export interface ActionRequest {
   nodeId?: string;
   passcode?: string;
   exploitMismatch?: boolean;
+  exploitId?: string;
 }
 
 export type ActionRejectReason =
+  | 'exploit_required'
   | 'security_requirements_unmet'
   | 'insufficient_resource'
   | 'insufficient_privilege'

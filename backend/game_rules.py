@@ -41,6 +41,7 @@ class RuleAction:
     node_id: str | None = None
     passcode: str | None = None
     exploit_mismatch: bool = False
+    exploit_id: str | None = None
 
 @dataclass(eq=True)
 class TransitionResult:
@@ -302,6 +303,7 @@ def _apply_validated_action(
     node_id: Optional[str],
     passcode: Optional[str] = None,
     exploit_mismatch: bool = False,
+    exploit_id: Optional[str] = None,
 ) -> None:
     """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
 
@@ -355,18 +357,19 @@ def _apply_validated_action(
         data = next((n for n in stage["nodes"] if n["id"] == node_id), None)
         node = SimpleNamespace(**data) if data else None
 
-    if action_type == "breach" and exploit_mismatch:
-        player.alert_level = _clamp_alert(player.alert_level + EXPLOIT_MISMATCH_ALERT)
-        _log(player, "danger", f"【IDS検知警告】{node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: {player.alert_level:.0f}%）。")
-        _check_game_over(player, stage)
-        return
-
     rule = stage.get("security_rules", {}).get(node_id, {})
     if action_type == "breach" and rule.get("failure_mode") == "consume" and not security_requirements_met(stage, player, node_id):
         cost = stage["action_costs"]["breach"]
         player.analysis_resource -= cost["resource"]
         _advance_time(player, stage, cost["time"], rule["failure_alert"])
         _log(player, "warning", f"{node.name} の攻略条件を満たしていません。侵入は未完了です。")
+        _check_game_over(player, stage)
+        return
+
+    wrong = exploit_id not in rule["correct_exploits"] if rule.get("correct_exploits") else exploit_mismatch
+    if action_type == "breach" and wrong:
+        player.alert_level = _clamp_alert(player.alert_level + EXPLOIT_MISMATCH_ALERT)
+        _log(player, "danger", f"【IDS検知警告】{node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: {player.alert_level:.0f}%）。")
         _check_game_over(player, stage)
         return
 
@@ -501,7 +504,13 @@ def validate_action(stage: GameMapDefinition, state: RuleState, action: RuleActi
         _validate_timed_action(state, stage, action.type, node)
     except ActionRejected as error:
         return error.reason
-    if action.type == "breach" and not action.exploit_mismatch and action.passcode is not None and action.passcode.strip():
+    if action.type == "breach":
+        rule = stage.get("security_rules", {}).get(action.node_id, {})
+        if rule.get("failure_mode") == "consume" and not security_requirements_met(stage, state, action.node_id):
+            return None
+        if rule.get("correct_exploits") and (action.exploit_id is None or not action.exploit_id.strip()):
+            return "exploit_required"
+    if action.type == "breach" and action.passcode is not None and action.passcode.strip():
         keys = stage["key_fragment_node_ids"]
         target = node.id in stage["target_node_ids"] or (not stage["target_node_ids"] and node.layer == "Core")
         if not target or not keys or not all(state.node_statuses.get(n) == "hacked" for n in keys) or _normalize_passcode(action.passcode) != _normalize_passcode(state.fragment_a + state.fragment_b):
@@ -516,7 +525,7 @@ def transition(stage: GameMapDefinition, state: RuleState, action: RuleAction) -
     if reason:
         return TransitionResult(False, reason, result, [])
     result.events = []
-    _apply_validated_action(result, stage, action.type, action.node_id, action.passcode, action.exploit_mismatch)
+    _apply_validated_action(result, stage, action.type, action.node_id, action.passcode, action.exploit_mismatch, action.exploit_id)
     events = result.events
     result.events = []
     return TransitionResult(True, None, result, events)

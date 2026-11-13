@@ -82,6 +82,7 @@ EVALUATION_CONFIG = {
 
 SECURITY_RULES = {
     "E01": {
+        "correct_exploits": ["ssh_bf", "ssh_cfg_b"],
         "allowed_scan_types": ["scan"],
         "vulnerability": "弱いSSHパスワード",
         "risk_level": "MEDIUM",
@@ -95,6 +96,7 @@ SECURITY_RULES = {
         "info_hint": "E01: 公開SSHゲートウェイの構成を確認。Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、ログイン試行制限（Fail2ban等）が未導入です。辞書攻撃（hydra）による突破が有効です。",
     },
     "E02": {
+        "correct_exploits": ["dns_axfr", "dns_cfg_ok"],
         "vulnerability": "DNS設定情報の漏洩",
         "risk_level": "MEDIUM",
         "required_scan": True,
@@ -108,6 +110,7 @@ SECURITY_RULES = {
     },
 
     "E03": {
+        "correct_exploits": ["acl_smb", "acl_cfg_ok"],
         "vulnerability": "古い公開ファイルのアクセス制御不備",
         "risk_level": "LOW",
         "required_scan": True,

@@ -74,12 +74,6 @@ class RuleRunner {
 
   private applyTimedAction(action: ActionRequest, type: TimedActionType): ActionResult {
     const node = this.state.nodes.find((n) => n.id === action.nodeId)!;
-    if (type === 'breach' && action.exploitMismatch) {
-      this.state.alertLevel = clampAlert(this.state.alertLevel + EXPLOIT_MISMATCH_ALERT);
-      this.log('danger', `【IDS検知警告】${node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: ${Math.round(this.state.alertLevel)}%）。`);
-      this.checkGameOver();
-      return { accepted: true };
-    }
     const stage = this.map;
     const silentBreach = type === 'breach' && Boolean(action.passcode?.trim());
 
@@ -90,6 +84,12 @@ class RuleRunner {
       this.state.analysisResource -= cost.resource;
       this.advanceTime(cost.time, rule.failure_alert);
       this.log('warning', `${node.name} の攻略条件を満たしていません。侵入は未完了です。`);
+      this.checkGameOver();
+      return { accepted: true };
+    }
+    if (type === 'breach' && (rule?.correct_exploits?.length ? !rule.correct_exploits.includes(action.exploitId!) : action.exploitMismatch)) {
+      this.state.alertLevel = clampAlert(this.state.alertLevel + EXPLOIT_MISMATCH_ALERT);
+      this.log('danger', `【IDS検知警告】${node.name}への不適切な攻撃手法（エクスプロイト不一致）が検知され、警戒度が +8% 上昇しました（現在: ${Math.round(this.state.alertLevel)}%）。`);
       this.checkGameOver();
       return { accepted: true };
     }
@@ -302,7 +302,12 @@ class RuleRunner {
     if (!node || !this.map.nodes.some((n) => n.id === node.id)) return 'invalid_state';
     const rejection = this.validate(type as TimedActionType, node);
     if (rejection) return rejection;
-    if (type === 'breach' && !action.exploitMismatch && action.passcode !== undefined && action.passcode.trim() !== '') {
+    if (type === 'breach') {
+      const rule = this.map.securityRules[node.id];
+      if (rule?.failure_mode === 'consume' && !securityRequirementsMet(rule, this.state.securityEvents?.[node.id])) return undefined;
+      if (rule?.correct_exploits?.length && !action.exploitId?.trim()) return 'exploit_required';
+    }
+    if (type === 'breach' && action.passcode !== undefined && action.passcode.trim() !== '') {
       if (!this.isTarget(node) || !this.hasAllKeyFragments() || normalizePasscode(action.passcode) !== normalizePasscode(this.fragmentA + this.fragmentB)) return 'invalid_passcode';
     }
     return undefined;

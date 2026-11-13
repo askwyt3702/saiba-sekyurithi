@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, SECURITY_RULES, getStageData, isExtractTarget } from '../../game/data/stageData';
 import type { SecurityRule } from '../../game/model/mapDefinition';
 import { securityRequirementsMet } from '../../game/model/actionRules';
@@ -7,6 +7,7 @@ import { canReachNode, canRemoteScanNode, isMonitoringActive, missingGateRequire
 
 import type {
   ActionType,
+  ActionResult,
   NetworkNode,
   ApiNetworkEdge,
   GameStatus,
@@ -29,7 +30,12 @@ interface NodeDetailPanelProps {
   alertLevel?: number;
   securityEvents?: Record<string, string[]>;
   notice: string | null;
-  onAction: (type: TimedActionType, passcode?: string, exploitMismatch?: boolean) => void;
+  onAction: (
+    type: TimedActionType,
+    passcode?: string,
+    exploitMismatch?: boolean,
+    exploitId?: string,
+  ) => void | Promise<ActionResult | void>;
 }
 
 export function NodeDetailPanel({
@@ -53,6 +59,7 @@ export function NodeDetailPanel({
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
   const [penalizedChoiceIds, setPenalizedChoiceIds] = useState<string[]>([]);
+  const answerPending = useRef(false);
 
   useEffect(() => {
     setPasscode('');
@@ -160,12 +167,22 @@ export function NodeDetailPanel({
   const selectedChoice =
     currentQuestion.choices.find((c) => c.id === selectedExploitId) ?? null;
 
-  const handleSelectExploitChoice = (choiceId: string, isCorrect: boolean) => {
-    if (!canBreach) return;
-    setSelectedExploitId(choiceId);
-    if (!isCorrect && !penalizedChoiceIds.includes(choiceId)) {
-      setPenalizedChoiceIds((prev) => [...prev, choiceId]);
-      onAction('breach', undefined, true);
+  const handleSelectExploitChoice = async (choiceId: string, isCorrect: boolean) => {
+    if (!canBreach || answerPending.current) return;
+    if (!isCorrect && securityRule?.correct_exploits?.length && !securityReady) return;
+    if (isCorrect || penalizedChoiceIds.includes(choiceId)) {
+      setSelectedExploitId(choiceId);
+      return;
+    }
+    answerPending.current = true;
+    try {
+      const result = await onAction('breach', undefined, true, choiceId);
+      if (result && result.accepted) {
+        setPenalizedChoiceIds((prev) => [...prev, choiceId]);
+        setSelectedExploitId(choiceId);
+      } else setSelectedExploitId(null);
+    } finally {
+      answerPending.current = false;
     }
   };
 
@@ -321,6 +338,8 @@ export function NodeDetailPanel({
             </header>
 
             <div className="node-info-modal__body">
+              {notice && <p role="alert">{notice}</p>}
+              {securityRule?.correct_exploits?.length && !securityReady ? <p role="status">先に情報確認・必要な解析を完了してください。確認条件不足の実行は従来の失敗ペナルティになります。</p> : null}
               <div className="exploit-terminal-box">
                 <div className="exploit-terminal-box__line">
                   <span className="exploit-terminal-box__tag">[TARGET]</span> {node.id} ({node.name}) ／ 階層: {node.layer} ／ 現在の警戒度: <strong>{alertLevel.toFixed(1)}%</strong>
@@ -463,9 +482,18 @@ export function NodeDetailPanel({
                   type="button"
                   className="exploit-modal__execute-btn"
                   disabled={!selectedChoice?.isCorrect || !canBreach}
-                  onClick={() => {
-                    setIsExploitOpen(false);
-                    onAction('breach', showPasscodeInput ? passcode : undefined);
+                  onClick={async () => {
+                    if (answerPending.current) return;
+                    answerPending.current = true;
+                    try {
+                      const result = await onAction(
+                        'breach',
+                        showPasscodeInput ? passcode : undefined,
+                        false,
+                        selectedExploitId ?? undefined,
+                      );
+                      if (result && result.accepted) setIsExploitOpen(false);
+                    } finally { answerPending.current = false; }
                   }}
                 >
                   {showPasscodeInput && passcode.trim() !== ''

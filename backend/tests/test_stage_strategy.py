@@ -34,7 +34,7 @@ def test_strategy_scenarios_via_api(scenario, client, act):
     if actions is None:
         actions = [{"type": kind, "nodeId": node} for node in scenario["route"] for kind in ("scan", "breach")]
         actions += [{"type": "dataExtract", "nodeId": scenario.get("target", "C03")}]
-    results = [act(gid, action["type"], action.get("nodeId"), action.get("passcode"), action.get("exploitMismatch", False)) for action in actions]
+    results = [act(gid, action["type"], action.get("nodeId"), action.get("passcode"), action.get("exploitMismatch", False), action.get("exploitId")) for action in actions]
     state = results[-1]["state"]
     for key, value in scenario.get("expected", {}).items():
         actual = state["evaluation"][key] if key in ("score", "rank") else state[key]

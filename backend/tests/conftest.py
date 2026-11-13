@@ -36,7 +36,7 @@ def ready_act(act, client):
                     assert act(game_id, "confirmInfo", node)["accepted"]
                 if node == "E01" and "ANALYSIS_COMPLETED" not in events:
                     assert act(game_id, "completeAnalysis", node)["accepted"]
-        return act(game_id, type_, node, passcode)
+        return act(game_id, type_, node, passcode, exploitId={"E01":"ssh_bf", "E02":"dns_axfr", "E03":"acl_smb"}.get(node) if type_ == "breach" else None)
     return perform
 
 
@@ -72,12 +72,14 @@ def set_player():
 def act(client):
     """アクションを送り、レスポンス全体(accepted/reason/state)を返す。"""
 
-    def _act(game_id, type_, node=None, passcode=None, exploitMismatch=False):
+    def _act(game_id, type_, node=None, passcode=None, exploitMismatch=False, exploitId=None):
         body = {"type": type_}
         if node is not None:
             body["nodeId"] = node
         if passcode is not None:
             body["passcode"] = passcode
+        if exploitId is not None:
+            body["exploitId"] = exploitId
         if exploitMismatch:
             body["exploitMismatch"] = True
         res = client.post(f"/api/games/{game_id}/actions", json=body)

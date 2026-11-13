@@ -20,6 +20,7 @@ import './App.css';
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
 
 const REJECT_MESSAGES: Record<ActionRejectReason, string> = {
+  exploit_required: '攻撃手法を選択してください。',
   security_requirements_unmet: '侵入前に情報確認が必要です。ノード詳細の情報確認を完了してください。',
   insufficient_resource: '解析資源が足りません。',
   insufficient_privilege:
@@ -88,6 +89,7 @@ function App() {
     type: TimedActionType,
     passcode?: string,
     exploitMismatch?: boolean,
+    exploitId?: string,
   ) => {
     if (!selectedNode) return;
 
@@ -95,7 +97,7 @@ function App() {
     setNotice(null);
 
     try {
-      const result = await sendAction({ type, nodeId, passcode, exploitMismatch });
+      const result = await sendAction({ type, nodeId, passcode, exploitMismatch, exploitId });
 
       if (!result.accepted) {
         setNotice({
@@ -103,6 +105,7 @@ function App() {
           message: REJECT_MESSAGES[result.reason ?? 'invalid_state'],
         });
       }
+      return result;
     } catch (err) {
       console.error('[App] アクション送信に失敗しました:', err);
 

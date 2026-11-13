@@ -57,7 +57,7 @@ test('vulnerability tab lists only scanned nodes and the scannable entry node', 
 
   await client.sendAction({ type: 'confirmInfo', nodeId: entry });
   await client.sendAction({ type: 'completeAnalysis', nodeId: entry });
-  await client.sendAction({ type: 'breach', nodeId: entry });
+  await client.sendAction({ type: 'breach', nodeId: entry, exploitId: entry === 'E01' ? 'ssh_bf' : undefined });
   assert.ok(render(client.state).includes('侵入済み'));
 });
 
