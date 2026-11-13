@@ -119,6 +119,45 @@ function scanNetwork() {
     let nodes = [];
     let animationId = 0;
     let time = 0;
+    // 背景を漂う粒子
+const particles = [];
+
+const cubes = [];
+
+function createCubes(){
+
+    cubes.length = 0;
+
+    for(let i=0;i<12;i++){
+
+        cubes.push({
+
+            x:(Math.random()-0.5)*width*1.8,
+            y:(Math.random()-0.5)*height*1.5,
+
+            z:Math.random()*1200+200,
+
+            size:25+Math.random()*70,
+
+            rot:Math.random()*Math.PI,
+
+            speed:0.4+Math.random()*0.6
+
+        });
+
+    }
+
+}
+
+for (let i = 0; i < 80; i++) {
+    particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        z: Math.random(),
+        speed: 0.2 + Math.random() * 0.6,
+        size: 1 + Math.random() * 2
+    });
+}
 
     const NODE_COUNT = 105;
     const SPHERE_POINTS = 260;
@@ -137,6 +176,7 @@ function scanNetwork() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         createNodes();
+        createCubes();
     }
 
     // 背景ノード生成
@@ -171,27 +211,50 @@ function scanNetwork() {
         });
     }
 
-    // 背景グリッド
     function drawGrid() {
-        ctx.strokeStyle = "rgba(0, 220, 255, 0.055)";
-        ctx.lineWidth = 1;
 
-        const spacing = 45;
+    const horizon = height * 0.33;
 
-        for (let x = 0; x < width; x += spacing) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-        }
+    ctx.strokeStyle = "rgba(0,220,255,0.08)";
+    ctx.lineWidth = 1;
 
-        for (let y = 0; y < height; y += spacing) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
-        }
+    // 奥へ伸びる縦線
+    const columns = 26;
+
+    for(let i=-columns;i<=columns;i++){
+
+        const x = width/2 + i*55;
+
+        ctx.beginPath();
+        ctx.moveTo(x, height);
+
+        ctx.lineTo(
+            width/2 + i*8,
+            horizon
+        );
+
+        ctx.stroke();
     }
+
+    // 横線
+    for(let i=0;i<22;i++){
+
+        const p=i/22;
+
+        const y=
+        horizon+
+        Math.pow(p,2.3)*(height-horizon);
+
+        ctx.beginPath();
+
+        ctx.moveTo(0,y);
+        ctx.lineTo(width,y);
+
+        ctx.stroke();
+
+    }
+
+}
 
     // 背景ネットワーク
     function drawNetwork() {
@@ -260,6 +323,76 @@ function scanNetwork() {
             ctx.shadowBlur = 0;
         });
     }
+function drawParticles() {
+
+    particles.forEach(p => {
+
+        p.y += p.speed;
+
+        if (p.y > height + 20) {
+            p.y = -20;
+            p.x = Math.random() * width;
+        }
+
+        const alpha = 0.15 + p.z * 0.5;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (0.5 + p.z), 0, Math.PI * 2);
+
+        ctx.fillStyle = `rgba(0,255,220,${alpha})`;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#00ffee";
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+}
+
+function drawCubes(){
+
+    cubes.sort((a,b)=>b.z-a.z);
+
+    cubes.forEach(c=>{
+
+        c.z-=c.speed;
+
+        if(c.z<120){
+
+            c.z=1200;
+            c.x=(Math.random()-0.5)*width*1.8;
+            c.y=(Math.random()-0.5)*height*1.5;
+        }
+
+        const p = 1400 / c.z;
+
+        const x=width/2+c.x*p;
+
+        const y=height/2+c.y*p;
+
+        const s=c.size*p;
+
+        c.rot+=0.003;
+
+        ctx.save();
+
+        ctx.translate(x,y);
+
+        ctx.rotate(c.rot);
+
+        ctx.strokeStyle="rgba(0,255,220,0.7)";
+        ctx.lineWidth=1;
+
+        ctx.strokeRect(-s/2,-s/2,s,s);
+
+        ctx.globalAlpha=0.25;
+        ctx.fillStyle="#001315";
+        ctx.fillRect(-s/2,-s/2,s,s);
+
+        ctx.restore();
+
+    });
+
+}
 
     // 中央のネットワーク球体
     function drawSphere() {
@@ -389,7 +522,9 @@ function scanNetwork() {
 
         ctx.clearRect(0, 0, width, height);
 
-        drawGrid();
+       drawGrid();
+        drawCubes();
+        drawParticles();
         drawNetwork();
         drawSphere();
 

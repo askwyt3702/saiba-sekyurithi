@@ -1,161 +1,625 @@
-/* ミッション選択画面 */
-.mission-screen {
-    min-height: 100vh;
-    background: #080808;
-    color: #fff;
-    padding: 32px 6%;
-    animation: ms-fadeIn 0.4s ease;
+/* =============================================
+   CYBER LABYRINTH — ミッション選択画面（案B: ホログラムカード進化版）
+   ============================================= */
+
+.ms-root {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  background-color: #020805;
+  color: #e6f5ec;
+  font-family: ui-monospace, 'Courier New', Consolas, monospace;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-@keyframes ms-fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+/* ---- 背景レイヤー（軽量GPUアニメーション） ---- */
+
+.ms-bg-image {
+  position: fixed;
+  inset: -5%;
+  z-index: 0;
+  background-image: url('/title-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.22;
+  filter: saturate(1.15);
+  will-change: transform;
+  animation: ms-bg-drift 18s ease-in-out infinite;
+  pointer-events: none;
 }
 
-.mission-header {
-    display: flex;
-    justify-content: space-between;
-    border-bottom: 1px solid #333;
-    padding-bottom: 20px;
+@keyframes ms-bg-drift {
+  0%, 100% {
+    transform: scale(1.06) translate3d(0px, 0px, 0);
+  }
+  50% {
+    transform: scale(1.09) translate3d(-14px, 10px, 0);
+  }
 }
 
-.mission-header-logo {
-    font-size: 18px;
-    letter-spacing: 4px;
-    font-family: ui-monospace, Consolas, monospace;
+.ms-bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 85% 50% at 50% 0%, rgba(0, 255, 100, 0.12) 0%, transparent 70%),
+    radial-gradient(circle at 50% 50%, rgba(2, 10, 6, 0.5) 0%, rgba(1, 5, 3, 0.94) 100%),
+    linear-gradient(rgba(0, 255, 100, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 100, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+  pointer-events: none;
 }
 
-.mission-header-label {
-    color: #888;
-    letter-spacing: 3px;
-    font-family: ui-monospace, Consolas, monospace;
-    font-size: 13px;
+/* 画面全体をゆっくり上から下へ走るスキャンビーム */
+.ms-scan-beam {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: -120px;
+  height: 120px;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 255, 100, 0.04) 85%,
+    rgba(0, 255, 100, 0.14) 100%
+  );
+  pointer-events: none;
+  will-change: transform;
+  animation: ms-global-scan 9s linear infinite;
 }
 
-.mission-section-label {
-    color: #888;
-    letter-spacing: 3px;
-    font-family: ui-monospace, Consolas, monospace;
-    font-size: 12px;
+@keyframes ms-global-scan {
+  0% {
+    transform: translate3d(0, -120px, 0);
+  }
+  100% {
+    transform: translate3d(0, 115vh, 0);
+  }
 }
 
-.mission-content {
-    max-width: 1100px;
-    margin: 80px auto;
+/* ---- コンテナ ---- */
+
+.ms-container {
+  position: relative;
+  z-index: 5;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 28px 4% 36px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
-.mission-content h1 {
-    font-size: 42px;
-    font-weight: 300;
-    letter-spacing: 5px;
-    margin: 12px 0;
-    color: #fff;
+/* ---- ヘッダー ---- */
+
+.ms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(0, 255, 100, 0.22);
+  animation: ms-fade-down 0.5s ease both;
 }
 
-.mission-description {
-    color: #888;
-    margin-bottom: 40px;
-    font-size: 14px;
+.ms-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  letter-spacing: 4px;
 }
 
-.mission-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 18px;
+.ms-brand-cyber {
+  color: #f2f7f4;
+  font-weight: 600;
 }
 
-.mission-card {
-    background: #111;
-    border: 1px solid #444;
-    padding: 25px;
-    cursor: pointer;
-    transition: 0.25s;
-    min-height: 230px;
-    display: flex;
+.ms-brand-labyrinth {
+  color: #00ff64;
+  font-weight: 600;
+  text-shadow: 0 0 12px rgba(0, 255, 100, 0.65);
+}
+
+.ms-brand-divider {
+  color: rgba(0, 255, 100, 0.4);
+  margin: 0 4px;
+}
+
+.ms-brand-sub {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: rgba(160, 215, 180, 0.8);
+}
+
+.ms-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #00ff64;
+  background: rgba(0, 45, 20, 0.45);
+  border: 1px solid rgba(0, 255, 100, 0.3);
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+
+.ms-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00ff64;
+  box-shadow: 0 0 8px #00ff64;
+  animation: ms-dot-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes ms-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+
+/* ---- ヒーロータイトル領域 ---- */
+
+.ms-hero {
+  margin: 26px 0 24px;
+  animation: ms-fade-up 0.55s ease both;
+}
+
+.ms-hero-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ms-section-code {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: #00ff64;
+  opacity: 0.8;
+}
+
+.ms-recommend-tag {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #5ef2d6;
+  background: rgba(0, 220, 180, 0.1);
+  border: 1px solid rgba(0, 220, 180, 0.35);
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.ms-title {
+  margin: 4px 0 8px;
+  font-size: clamp(26px, 3.2vw, 38px);
+  font-weight: 300;
+  letter-spacing: 6px;
+  color: #ffffff;
+  text-shadow: 0 0 20px rgba(0, 255, 100, 0.3);
+}
+
+.ms-subtitle {
+  font-size: 13px;
+  color: #8ab89a;
+  letter-spacing: 1px;
+}
+
+/* ---- ホログラム・カードグリッド（4列） ---- */
+
+.ms-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 8px 0 28px;
+}
+
+/* カード本体 */
+.ms-card {
+  --card-accent: #00ff64;
+  --card-accent-rgb: 0, 255, 100;
+  position: relative;
+  background: linear-gradient(165deg, rgba(6, 22, 13, 0.92) 0%, rgba(3, 10, 6, 0.95) 100%);
+  border: 1px solid rgba(var(--card-accent-rgb), 0.32);
+  padding: 22px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 330px;
+  cursor: pointer;
+  overflow: hidden;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 16px) 0,
+    100% 16px,
+    100% 100%,
+    16px 100%,
+    0 calc(100% - 16px)
+  );
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.7),
+    inset 0 0 18px rgba(var(--card-accent-rgb), 0.05);
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.28s ease,
+    box-shadow 0.28s ease,
+    background 0.28s ease;
+  animation: ms-card-enter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* テーマカラー定義 */
+.ms-card--cyan {
+  --card-accent: #22f2d0;
+  --card-accent-rgb: 34, 242, 208;
+}
+
+.ms-card--green {
+  --card-accent: #00ff64;
+  --card-accent-rgb: 0, 255, 100;
+}
+
+.ms-card--amber {
+  --card-accent: #ffbe2e;
+  --card-accent-rgb: 255, 190, 46;
+}
+
+.ms-card--locked {
+  --card-accent: #ff4252;
+  --card-accent-rgb: 255, 66, 82;
+  background: linear-gradient(165deg, rgba(18, 7, 9, 0.88) 0%, rgba(7, 4, 5, 0.92) 100%);
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
+/* ホバー時の浮き上がり＆発光 */
+.ms-card:not(.is-locked):hover,
+.ms-card:not(.is-locked):focus-visible {
+  transform: translate3d(0, -8px, 0);
+  border-color: var(--card-accent);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.85),
+    0 0 22px rgba(var(--card-accent-rgb), 0.32),
+    inset 0 0 24px rgba(var(--card-accent-rgb), 0.14);
+  outline: none;
+}
+
+/* ホバー時にカード内部を走るスキャンレーザー */
+.ms-card-scanner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -100%;
+  height: 75%;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(var(--card-accent-rgb), 0.03) 65%,
+    rgba(var(--card-accent-rgb), 0.22) 98%,
+    var(--card-accent) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ms-card:not(.is-locked):hover .ms-card-scanner {
+  opacity: 1;
+  animation: ms-card-scan 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes ms-card-scan {
+  0% {
+    transform: translate3d(0, -20%, 0);
+  }
+  100% {
+    transform: translate3d(0, 260%, 0);
+  }
+}
+
+/* 四隅のL字ブラケット装飾 */
+.ms-corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--card-accent);
+  opacity: 0.45;
+  transition: opacity 0.25s, width 0.25s, height 0.25s;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ms-corner--tl {
+  top: 6px;
+  left: 6px;
+  border-top: 2px solid var(--card-accent);
+  border-left: 2px solid var(--card-accent);
+}
+
+.ms-corner--tr {
+  top: 6px;
+  right: 16px;
+  border-top: 2px solid var(--card-accent);
+  border-right: 2px solid var(--card-accent);
+}
+
+.ms-corner--bl {
+  bottom: 6px;
+  left: 16px;
+  border-bottom: 2px solid var(--card-accent);
+  border-left: 2px solid var(--card-accent);
+}
+
+.ms-corner--br {
+  bottom: 6px;
+  right: 6px;
+  border-bottom: 2px solid var(--card-accent);
+  border-right: 2px solid var(--card-accent);
+}
+
+.ms-card:not(.is-locked):hover .ms-corner {
+  opacity: 1;
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- カード内部要素 ---- */
+
+.ms-card-head {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(var(--card-accent-rgb), 0.18);
+}
+
+.ms-card-code {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--card-accent);
+}
+
+.ms-card-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  color: var(--card-accent);
+  background: rgba(var(--card-accent-rgb), 0.14);
+  border: 1px solid rgba(var(--card-accent-rgb), 0.38);
+}
+
+.ms-card-body {
+  position: relative;
+  z-index: 2;
+  margin: 18px 0;
+  flex: 1;
+}
+
+.ms-card-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+  margin: 0 0 12px;
+  transition: color 0.2s, text-shadow 0.2s;
+}
+
+.ms-card:not(.is-locked):hover .ms-card-title {
+  color: #ffffff;
+  text-shadow: 0 0 14px rgba(var(--card-accent-rgb), 0.55);
+}
+
+.ms-card-desc {
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: #9ec0aa;
+}
+
+.ms-card.is-locked .ms-card-desc {
+  color: #8c7376;
+}
+
+/* ---- カードメタ情報（TARGET / THREAT ゲージ） ---- */
+
+.ms-card-meta {
+  position: relative;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(var(--card-accent-rgb), 0.18);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ms-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.ms-meta-label {
+  color: #6d967b;
+  letter-spacing: 1.5px;
+}
+
+.ms-card.is-locked .ms-meta-label {
+  color: #8c6266;
+}
+
+.ms-meta-val {
+  color: #e6f5ec;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.ms-diff-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-diff-text {
+  color: var(--card-accent);
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+}
+
+.ms-diff-bars {
+  display: flex;
+  gap: 3px;
+}
+
+.ms-diff-bar {
+  width: 10px;
+  height: 6px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ms-diff-bar.is-active {
+  background: var(--card-accent);
+  box-shadow: 0 0 6px rgba(var(--card-accent-rgb), 0.7);
+}
+
+/* ---- カード下部アクションバー ---- */
+
+.ms-card-foot {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(var(--card-accent-rgb), 0.1);
+  border: 1px solid rgba(var(--card-accent-rgb), 0.28);
+  border-radius: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--card-accent);
+  transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+}
+
+.ms-card:not(.is-locked):hover .ms-card-foot {
+  background: var(--card-accent);
+  color: #020c06;
+  box-shadow: 0 0 16px rgba(var(--card-accent-rgb), 0.5);
+}
+
+.ms-action-arrow {
+  transition: transform 0.25s ease;
+}
+
+.ms-card:not(.is-locked):hover .ms-action-arrow {
+  transform: translate3d(5px, 0, 0);
+}
+
+/* ---- フッター ---- */
+
+.ms-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 18px;
+  border-top: 1px solid rgba(0, 255, 100, 0.18);
+  animation: ms-fade-up 0.7s ease both;
+}
+
+.ms-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(10, 28, 18, 0.75);
+  border: 1px solid rgba(0, 255, 100, 0.35);
+  border-radius: 4px;
+  color: #b7e4c7;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 2.5px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.ms-back-btn:hover {
+  background: rgba(0, 255, 100, 0.16);
+  border-color: #00ff64;
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(0, 255, 100, 0.3);
+}
+
+.ms-back-arrow {
+  transition: transform 0.2s ease;
+}
+
+.ms-back-btn:hover .ms-back-arrow {
+  transform: translate3d(-4px, 0, 0);
+}
+
+.ms-footer-info {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: rgba(0, 255, 100, 0.35);
+}
+
+/* ---- 登場アニメーション ---- */
+
+@keyframes ms-card-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes ms-fade-down {
+  from { opacity: 0; transform: translate3d(0, -12px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ms-fade-up {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* ---- レスポンシブ ---- */
+
+@media (max-width: 1120px) {
+  .ms-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .ms-grid {
+    grid-template-columns: 1fr;
+  }
+  .ms-header {
     flex-direction: column;
-}
-
-.mission-card:hover:not(.locked) {
-    border-color: #fff;
-    transform: translateY(-4px);
-    background: #171717;
-}
-
-.mission-card.locked {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-button.mission-card {
-    font: inherit;
-    text-align: left;
-    width: 100%;
-}
-
-button.mission-card:focus-visible {
-    outline: 2px solid #67e8f9;
-    outline-offset: 4px;
-}
-
-.mission-number {
-    color: #888;
-    font-size: 12px;
-    letter-spacing: 3px;
-    font-family: ui-monospace, Consolas, monospace;
-}
-
-.mission-card h2 {
-    font-size: 21px;
-    font-weight: 400;
-    margin: 28px 0 12px;
-    color: #fff;
-}
-
-.mission-card p {
-    color: #999;
-    font-size: 13px;
-    line-height: 1.8;
-}
-
-.mission-bottom {
-    margin-top: auto;
-    padding-top: 25px;
-    display: flex;
-    justify-content: space-between;
-    color: #ddd;
-    font-size: 12px;
-    letter-spacing: 2px;
-    font-family: ui-monospace, Consolas, monospace;
-}
-
-.mission-back-button {
-    margin-top: 45px;
-    background: transparent;
-    border: 0;
-    color: #888;
-    cursor: pointer;
-    letter-spacing: 2px;
-    padding: 10px 0;
-    font-size: 13px;
-    font-family: ui-monospace, Consolas, monospace;
-    transition: 0.2s;
-}
-
-.mission-back-button:hover {
-    color: white;
-}
-
-/* スマートフォン対応 */
-@media (max-width: 800px) {
-    .mission-list {
-        grid-template-columns: 1fr;
-    }
-
-    .mission-content {
-        margin: 45px auto;
-    }
-
-    .mission-content h1 {
-        font-size: 30px;
-    }
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .ms-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 }
