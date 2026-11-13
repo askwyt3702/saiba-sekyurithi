@@ -39,6 +39,7 @@ def summary(state):
         "nodes": {n["id"]: n["data"]["status"] for n in state["nodes"]},
         "successLogged": any("目的達成" in line["message"] for line in state["log"]),
         "securityEvents": state.get("securityEvents", {}),
+        "investigationLogs": [line["message"] for line in state["log"] if line["message"].startswith("【調査完了】")],
         "mechanicsLogs": [line["message"] for line in state["log"] if line["message"].startswith(("監視解除:", "ゲート解除:", "条件付き監視:"))],
     }
 

@@ -309,6 +309,9 @@ def _apply_validated_action(
         event = "INFO_CONFIRMED" if action_type == "confirmInfo" else "ANALYSIS_COMPLETED"
         player.security_events.setdefault(node_id, []).append(event)
         _log(player, "success", f"[SECURITY:{node_id}:{event}]")
+        hint = stage.get("security_rules", {}).get(node_id, {}).get("info_hint")
+        if action_type == "confirmInfo" and hint:
+            _log(player, "info", f"【調査完了】{hint}")
         return
 
     if action_type == "pause":

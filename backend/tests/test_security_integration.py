@@ -1,5 +1,27 @@
 """Confirmed integration contract for E01/E02/E03; uses raw actions, not ready_act."""
 import pytest
+from balance_config import SECURITY_RULES
+
+
+@pytest.mark.parametrize("node", ["E01", "E02", "E03"])
+def test_confirmation_adds_exactly_one_node_hint_without_cost(node, game, act, ready_act):
+    if node != "E01":
+        ready_act(game, "scan", "E01")
+        ready_act(game, "breach", "E01")
+    before = act(game, "scan", node)["state"]
+    first = act(game, "confirmInfo", node)
+    assert first["accepted"]
+    after = first["state"]
+    assert [entry["message"] for entry in after["log"][len(before["log"]):]] == [
+        f"[SECURITY:{node}:INFO_CONFIRMED]", f"【調査完了】{SECURITY_RULES[node]['info_hint']}"
+    ]
+    for field in ("analysisResource", "elapsedSeconds", "alertLevel", "privilege", "nodes"):
+        assert after[field] == before[field]
+    repeated = act(game, "confirmInfo", node)
+    assert not repeated["accepted"] and repeated["state"] == after
+    analysis = act(game, "completeAnalysis", node)
+    assert analysis["accepted"]
+    assert sum(entry["message"] == f"【調査完了】{SECURITY_RULES[node]['info_hint']}" for entry in analysis["state"]["log"]) == 1
 
 
 def test_recovery_preserves_entry_reward_before_adding_five(game, ready_act, set_player):

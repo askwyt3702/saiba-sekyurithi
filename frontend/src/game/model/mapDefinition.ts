@@ -32,6 +32,7 @@ export interface GameMapDefinition extends StageDefinition {
 }
 
 export interface SecurityRule {
+  info_hint?: string;
   allowed_scan_types?: string[];
   required_scan?: boolean;
   required_info?: boolean;

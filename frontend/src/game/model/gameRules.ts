@@ -33,6 +33,8 @@ class RuleRunner {
         this.state.securityEvents ??= {};
         (this.state.securityEvents[nodeId] ??= []).push(marker);
         this.log('success', `[SECURITY:${nodeId}:${marker}]`);
+        const hint = this.map.securityRules[nodeId]?.info_hint;
+        if (action.type === 'confirmInfo' && hint) this.log('info', `【調査完了】${hint}`);
         return { accepted: true };
       }
       case 'pause':

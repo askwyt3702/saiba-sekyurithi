@@ -92,6 +92,7 @@ for (const id of ['E01', 'E02', 'E03']) {
       });
     };
     const button = (label) => elements(panel(), 'button').find((b) => textOf(b) === label);
+    if (id !== 'E01') assert.ok(!textOf(panel()).includes('通常スキャンのみ'), 'E02/E03 also permit remote scans');
     if (id === 'E03') assert.equal(elements(panel(), 'button')[2].props.disabled, true);
     else assert.ok(textOf(panel()).includes('警戒度実増4%を消費'));
     button('情報確認').props.onClick();

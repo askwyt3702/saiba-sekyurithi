@@ -175,7 +175,7 @@ export function NodeDetailPanel({
       {stage.entryNodeIds.includes(node.id) && <p>初期侵入口：{node.id}</p>}
       {securityRule && node.status !== 'hacked' && (
         <section className="node-detail__mechanics" aria-label="侵入前の確認条件">
-          {securityRule.allowed_scan_types && <p>このノードは通常スキャンのみ使用できます。</p>}
+          {securityRule.allowed_scan_types?.length === 1 && securityRule.allowed_scan_types[0] === 'scan' && <p>このノードは通常スキャンのみ使用できます。</p>}
           <p>情報確認：{confirmed ? '完了' : '未完了'}{securityRule.required_analysis && ` ／ 解析：${analyzed ? '完了' : '未完了'}`}</p>
           {!securityReady && <p role="status">{securityRule.failure_mode === 'consume'
             ? `条件未達で侵入を実行すると、資源${balanceConfig.breach.resource}・${balanceConfig.breach.time}秒・警戒度実増${securityRule.failure_alert - balanceConfig.alertDecayPerSecond * balanceConfig.breach.time}%を消費し、侵入は未完了になります。`

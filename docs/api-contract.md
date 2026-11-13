@@ -12,6 +12,8 @@
 
 ## セキュリティ操作の統合追記
 
+`confirmInfo`成功時は確認マーカーに続き、対象の`SECURITY_RULES.info_hint`を使った`【調査完了】`ログを1件追加する。文面は生成データ経由でMockにも共有し、純粋ルールだけが出力する。重複確認・拒否時・`completeAnalysis`では調査ログを追加しない。既存のレスポンス型・コスト・報酬は変更しない。
+
 `ActionRequest.type`に`confirmInfo`（情報確認）と`completeAnalysis`（解析完了）を追加。どちらも`nodeId`が必要で、資源・時間・警戒度は消費しない。`GameState.securityEvents`はノードID→`INFO_CONFIRMED`/`ANALYSIS_COMPLETED`配列のマップ。Backendは既存の`[SECURITY:ID:EVENT]`ログから復元し、再読込で保持、resetで消去する。
 
 - 情報確認は対応ノードがスキャン済みで未確認の場合のみ可能。解析完了は情報確認後に一度だけ可能。停止/終了時、対象外ステージ/ノード、重複操作は拒否する。モーダルを開くだけでは確認済みにしない。

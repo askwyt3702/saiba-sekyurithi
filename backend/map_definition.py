@@ -48,6 +48,7 @@ class ActionCost(TypedDict):
 
 
 class SecurityRule(TypedDict, total=False):
+    info_hint: str
     allowed_scan_types: list[str]
     required_scan: bool
     required_info: bool
