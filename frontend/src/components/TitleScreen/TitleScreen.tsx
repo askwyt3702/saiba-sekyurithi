@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
 import './TitleScreen.css';
 
 interface TitleScreenProps {
@@ -8,6 +9,16 @@ interface TitleScreenProps {
 export function TitleScreen({ onStart }: TitleScreenProps) {
   const [isSettingOpen, setIsSettingOpen] = useState(false);
   const [bgMotion, setBgMotion] = useState(true);
+  const [seEnabled, setSeEnabled] = useState(() => isSoundEnabled());
+
+  const handleToggleSe = () => {
+    const next = !seEnabled;
+    setSeEnabled(next);
+    setSoundEnabled(next);
+    if (next) {
+      playSound('scan');
+    }
+  };
 
   return (
     <main className="ts-root">
@@ -28,14 +39,24 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
           <p className="ts-subtitle">— CYBER MYSTERY GAME —</p>
 
           <div className="ts-menu">
-            <button id="startButton" className="ts-btn-start" onClick={onStart}>
+            <button
+              id="startButton"
+              className="ts-btn-start"
+              onClick={() => {
+                playSound('breach');
+                onStart();
+              }}
+            >
               ▶&nbsp;&nbsp;&nbsp;START GAME
             </button>
             <button
               id="settingButton"
               type="button"
               className="ts-btn-setting"
-              onClick={() => setIsSettingOpen(true)}
+              onClick={() => {
+                playSound('click');
+                setIsSettingOpen(true);
+              }}
             >
               ⚙&nbsp;&nbsp;&nbsp;SETTING
             </button>
@@ -73,6 +94,23 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
             </div>
 
             <div className="ts-modal-body">
+              {/* 設定項目：サイバー効果音 */}
+              <div className="ts-setting-row">
+                <div>
+                  <div className="ts-setting-name">サイバー効果音 (CYBER SE)</div>
+                  <div className="ts-setting-desc">
+                    スキャン・侵入・IDS警告などの軽量シンセ効果音を鳴らします
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`ts-toggle-btn ${seEnabled ? 'is-on' : 'is-off'}`}
+                  onClick={handleToggleSe}
+                >
+                  {seEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
               {/* 設定項目：背景アニメーション */}
               <div className="ts-setting-row">
                 <div>
@@ -84,7 +122,10 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
                 <button
                   type="button"
                   className={`ts-toggle-btn ${bgMotion ? 'is-on' : 'is-off'}`}
-                  onClick={() => setBgMotion((prev) => !prev)}
+                  onClick={() => {
+                    playSound('click');
+                    setBgMotion((prev) => !prev);
+                  }}
                 >
                   {bgMotion ? 'ON' : 'OFF'}
                 </button>

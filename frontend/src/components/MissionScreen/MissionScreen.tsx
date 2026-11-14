@@ -1,3 +1,5 @@
+import { getStageClearRecords } from '../../game/model/missionRecords';
+import { playSound } from '../../game/sound/soundEffects';
 import './MissionScreen.css';
 
 interface MissionScreenProps {
@@ -86,6 +88,8 @@ const MISSIONS: MissionItem[] = [
 ];
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
+  const clearRecords = getStageClearRecords();
+
   return (
     <main className="ms-root" id="missionScreen">
       {/* 軽量化した背景オーバーレイ（1枚に統合）＋スキャンレーザー1本 */}
@@ -128,19 +132,26 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
         <section className="ms-grid">
           {MISSIONS.map((m, idx) => {
             const isLocked = Boolean(m.locked);
+            const record = clearRecords[m.id];
             return (
               <article
                 key={m.id}
                 style={{ animationDelay: `${idx * 0.08}s` }}
                 className={`ms-card ms-card--${m.theme} ${isLocked ? 'is-locked' : ''}`}
                 onClick={() => {
-                  if (!isLocked) onSelectMission(m.id);
+                  if (!isLocked) {
+                    playSound('breach');
+                    onSelectMission(m.id);
+                  } else {
+                    playSound('alert');
+                  }
                 }}
                 role={isLocked ? undefined : 'button'}
                 tabIndex={isLocked ? -1 : 0}
                 onKeyDown={(e) => {
                   if (!isLocked && (e.key === 'Enter' || e.key === ' ')) {
                     e.preventDefault();
+                    playSound('breach');
                     onSelectMission(m.id);
                   }
                 }}
@@ -157,7 +168,14 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                 {/* カード上部：コード＆バッジ */}
                 <div className="ms-card-head">
                   <span className="ms-card-code">{m.code}</span>
-                  <span className="ms-card-badge">{m.badge}</span>
+                  <div className="ms-card-badges">
+                    {record && (
+                      <span className="ms-clear-badge" title={`最高スコア: ${record.score} PTS`}>
+                        ★ RANK {record.rank}
+                      </span>
+                    )}
+                    <span className="ms-card-badge">{m.badge}</span>
+                  </div>
                 </div>
 
                 {/* 危険度・監視タグ */}
@@ -215,7 +233,14 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
 
         {/* フッター（タイトルへ戻る） */}
         <footer className="ms-footer">
-          <button type="button" className="ms-back-btn" onClick={onBack}>
+          <button
+            type="button"
+            className="ms-back-btn"
+            onClick={() => {
+              playSound('click');
+              onBack();
+            }}
+          >
             <span className="ms-back-arrow">←</span>
             <span>DISCONNECT (タイトルへ戻る)</span>
           </button>

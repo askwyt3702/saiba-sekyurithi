@@ -17,6 +17,7 @@ import { StageMechanicsStatus } from './components/StageMechanics/StageMechanics
 import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
+import { playSound } from './game/sound/soundEffects';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -56,6 +57,7 @@ function App() {
   const [prevLogLength, setPrevLogLength] = useState(0);
 
   const triggerIdsAlert = () => {
+    playSound('alert');
     setIdsAlertActive(true);
     setTimeout(() => {
       setIdsAlertActive(false);
@@ -88,6 +90,7 @@ function App() {
     !isRecovering;
 
   const handleSelectNode = (nodeId: string) => {
+    playSound('click');
     setSelectedNodeId(nodeId);
     setNotice(null);
   };
@@ -115,10 +118,16 @@ function App() {
       const result = await sendAction({ type, nodeId, passcode, exploitMismatch, exploitId });
 
       if (!result.accepted) {
+        playSound('alert');
         setNotice({
           nodeId,
           message: REJECT_MESSAGES[result.reason ?? 'invalid_state'],
         });
+      } else if (!exploitMismatch) {
+        if (type === 'scan' || type === 'remoteScan') playSound('scan');
+        else if (type === 'breach') playSound('breach');
+        else if (type === 'dataExtract') playSound('extract');
+        else playSound('click');
       }
     } catch (err) {
       console.error('[App] アクション送信に失敗しました:', err);
@@ -141,9 +150,12 @@ function App() {
       const result = await sendAction({ type: 'recover' });
 
       if (!result.accepted) {
+        playSound('alert');
         window.alert(
           REJECT_MESSAGES[result.reason ?? 'invalid_state']
         );
+      } else {
+        playSound('recover');
       }
     } catch (err) {
       console.error('[App] RESOURCE回復に失敗しました:', err);
@@ -210,9 +222,15 @@ function App() {
     return <div className="app-loading">接続中...</div>;
   }
 
+  const isHighAlert = state.status === 'playing' && state.alertLevel >= 75;
+
   // ゲーム画面
   return (
-    <div className={`app-shell ${idsAlertActive ? 'app-shell--ids-alert' : ''}`}>
+    <div
+      className={`app-shell ${idsAlertActive ? 'app-shell--ids-alert' : ''} ${
+        isHighAlert ? 'app-shell--high-alert' : ''
+      }`.trim()}
+    >
       {idsAlertActive && (
         <div className="ids-alert-banner" role="alert">
           ⚠ [CRITICAL IDS ALERT] 侵入検知センサー作動 // 不正エクスプロイト遮断

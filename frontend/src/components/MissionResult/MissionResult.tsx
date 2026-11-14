@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../../game/model/types';
 import { RESULT_RANK_CONFIG, calculateMissionResult, formatMissionTime } from '../../game/model/missionResult';
+import { saveStageClearRecord } from '../../game/model/missionRecords';
 import { getSecurityChallenge } from '../../game/data/securityLearningData';
 import './MissionResult.css';
 
@@ -25,10 +26,16 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
       : 100;
 
   useEffect(() => {
+    saveStageClearRecord(
+      state.stageId ?? 1,
+      result.rank,
+      result.score,
+      state.elapsedSeconds,
+    );
     const dialog = dialogRef.current;
     dialog?.showModal();
     return () => dialog?.close();
-  }, []);
+  }, [state.stageId, result.rank, result.score, state.elapsedSeconds]);
 
   const navigate = async (action: () => Promise<void>) => {
     if (pendingRef.current) return;
@@ -50,7 +57,7 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
     <dialog ref={dialogRef} className="mission-result" aria-labelledby="mission-result-title"
       aria-describedby="mission-result-description" onCancel={(event) => event.preventDefault()}>
       <div className="mission-result__content">
-        <p className="mission-result__eyebrow">NULL ROUTE / OPERATION REPORT</p>
+        <p className="mission-result__eyebrow">CYBER LABYRINTH // OPERATION REPORT</p>
         <h1 id="mission-result-title">MISSION COMPLETE</h1>
         <p id="mission-result-description">機密データの回収に成功しました</p>
         <div className="mission-result__rank" aria-label={`クリアランク ${result.rank}`}>

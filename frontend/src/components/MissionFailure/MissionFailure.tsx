@@ -55,7 +55,7 @@ export function MissionFailure({ state, onRetry, onTitle }: MissionFailureProps)
       onCancel={(event) => event.preventDefault()}
     >
       <div className="mission-failure__content">
-        <p className="mission-failure__eyebrow">NULL ROUTE // INCIDENT RESPONSE DEBRIEFING</p>
+        <p className="mission-failure__eyebrow">CYBER LABYRINTH // INCIDENT RESPONSE DEBRIEFING</p>
         <h1 id="mission-failure-title">OPERATION FAILED</h1>
         <p id="mission-failure-description">
           監視センター（SOC）により攻撃が検知・遮断されました
