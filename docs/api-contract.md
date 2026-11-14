@@ -1,12 +1,12 @@
 # NULL ROUTE フロント/バック データ契約 v0.5
 
-## ゲーム別マップSnapshot（固定マップ保存基盤）
+## ゲーム別マップSnapshot（Stage1動的生成対応）
 
 ゲーム作成・取得・行動・リセットのGameStateに`mapSnapshot`を追加する。
-形式は`{ schemaVersion: 1, source: 'fixed' | 'legacy-fixed', definition: GameMapDefinition }`。
+形式は`{ schemaVersion: 1, source: 'fixed' | 'legacy-fixed' | 'generated', definition: GameMapDefinition, generationInfo?: { mapHash, configHash, validatorVersion, acceptedAttempt } }`。
 `definition`の型は`frontend/src/game/model/mapDefinition.ts`、変換の正本は
-`backend/map_repository.py`。ステージID（`definition.id`）、seed（今回はnull）、
-generatorVersion（fixed-v1）、rulesVersion（turn-v1）、ノード・座標・接続・
+`backend/map_repository.py`。ステージID（`definition.id`）、seed（固定はnull、生成は32桁小文字16進）、
+generatorVersion（fixed-v1 / stage1-sha256-v1）、rulesVersion（turn-v1）、ノード・座標・接続・
 効果・入口・目標・監視・ゲート・重要目標・初期状態・コスト・評価設定を含む。
 
 DBには回答設定を含む完全定義をゲーム作成と同じトランザクションで保存する。
@@ -18,7 +18,12 @@ mapSnapshot.definition.nodesは同じ位置・ノード集合を持つ定義用�
 （statusはunscanned）であり、進行状態の正本にはしない。
 クライアントからSnapshotを受け付けるAPIは追加しない。
 
-- `POST /api/games`：現在の固定定義を新しいgameIdへ保存する。Stage1は24ノード・38接続。
+- `POST /api/games`：Stage1は生成・検証済みの24ノードの定義を新しいgameIdへ保存する。Stage0/2は固定定義を保存する。
+  任意の`seed`はStage1のみ対応し、省略時はランダム発行する。同じseed・生成版・設定で同じ盤面になる。
+  任意の`requestId`（英数字・`_`・`-`、8〜128文字）は重複作成を抑止する。
+  同じIDとステージ・seedの再送は同じgameIdを返し、異なる指定は409 `creation_request_conflict`。
+  未対応stageId、Stage0/2へのseed指定、不正seedは422。生成失敗は503 `map_generation_failed`。
+  生成失敗ではゲームを保存せず、クライアントの以前の再開先も更新しない。これらのエラーでMockへ切り替えない。
 - `GET /api/games/{gameId}`：保存済み定義と進行状態を返す。再読み込みで再生成しない。
 - 行動判定・評価はそのゲームの保存定義を参照し、NodeMasterや最新設定へ戻さない。
 - 同一ステージのreset/RETRYは保存定義を保持し、進行・ログ・鍵を初期化する。
@@ -26,15 +31,25 @@ mapSnapshot.definition.nodesは同じ位置・ノード集合を持つ定義用�
 - 未保存の旧ゲームは初回起動/アクセスでlegacy-fixedとして一度だけ補完する。
   元々保存されていない過去の接続・数値までは復元できないため、接続/ルールは移行時の固定定義、
   ノード情報は起動時同期前のNodeMasterを採用する。進行は初期化しない。
-- 非対応版・破損定義はHTTP409 `{"detail":"map_snapshot_invalid"}`。別マップへの置換や
-  保存済みHTTPゲームからMockへの自動切替で隠さない。
+- 非対応版・破損定義はHTTP409 `{"detail":"map_snapshot_invalid"}`。この応答では自動的に
+  Mockへ切り替えずエラー画面で停止する。行動/リセット中の同じ409も停止対象とする。
+- 通信失敗時は、HTTPの保存済みgameIdがあっても従来どおりMockへ切り替える。
+  HTTPのgameId・DB保存は削除せず、Mockは独立した保存を使用する。OFFLINE表示で区別する。
+  その他の接続エラーも従来のフォールバックを維持し、不正Snapshotとの区別はstatusとdetailで行う。
+  エラー画面からはリセットや保存削除をせず「ミッション選択へ戻る」で離脱できる。
 
-Mockは同じ生成済み固定データから完全定義を作り、
+MockはStage1ではTypeScript生成器をWeb Workerで実行し、Stage0/2では固定データから完全定義を作り、
 `nullroute.mock.snapshot.v1.{stageId}.{gameId}`へ定義・進行・非公開鍵を保存する。
-再開とRETRYは同じ定義を使用する。破損・保存失敗はエラーとし、元の保存を上書きしない。
+再開とRETRYは同じ定義を使用する。古い形式・非対応版・破損したMock保存は、
+当該ゲームのキーだけを削除して新規開始する。Stage1の通常接続では動的生成し直す。
+他ステージ・他gameIdの保存、HTTPのgameIdは削除しない。
+保存領域へのアクセス/書込み/削除に失敗した場合はエラー画面にし、他の保存を消して解決しない。
 HTTPとMockの保存は別系統であり相互変換しない。
 古いAPI応答との型互換のためmapSnapshotはTypeScriptではoptionalだが、更新後Backendは常に返す。
-ランダム生成、seed入力、難易度探索、Stage3の追加実装は今回含めない。
+ミッション選択の「再開 / 開始」は保存済みゲームを優先し、「新しいゲームを始める」は別gameIdで作成する。
+新規作成・初期状態の保存に成功した後だけ再開先を更新する。Mockの再開先は`nullroute.mock.gameId.<stageId>`。
+RETRYはseed・座標・接続を保持し、TITLEでは進行をリセットしない。Stage3は従来どおり未実装・選択不可。
+seed入力UIは追加せず、APIと内部の開始指定で再現できる。
 
 ## 問題機能・誤答ペナルティ
 
@@ -84,7 +99,7 @@ Core・Stage2・チュートリアルもmainの設定を維持し、追加報酬
 
 以上は統合作業中にユーザーが承認した仕様。動的生成はまだ開始していない。
 
-動的生成の第1段階では内部のゲーム別マップ型と純粋な行動遷移を追加した。その後の今回の統合で通信契約を上記のとおり拡張した。seed等はまだAPIで受け付けない。内部型と将来の接続範囲は[行動ルール基盤](action-rules-foundation.md)を参照。
+動的生成の第1段階では内部のゲーム別マップ型と純粋な行動遷移を追加した。今回の統合ではStage1生成・seed指定・保存と再開を上記の通信契約へ接続した。内部型は[行動ルール基盤](action-rules-foundation.md)を参照。
 
 フロントエンド担当・バックエンド担当・シナリオ/データ担当が、互いの実装を待たずに並行して作業できるようにするための取り決めです。
 ここで決めた形を変える場合は、必ずこのファイルを更新してからチームに共有してください（型定義はこの契約から自動的に導かれるものではなく、`frontend/src/game/model/types.ts` に手で同期させています）。

@@ -4,7 +4,7 @@ from typing import Literal, Optional
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,8 @@ import game_logic
 from database import engine, SessionLocal
 from game_data import ALL_STAGE_NODES, DEFAULT_STAGE_ID
 from map_repository import ensure_map, MapSnapshotError
+from game_creation import create_new_game, CreationConflict
+from map_generation import GenerationFailure
 
 app = FastAPI(title="NULL ROUTE API")
 
@@ -107,6 +109,8 @@ setup_database()
 # ======= スキーマ =======
 class CreateGameRequest(BaseModel):
     stageId: int = DEFAULT_STAGE_ID
+    seed: Optional[str] = None
+    requestId: Optional[str] = Field(default=None, min_length=8, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class ResetGameRequest(BaseModel):
@@ -156,7 +160,14 @@ def create_game(req: Optional[CreateGameRequest] = None, db: Session = Depends(g
     """
     game_logic.cleanup_stale_games(db)  # 作るついでに、長期間使われていないゲームを掃除する
     stage_id = req.stageId if req is not None else DEFAULT_STAGE_ID
-    player = game_logic.create_game(db, stage_id=stage_id)
+    try:
+        player = create_new_game(db, stage_id, req.seed if req else None, req.requestId if req else None)
+    except GenerationFailure:
+        raise HTTPException(status_code=503, detail="map_generation_failed")
+    except CreationConflict as error:
+        raise HTTPException(status_code=409, detail=str(error))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
     return game_logic.build_game_state(db, player)
 
 

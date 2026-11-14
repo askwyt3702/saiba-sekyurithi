@@ -68,3 +68,12 @@ class GameMap(Base):
     schema_version = Column(Integer, nullable=False, default=1)
     source = Column(String, nullable=False, default="fixed")
     definition = Column(JSON, nullable=False)
+
+
+class GameCreationRequest(Base):
+    """Idempotent creation; deleting a bookmark never deletes a game."""
+    __tablename__ = "game_creation_request"
+    request_id = Column(String(128), primary_key=True)
+    stage_id = Column(Integer, nullable=False)
+    seed = Column(String(32), nullable=True)
+    game_id = Column(Integer, ForeignKey("player_status.id"), nullable=False)

@@ -1,4 +1,5 @@
 import type { StageDefinition } from '../data/stageData';
+import {dynamicDisplayText} from './dynamicDisplay';
 import type { ActionCost, GameStatus, NetworkLayer, GameState } from './types';
 import {
   ACTION_COSTS, ALERT_DECAY_PER_SECOND, ALERT_GAME_OVER_THRESHOLD, EVALUATION_CONFIG,
@@ -6,17 +7,19 @@ import {
   PRIVILEGE_LADDER, RESOURCE_RECOVERY_AMOUNT, RESOURCE_REWARDS, DEFAULT_STAGE_ID,
   SECURITY_RULES,
   getStageData,
+  MAP_GENERATOR_VERSION,
 } from '../data/stageData';
 
 export interface MapSnapshot {
   schemaVersion: 1;
-  source: 'fixed' | 'legacy-fixed';
+  source: 'fixed' | 'legacy-fixed' | 'generated';
+  generationInfo?: { mapHash:string;configHash:string;validatorVersion:string;acceptedAttempt:number };
   /** Public view: geometry/rules are saved, hidden node details/answers are omitted. */
   definition: GameMapDefinition;
 }
 
 export function assertSavedMap(map: GameMapDefinition, requireSupportedVersion = true): void {
-  if (!map || (requireSupportedVersion && (map.generatorVersion !== 'fixed-v1' || map.rulesVersion !== 'turn-v1')) ||
+  if (!map || (requireSupportedVersion && (!['fixed-v1', MAP_GENERATOR_VERSION].includes(map.generatorVersion) || map.rulesVersion !== 'turn-v1')) ||
       !Array.isArray(map.nodes) || !Array.isArray(map.edges) || !map.rules?.costs || !map.initialState || !map.securityRules) {
     throw new Error('Invalid or unsupported saved map');
   }
@@ -41,7 +44,10 @@ export function publicSnapshot(map: GameMapDefinition, state: GameState): MapSna
   definition.securityRules = Object.fromEntries(Object.entries(map.securityRules).map(([id, rule]) =>
     [id, Object.fromEntries(Object.entries(rule).filter(([key]) => !['question_answers', 'vulnerability'].includes(key) &&
       (key !== 'info_hint' || state.nodes.some(n => n.id === id && n.status !== 'unscanned')))) as unknown as SecurityRule]));
-  return { schemaVersion: 1, source: 'fixed', definition };
+  if(map.generatorVersion===MAP_GENERATOR_VERSION)for(const rule of Object.values(definition.securityRules)){
+    if(rule.info_hint)rule.info_hint=dynamicDisplayText(rule.info_hint);
+  }
+  return { schemaVersion: 1, source: map.generatorVersion===MAP_GENERATOR_VERSION?'generated':'fixed', definition };
 }
 
 /** ゲーム単位の完全定義。APIには未公開情報を除いたMapSnapshotを返す。 */

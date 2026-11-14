@@ -18,6 +18,7 @@ import { StageMechanicsStatus } from './components/StageMechanics/StageMechanics
 import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE } from './game/data/stageData';
+import { gameStart, type GameStart } from './game/model/gameStart';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -52,7 +53,6 @@ function App() {
   const [stageId, setStageId] = useState<number>(DEFAULT_STAGE_ID);
 
   // ゲーム画面のときだけゲームデータを取得
-  const { state, connectionMode, sendAction, reset, connectionError } = useGameClient(screen === 'game', stageId);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -60,6 +60,8 @@ function App() {
   const [idsAlertActive, setIdsAlertActive] = useState(false);
   const idsLogs = useRef<{ gameId: string | null; seen: Set<string> }>({ gameId: null, seen: new Set() });
   const idsAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [start,setStart]=useState<GameStart>({mode:'resume'});
+  const { state, connectionMode, sendAction, reset, connectionError } = useGameClient(screen === 'game', stageId,start);
 
   const triggerIdsAlert = () => {
     if (idsAlertTimer.current) clearTimeout(idsAlertTimer.current);
@@ -196,20 +198,40 @@ function App() {
       <MissionScreen
         onSelectMission={(id) => {
           if (id === 0 || id === 1 || id === 2) {
+            setStart(gameStart('resume'));
             setStageId(id);
             setSelectedNodeId(null);
             setNotice(null);
             setScreen('game');
           }
         }}
+        onNewGame={(id)=>{
+          if(![0,1,2].includes(id)||!window.confirm('新しいゲームを始めますか？成功後に再開先が切り替わります。RETRYは現在のマップを維持します。'))return;
+          setStart(gameStart('new'));setStageId(id);setSelectedNodeId(null);setNotice(null);setScreen('game');
+        }}
         onBack={() => setScreen('title')}
       />
     );
   }
 
+  if (connectionError) {
+    return (
+      <div className="app-loading app-loading--error" role="alert">
+        <p>{connectionError}</p>
+        <button type="button" onClick={() => {
+          setSelectedNodeId(null);
+          setNotice(null);
+          setIsRecovering(false);
+          setIdsAlertActive(false);
+          setScreen('mission');
+        }}>ミッション選択へ戻る</button>
+      </div>
+    );
+  }
+
   // ゲームデータ読み込み中
   if (!state || (state.stageId ?? DEFAULT_STAGE_ID) !== stageId) {
-    return <div className="app-loading" role={connectionError ? 'alert' : undefined}>{connectionError ?? '接続中...'}</div>;
+    return <div className="app-loading" role="status">マップを準備しています...</div>;
   }
 
   // ゲーム画面
@@ -275,6 +297,7 @@ function App() {
         />
 
         <MapView
+        key={state.gameId}
           mapDefinition={map}
           stageId={state.stageId ?? stageId}
           nodes={state.nodes}

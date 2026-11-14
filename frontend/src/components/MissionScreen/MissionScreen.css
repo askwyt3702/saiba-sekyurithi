@@ -623,3 +623,6 @@
     gap: 12px;
   }
 }
+.ms-game-actions { display:flex; gap:8px; width:100%; }
+.ms-game-actions button { padding:7px 9px; border:1px solid #26735e; border-radius:3px; background:#061a16; color:#7dffcc; cursor:pointer; font:inherit; font-size:10px; }
+.ms-game-actions button:hover, .ms-game-actions button:focus-visible { background:#10372c; }

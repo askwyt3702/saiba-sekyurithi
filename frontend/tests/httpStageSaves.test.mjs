@@ -9,10 +9,12 @@ function harness(initial = {}, forceWrongStage = false) {
   const games = new Map();
   const calls = [];
   let nextId = 100;
+  let failure = null;
   const make = (stageId, id) => ({ gameId: id, stageId, status: 'playing', elapsedSeconds: 0,
     analysisResource: 25, alertLevel: 0, privilege: 'GUEST', nodes: [], edges: [], log: [], evaluation: null });
   const fetch = async (url, options = {}) => {
     calls.push({ url, ...options });
+    if (failure) return { ok: false, status: failure.status, json: async () => ({detail: failure.code}) };
     let value;
     if (url.endsWith('/api/games') && options.method === 'POST') {
       const stage = forceWrongStage ? 1 : JSON.parse(options.body).stageId;
@@ -35,8 +37,64 @@ function harness(initial = {}, forceWrongStage = false) {
   const dependencies = { '../model/types': { fromApiNode: (node) => node }, '../data/stageData': { DEFAULT_STAGE_ID: 1 } };
   const context = { fetch, console, localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } };
   runInNewContext('(function(require,module,exports){' + outputText + '\n})', context)((id) => dependencies[id], module, module.exports);
-  return { Client: module.exports.HttpGameClient, storage, games, calls, make };
+  return { Client: module.exports.HttpGameClient, storage, games, calls, make,
+    fail(status, code) { failure = {status, code}; } };
 }
+
+test('new HTTP game sends seed and request ID, preserving the previous game', async () => {
+  const h = harness({'nullroute.gameId.1':'previous'});
+  h.games.set('previous', {...h.make(1, 'previous'), elapsedSeconds: 90});
+  const start = {mode:'new', seed:'0'.repeat(32), requestId:'new-game-proof'};
+  const state = await new h.Client('http://test', 1, start).connect(() => {});
+  assert.notEqual(state.gameId, 'previous');
+  assert.equal(h.storage.get('nullroute.gameId.1'), state.gameId);
+  assert.equal(h.games.get('previous').elapsedSeconds, 90);
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual(JSON.parse(h.calls[0].body), {stageId:1, seed:start.seed, requestId:start.requestId});
+});
+
+test('failed new HTTP generation preserves the previous bookmark and blocks fallback', async () => {
+  const h = harness({'nullroute.gameId.1':'previous'});
+  h.fail(503, 'map_generation_failed');
+  await assert.rejects(new h.Client('http://test', 1, {mode:'new'}).connect(() => {}), error => {
+    assert.equal(error.blocksFallback, true);
+    return true;
+  });
+  assert.equal(h.storage.get('nullroute.gameId.1'), 'previous');
+});
+
+test('actual HTTP snapshot 409 keeps the saved game ID and is classified without creating another game', async () => {
+  const h = harness({'nullroute.gameId.1':'saved-game'});
+  h.fail(409, 'map_snapshot_invalid');
+  await assert.rejects(new h.Client('http://test', 1).connect(() => {}), error => {
+    assert.equal(error.status, 409);
+    assert.equal(error.code, 'map_snapshot_invalid');
+    assert.equal(error.isSnapshotInvalid, true);
+    return true;
+  });
+  assert.equal(h.storage.get('nullroute.gameId.1'), 'saved-game');
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].method, undefined);
+});
+
+test('actual HTTP action and reset snapshot errors propagate for safe stopping', async () => {
+  const h = harness();
+  const client = new h.Client('http://test', 1);
+  await client.connect(() => {});
+  h.fail(409, 'map_snapshot_invalid');
+  await assert.rejects(client.sendAction({type:'scan',nodeId:'E01'}), error => error.isSnapshotInvalid);
+  await assert.rejects(client.reset(), error => error.isSnapshotInvalid);
+});
+
+test('unavailable HTTP server remains distinguishable from an invalid snapshot', async () => {
+  const h = harness();
+  h.fail(503, 'unavailable');
+  await assert.rejects(new h.Client('http://test', 1).connect(() => {}), error => {
+    assert.equal(error.status, 503);
+    assert.equal(error.isSnapshotInvalid, false);
+    return true;
+  });
+});
 
 test('legacy stage1 save is preserved while stage2 gets an independent save and reset', async () => {
   const h = harness({ 'nullroute.gameId': 'old-stage1' });

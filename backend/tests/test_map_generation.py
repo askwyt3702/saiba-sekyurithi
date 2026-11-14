@@ -173,11 +173,10 @@ def test_example_has_room_for_one_real_target_question_mistake(strategy):
     assert state.game_status == "won"
 
 
-def test_snapshot_wire_roundtrip_requires_explicit_generator_version_opt_in():
+def test_snapshot_wire_roundtrip_supports_registered_generator_version():
     generated = generate_stage1("0" * 32)
     wire = to_wire(generated.definition)
-    with pytest.raises(MapSnapshotError):
-        from_wire(wire)
+    assert to_wire(from_wire(wire)) == wire
     assert to_wire(from_wire(wire, supported_generator_versions=(GENERATOR_VERSION,))) == wire
 
 

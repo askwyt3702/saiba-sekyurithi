@@ -42,7 +42,8 @@ def test_create_game_initial_state(client):
     assert state["analysisResource"] == INITIAL_ANALYSIS_RESOURCE
     assert state["privilege"] == "GUEST"
     assert [n["id"] for n in state["nodes"]] == [n["id"] for n in NODES]
-    assert len(state["edges"]) == len(EDGES)
+    assert 34 <= len(state["edges"]) <= 40
+    assert state["mapSnapshot"]["source"] == "generated"
     assert len(state["log"]) == 1
     assert all(n["data"]["status"] == "unscanned" for n in state["nodes"])
 

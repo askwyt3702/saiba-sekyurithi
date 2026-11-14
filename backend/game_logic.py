@@ -11,7 +11,7 @@ from sqlalchemy import bindparam, func, inspect, text
 from sqlalchemy.orm import Session
 
 import models
-from map_repository import load_map, save_map, public_snapshot
+from map_repository import load_map, save_map, public_snapshot, display_text
 
 from balance_config import (
     ACTION_COSTS,
@@ -165,7 +165,7 @@ def list_stages() -> list[dict]:
     ]
 
 
-def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID, *, definition=None) -> models.PlayerStatus:
+def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID, *, definition=None, generation=None, request_id=None) -> models.PlayerStatus:
     from map_definition import map_from_stage
     stage = definition if definition is not None else map_from_stage(get_stage(stage_id))
     player = models.PlayerStatus(
@@ -177,7 +177,9 @@ def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID, *, definition=Non
 
     db.add(player)
     db.flush()
-    save_map(db, player, stage)
+    save_map(db, player, stage, generation=generation)
+    if request_id:
+        db.add(models.GameCreationRequest(request_id=request_id, stage_id=stage["id"], seed=stage["seed"], game_id=player.id))
 
     add_log(
         db,
@@ -284,6 +286,7 @@ def cleanup_stale_games(
     db.query(models.NodeState).filter(models.NodeState.player_id.in_(stale_ids)).delete(synchronize_session=False)
     db.query(models.GameLog).filter(models.GameLog.player_id.in_(stale_ids)).delete(synchronize_session=False)
     db.query(models.GameMap).filter(models.GameMap.game_id.in_(stale_ids)).delete(synchronize_session=False)
+    db.query(models.GameCreationRequest).filter(models.GameCreationRequest.game_id.in_(stale_ids)).delete(synchronize_session=False)
     _delete_legacy_pending_actions(db, "player_id", stale_ids)
     db.query(models.PlayerStatus).filter(models.PlayerStatus.id.in_(stale_ids)).delete(synchronize_session=False)
     db.commit()
@@ -308,13 +311,15 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
     db_nodes = [SimpleNamespace(**node) for node in stage_nodes]
 
     nodes = []
+    from map_generation_config import GENERATOR_VERSION, DYNAMIC_NODE_INFO
     for node in db_nodes:
         status = statuses.get(node.id, "unscanned")
         revealed = status != "unscanned"
-        info_text = node.info if revealed else "不明（スキャンが必要です）"
+        description = DYNAMIC_NODE_INFO.get(node.id, node.info) if stage["generator_version"] == GENERATOR_VERSION else node.info
+        info_text = description if revealed else "不明（スキャンが必要です）"
         if status == "hacked" and node.id in frag_by_node_id:
             label_name, frag_val = frag_by_node_id[node.id]
-            info_text = f"{node.info or ''} 【入手済み{label_name}: {frag_val}】".strip()
+            info_text = f"{description or ''} 【入手済み{label_name}: {frag_val}】".strip()
 
         nodes.append({
             "id": node.id,
@@ -369,7 +374,7 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
             {
                 "id": str(l.id),
                 "timestamp": l.timestamp,
-                "message": l.message,
+                "message": display_text(stage, l.message),
                 "severity": l.severity,
             }
             for l in logs

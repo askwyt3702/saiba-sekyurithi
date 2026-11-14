@@ -51,9 +51,20 @@ def client():
 
 
 @pytest.fixture
-def game(client):
-    """新しいゲームを作り、gameId(文字列)を返す。"""
-    return client.post("/api/games").json()["gameId"]
+def fixed_game(client):
+    """Legacy fixed graph regression; normal POST /api/games is dynamic now."""
+    import game_logic
+    def create(stage_id=1):
+        with main.SessionLocal() as db:
+            player=game_logic.create_game(db,stage_id)
+            return game_logic.build_game_state(db,player)
+    return create
+
+
+@pytest.fixture
+def game(fixed_game):
+    """固定Snapshotで既存の行動ルールを回帰確認する。"""
+    return fixed_game()["gameId"]
 
 
 @pytest.fixture

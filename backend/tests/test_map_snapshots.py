@@ -9,8 +9,8 @@ from map_definition import map_from_stage
 from map_repository import load_map, save_map, ensure_map, to_wire
 
 
-def test_fixed_snapshot_is_saved_and_same_stage_retry_preserves_it(client, ready_act):
-    state = client.post('/api/games', json={'stageId': 1}).json()
+def test_fixed_snapshot_is_saved_and_same_stage_retry_preserves_it(client, ready_act, fixed_game):
+    state = fixed_game()
     gid = state['gameId']
     snapshot = state['mapSnapshot']
     assert snapshot['schemaVersion'] == 1 and snapshot['source'] == 'fixed'
@@ -93,7 +93,7 @@ def test_wire_round_trip_does_not_consult_live_stage_configuration():
 def test_snapshot_and_player_creation_roll_back_together(monkeypatch):
     with main.SessionLocal() as db:
         before = db.query(models.PlayerStatus).count()
-    def fail(*_args):
+    def fail(*_args, **_kwargs):
         raise RuntimeError('snapshot write failure')
     monkeypatch.setattr(game_logic, 'save_map', fail)
     with main.SessionLocal() as db:

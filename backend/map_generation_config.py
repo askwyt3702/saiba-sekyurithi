@@ -4,6 +4,17 @@ from dataclasses import asdict, dataclass
 GENERATOR_VERSION = "stage1-sha256-v1"
 VALIDATOR_VERSION = "stage1-witness-v1"
 
+# Display-only overlays; stored generator definitions and their hashes stay intact.
+DYNAMIC_NODE_INFO = {
+    "D01": "公開Webサービス。接続先は現在のマップを確認してください。",
+    "D03": "VPNの接続点。接続先は現在のマップを確認してください。",
+    "D07": "管理情報を確認できるサーバー。接続先は現在のマップを確認してください。",
+    "I04": "初回侵入で警戒度-20%。接続先は現在のマップを確認してください。効果は一度だけ。",
+}
+DYNAMIC_TEXT_REPLACEMENTS = {
+    "DMZ層の Web(D01)・Mail(D02) の内部通信経路を特定しました。": "接続先は現在のマップで確認してください。",
+}
+
 
 @dataclass(frozen=True)
 class GenerationConfig:

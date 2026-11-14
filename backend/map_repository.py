@@ -5,12 +5,21 @@ from math import isfinite
 import models
 from game_data import get_stage, DEFAULT_STAGE_ID
 from map_definition import map_from_stage
+from map_generation_config import GENERATOR_VERSION, VALIDATOR_VERSION
 
 SCHEMA_VERSION = 1
 
 
 class MapSnapshotError(ValueError):
     pass
+
+
+def display_text(definition, message):
+    if definition["generator_version"] == GENERATOR_VERSION:
+        from map_generation_config import DYNAMIC_TEXT_REPLACEMENTS
+        for old, new in DYNAMIC_TEXT_REPLACEMENTS.items():
+            message = message.replace(old, new)
+    return message
 
 
 def to_wire(stage):
@@ -50,7 +59,7 @@ def to_wire(stage):
     return deepcopy(result)
 
 
-def from_wire(value, *, supported_generator_versions=("fixed-v1",)):
+def from_wire(value, *, supported_generator_versions=("fixed-v1", GENERATOR_VERSION)):
     """Decode without consulting current stage/config data (including old saved games)."""
     try:
         w = deepcopy(value)
@@ -91,9 +100,15 @@ def from_wire(value, *, supported_generator_versions=("fixed-v1",)):
         raise MapSnapshotError("Invalid saved map") from error
 
 
-def save_map(db, player, definition, source="fixed"):
+def save_map(db, player, definition, source="fixed", generation=None):
     wire = to_wire(definition)
     from_wire(wire)
+    if definition["generator_version"] == GENERATOR_VERSION:
+        from map_generation import digest
+        if not generation:
+            raise MapSnapshotError("Missing generation metadata")
+        source = "generated"
+        wire["generationInfo"] = {**deepcopy(generation), "snapshotHash": digest(wire)}
     row = db.get(models.GameMap, player.id)
     if row is None:
         row = models.GameMap(game_id=player.id)
@@ -115,13 +130,23 @@ def ensure_map(db, player):
         row = save_map(db, player, definition, "legacy-fixed")
         player.stage_id = definition["id"]
         db.commit()
-    if row.schema_version != SCHEMA_VERSION or row.source not in ("fixed", "legacy-fixed"):
+    if row.schema_version != SCHEMA_VERSION or row.source not in ("fixed", "legacy-fixed", "generated"):
         raise MapSnapshotError("Unsupported snapshot schema")
     return row
 
 
 def load_map(db, player):
-    definition = from_wire(ensure_map(db, player).definition)
+    row = ensure_map(db, player)
+    if row.source == "generated":
+        from map_generation import digest
+        wire = deepcopy(row.definition)
+        info = wire.pop("generationInfo", None)
+        if (not isinstance(info, dict) or info.get("validatorVersion") != VALIDATOR_VERSION or
+                info.get("snapshotHash") != digest(wire)):
+            raise MapSnapshotError("Invalid generated snapshot")
+    definition = from_wire(row.definition)
+    if (definition["generator_version"] == GENERATOR_VERSION) != (row.source == "generated"):
+        raise MapSnapshotError("Map source does not match generator")
     if definition["id"] != player.stage_id:
         raise MapSnapshotError("Map stage does not match game")
     return definition
@@ -135,4 +160,11 @@ def public_snapshot(db, player, definition, nodes):
     revealed = {n["id"] for n in nodes if n["data"]["status"] != "unscanned"}
     wire["securityRules"] = {nid: {k: v for k, v in r.items() if k not in ("question_answers", "vulnerability") and
                                    (k != "info_hint" or nid in revealed)} for nid, r in wire["securityRules"].items()}
-    return {"schemaVersion": SCHEMA_VERSION, "source": ensure_map(db, player).source, "definition": wire}
+    for rule in wire["securityRules"].values():
+        if "info_hint" in rule:
+            rule["info_hint"] = display_text(definition, rule["info_hint"])
+    row = ensure_map(db, player)
+    result = {"schemaVersion": SCHEMA_VERSION, "source": row.source, "definition": wire}
+    if row.source == "generated":
+        result["generationInfo"] = {k: v for k, v in row.definition["generationInfo"].items() if k != "snapshotHash"}
+    return result

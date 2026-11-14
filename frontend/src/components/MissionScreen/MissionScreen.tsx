@@ -2,6 +2,7 @@ import './MissionScreen.css';
 
 interface MissionScreenProps {
   onSelectMission: (id: number) => void;
+  onNewGame?: (id:number)=>void;
   onBack: () => void;
 }
 
@@ -85,7 +86,7 @@ const MISSIONS: MissionItem[] = [
   },
 ];
 
-export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
+export function MissionScreen({ onSelectMission, onNewGame, onBack }: MissionScreenProps) {
   return (
     <main className="ms-root" id="missionScreen">
       {/* 軽量化した背景オーバーレイ（1枚に統合）＋スキャンレーザー1本 */}
@@ -136,10 +137,10 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                 onClick={() => {
                   if (!isLocked) onSelectMission(m.id);
                 }}
-                role={isLocked ? undefined : 'button'}
-                tabIndex={isLocked ? -1 : 0}
+                role={isLocked ? undefined : onNewGame?'group':'button'}
+                tabIndex={isLocked ? -1 : onNewGame?undefined:0}
                 onKeyDown={(e) => {
-                  if (!isLocked && (e.key === 'Enter' || e.key === ' ')) {
+                  if (e.target===e.currentTarget&&!isLocked && (e.key === 'Enter' || e.key === ' ')) {
                     e.preventDefault();
                     onSelectMission(m.id);
                   }
@@ -202,11 +203,16 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
 
                 {/* カード下部：アクションバー */}
                 <div className="ms-card-foot">
+                  {!isLocked&&onNewGame?<div className="ms-game-actions">
+                    <button type="button" onClick={e=>{e.stopPropagation();onSelectMission(m.id);}}>再開 / 開始</button>
+                    <button type="button" onClick={e=>{e.stopPropagation();onNewGame(m.id);}}>新しいゲームを始める</button>
+                  </div>:<>
                   <span className="ms-action-text">
                     {isLocked ? '🔒 ' : '▶ '}
                     {m.actionText}
                   </span>
                   <span className="ms-action-arrow">{isLocked ? '×' : '→'}</span>
+                  </>}
                 </div>
               </article>
             );

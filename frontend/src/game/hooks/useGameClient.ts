@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionRequest, ActionResult, GameClient, GameState, ServerEvent } from '../model/types';
-import { MockGameClient } from '../client/mockGameClient';
+import { createMockSession } from '../client/mockSession';
+import type { GameStart } from '../model/gameStart';
 import { HttpGameClient, HttpGameError } from '../client/httpGameClient';
 import { DEFAULT_STAGE_ID } from '../data/stageData';
 
@@ -26,9 +27,9 @@ function applyEvent(prev: GameState | null, event: ServerEvent): GameState | nul
 export type ConnectionMode = 'backend' | 'mock';
 
 // enabled が true になるまでバックエンドに接続しない(タイトル画面を開いただけでゲームが作られないように)
-export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_ID) {
+export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_ID, start?:GameStart) {
   const clientRef = useRef<GameClient | null>(null);
-  const connection = useMemo(() => ({ enabled, stageId }), [enabled, stageId]);
+  const connection = useMemo(() => ({ enabled, stageId,start }), [enabled, stageId,start]);
   const [snapshot, setSnapshot] = useState<{ connection: object; state: GameState; mode: ConnectionMode } | null>(null);
   const [failure, setFailure] = useState<{ connection: object; message: string } | null>(null);
 
@@ -47,7 +48,7 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
 
     // まず実バックエンド(HttpGameClient)へ接続を試み、
     // バックエンド未起動の場合は MockGameClient にフォールバックする。
-    const httpClient = new HttpGameClient('http://localhost:8000', stageId);
+    const httpClient = new HttpGameClient('http://localhost:8000', stageId,start);
     clientRef.current = httpClient;
 
     httpClient
@@ -57,17 +58,25 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
       })
       .catch(async (err) => {
         if (cancelled) return;
-        const fail = () => setFailure({ connection, message: '保存済みゲームを読み込めませんでした。接続または保存データを確認してください。' });
-        if (httpClient.hasSavedGame || err instanceof HttpGameError) { fail(); return; }
-        console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
+        const fail = (message: string) => setFailure({ connection, message });
         httpClient.disconnect();
+        if (err instanceof HttpGameError && (err.isSnapshotInvalid||err.blocksFallback)) {
+          fail(err.isSnapshotInvalid?'保存済みのマップが不正、または非対応の形式です。Backendの保存データを確認してください。':'新しいゲームを作成できませんでした。以前の保存は保持されています。時間をおいて再試行してください。');
+          clientRef.current = null;
+          return;
+        }
+        console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
         mode = 'mock';
         try {
-          const mockClient = new MockGameClient('mock', stageId);
-          clientRef.current = mockClient;
-          const initial = await mockClient.connect(handleEvent);
-          if (!cancelled) setSnapshot({ connection, state: initial, mode });
-        } catch { if (!cancelled) fail(); }
+          const session=await createMockSession(stageId,start??{mode:'resume'},handleEvent,()=>!cancelled);
+          if(cancelled){session.client.disconnect();return;}
+          clientRef.current = session.client;
+          setSnapshot({ connection, state: session.state, mode });
+        } catch { if (!cancelled) {
+          clientRef.current?.disconnect();
+          clientRef.current = null;
+          fail('Mockゲームを開始できませんでした。ブラウザの保存領域や設定を確認してください。');
+        } }
       });
 
     return () => {
@@ -75,14 +84,32 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
       clientRef.current?.disconnect();
       clientRef.current = null;
     };
-  }, [enabled, stageId, connection]);
+  }, [enabled, stageId, connection,start]);
 
-  const sendAction = (action: ActionRequest): Promise<ActionResult> => {
-    if (!clientRef.current) return Promise.resolve({ accepted: false, reason: 'invalid_state' });
-    return clientRef.current.sendAction(action);
+  const stopInvalidSnapshot = (error: unknown, client: GameClient) => {
+    if (clientRef.current !== client || !(error instanceof HttpGameError) || !error.isSnapshotInvalid) return false;
+    client.disconnect();
+    clientRef.current = null;
+    setFailure({ connection, message: '保存済みのマップが不正、または非対応の形式です。Backendの保存データを確認してください。' });
+    return true;
   };
 
-  const reset = (): Promise<void> => clientRef.current?.reset() ?? Promise.resolve();
+  const sendAction = async (action: ActionRequest): Promise<ActionResult> => {
+    const client = clientRef.current;
+    if (!client) return { accepted: false, reason: 'invalid_state' };
+    try { return await client.sendAction(action); }
+    catch (error) {
+      if (stopInvalidSnapshot(error, client)) return { accepted: false, reason: 'invalid_state' };
+      throw error;
+    }
+  };
+
+  const reset = async (): Promise<void> => {
+    const client = clientRef.current;
+    if (!client) return;
+    try { await client.reset(); }
+    catch (error) { stopInvalidSnapshot(error, client); throw error; }
+  };
 
   const state = enabled && snapshot?.connection === connection && snapshot.state.stageId === stageId ? snapshot.state : null;
   const connectionMode: ConnectionMode | null = state ? snapshot?.mode ?? null : null;

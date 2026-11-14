@@ -19,8 +19,8 @@ SCENARIOS = json.loads((Path(__file__).parent / "fixtures/stage_routes.json").re
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s["name"])
-def test_strategy_scenarios_via_api(scenario, client, act):
-    state = client.post("/api/games", json={"stageId": scenario.get("stageId", 1)}).json()
+def test_strategy_scenarios_via_api(scenario, client, act, fixed_game):
+    state = fixed_game(scenario.get("stageId", 1))
     gid = state["gameId"]
     with main.SessionLocal() as db:
         player = db.get(models.PlayerStatus, int(gid))
@@ -95,7 +95,7 @@ def test_all_connected_shortest_strategies_have_no_supply_or_alert_reduction():
     assert len(reachable) == 24
 
 
-def test_all_paths_up_to_eight_nodes_can_clear(client, ready_act):
+def test_all_paths_up_to_eight_nodes_can_clear(client, ready_act, fixed_game):
     adjacency = {node["id"]: set() for node in game_data.NODES}
     for a, b in game_data.EDGE_PAIRS:
         adjacency[a].add(b)
@@ -112,7 +112,7 @@ def test_all_paths_up_to_eight_nodes_can_clear(client, ready_act):
     visit(["E01"])
     assert len(paths) == 15  # 最短2本だけでなく、次点13本も実際のAPIで再生する。
     for path in paths:
-        state = client.post("/api/games").json()
+        state = fixed_game()
         game_id = state["gameId"]
         recoveries = 0
         actions = [(kind, node) for node in path for kind in ("scan", "breach")] + [("dataExtract", "C03")]
@@ -135,9 +135,9 @@ def test_all_paths_up_to_eight_nodes_can_clear(client, ready_act):
 
 
 @pytest.mark.parametrize("extra", ["recover", "E02"])
-def test_unnecessary_recovery_or_no_reward_detour_does_not_improve_score(extra, client, ready_act):
+def test_unnecessary_recovery_or_no_reward_detour_does_not_improve_score(extra, client, ready_act, fixed_game):
     route = next(s["route"] for s in SCENARIOS if s["name"] == "resource")
-    state = client.post("/api/games").json()
+    state = fixed_game()
     gid = state["gameId"]
     for node in route:
         for kind in ("scan", "breach"):

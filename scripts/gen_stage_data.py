@@ -13,7 +13,7 @@ sys.path.insert(0, str(REPO / "backend"))
 
 import balance_config  # noqa: E402
 import game_data as g  # noqa: E402
-from map_generation_config import DEFAULT_CONFIG, GENERATOR_VERSION, VALIDATOR_VERSION
+from map_generation_config import DEFAULT_CONFIG, GENERATOR_VERSION, VALIDATOR_VERSION, DYNAMIC_NODE_INFO, DYNAMIC_TEXT_REPLACEMENTS
 from map_definition import map_from_stage
 
 OUTPUT = REPO / "frontend" / "src" / "game" / "data" / "stageData.ts"
@@ -130,6 +130,8 @@ export const EVALUATION_CONFIG = {json.dumps(balance_config.EVALUATION_CONFIG, e
 // Python生成器の正本から同期。独立したTS側の既定値を持たない。
 export const MAP_GENERATOR_VERSION = {ts_str(GENERATOR_VERSION)};
 export const MAP_VALIDATOR_VERSION = {ts_str(VALIDATOR_VERSION)};
+export const DYNAMIC_NODE_INFO: Record<string,string> = {json.dumps(DYNAMIC_NODE_INFO, ensure_ascii=False)};
+export const DYNAMIC_TEXT_REPLACEMENTS: Record<string,string> = {json.dumps(DYNAMIC_TEXT_REPLACEMENTS, ensure_ascii=False)};
 export const MAP_GENERATION_CONFIG = {json.dumps(DEFAULT_CONFIG.as_dict(), ensure_ascii=False)};
 export const STAGE1_INTERNAL_KEYS = {json.dumps(list(map_from_stage(g.get_stage(1))), ensure_ascii=False)};
 export const STAGE1_EFFECT_KEYS = {json.dumps({nid: list(effect) for nid, effect in g.NODE_EFFECTS.items()}, ensure_ascii=False)};

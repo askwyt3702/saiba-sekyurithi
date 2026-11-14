@@ -21,9 +21,11 @@ def test_new_rules_keep_main_values(node, expected):
 
 
 def prepare(client, stage_id, node):
-    gid = client.post("/api/games", json={"stageId": stage_id}).json()["gameId"]
+    # Question/penalty regression uses the fixed catalog; dynamic creation is
+    # independently exercised through real API calls in test_dynamic_games.py.
     with main.SessionLocal() as db:
-        player = db.get(models.PlayerStatus, int(gid))
+        player = game_logic.create_game(db, stage_id)
+        gid = str(player.id)
         player.current_privilege = "ROOT"
         player.alert_level = 10
         for entry in game_data.get_stage(stage_id)["nodes"]:
