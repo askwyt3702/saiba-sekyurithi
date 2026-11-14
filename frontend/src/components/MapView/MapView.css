@@ -9,9 +9,9 @@
   height: 100%;
   position: relative;
   overflow: hidden;
-  background-color: #020805;
+  background-color: transparent;
   background-image:
-    radial-gradient(circle at 50% 45%, rgba(0, 48, 24, 0.22) 0%, rgba(1, 5, 3, 0.96) 85%),
+    radial-gradient(circle at 50% 45%, rgba(0, 32, 16, 0.18) 0%, rgba(1, 6, 3, 0.58) 88%),
     linear-gradient(rgba(0, 255, 100, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 255, 100, 0.03) 1px, transparent 1px);
   background-size: 100% 100%, 32px 32px, 32px 32px;

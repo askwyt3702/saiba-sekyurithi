@@ -7,7 +7,12 @@
   flex-direction: column;
   height: var(--app-h);
   overflow: hidden;
-  background: #020805;
+  background-color: #020805;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(2, 12, 7, 0.45) 0%, rgba(1, 6, 3, 0.82) 100%),
+    url('/game-bg.jpg');
+  background-size: cover;
+  background-position: center;
   color: #d8efe2;
 }
 
@@ -34,7 +39,12 @@
   align-items: center;
   justify-content: center;
   height: var(--app-h);
-  background: #020805;
+  background-color: #020805;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(2, 12, 7, 0.55) 0%, rgba(1, 6, 3, 0.88) 100%),
+    url('/game-bg.jpg');
+  background-size: cover;
+  background-position: center;
   color: #00ff64;
   font-family: ui-monospace, Consolas, monospace;
   letter-spacing: 3px;

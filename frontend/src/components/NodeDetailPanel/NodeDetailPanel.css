@@ -6,8 +6,8 @@
   width: 288px;
   flex-shrink: 0;
   padding: 16px;
-  background: #030b07;
-  border-left: 1px solid rgba(0, 255, 100, 0.22);
+  background: rgba(2, 10, 6, 0.78);
+  border-left: 1px solid rgba(0, 255, 100, 0.26);
   color: #c8e6d5;
   font-family: ui-monospace, Consolas, monospace;
   overflow-y: auto;
