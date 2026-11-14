@@ -11,6 +11,7 @@ from sqlalchemy import bindparam, func, inspect, text
 from sqlalchemy.orm import Session
 
 import models
+from map_repository import load_map, save_map, public_snapshot
 
 from balance_config import (
     ACTION_COSTS,
@@ -164,14 +165,11 @@ def list_stages() -> list[dict]:
     ]
 
 
-def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID) -> models.PlayerStatus:
-    stage = get_stage(stage_id)
+def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID, *, definition=None) -> models.PlayerStatus:
+    from map_definition import map_from_stage
+    stage = definition if definition is not None else map_from_stage(get_stage(stage_id))
     player = models.PlayerStatus(
-        game_time=0,
-        alert_level=0.0,
-        analysis_resource=INITIAL_ANALYSIS_RESOURCE,
-        current_privilege=INITIAL_PRIVILEGE,
-        game_status="playing",
+        **stage["initial_state"],
         stage_id=stage["id"],
         key_fragment_a=_generate_key_fragment(),
         key_fragment_b=_generate_key_fragment(),
@@ -179,6 +177,7 @@ def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID) -> models.PlayerS
 
     db.add(player)
     db.flush()
+    save_map(db, player, stage)
 
     add_log(
         db,
@@ -196,19 +195,18 @@ def reset_game(
     db: Session, player: models.PlayerStatus, stage_id: Optional[int] = None
 ) -> models.PlayerStatus:
     """指定されたゲームを初期状態にリセットする（stage_id を渡せば別ステージに切り替え可能）。"""
+    from map_definition import map_from_stage
+    stage = load_map(db, player)
+    # Preserve the legacy API's explicit stage switch; same-stage RETRY never rebuilds.
+    if stage_id is not None and get_stage(stage_id)["id"] != stage["id"]:
+        stage = map_from_stage(get_stage(stage_id))
+        player.stage_id = stage["id"]
+        save_map(db, player, stage)
     db.query(models.NodeState).filter(models.NodeState.player_id == player.id).delete()
     db.query(models.GameLog).filter(models.GameLog.player_id == player.id).delete()
 
-    if stage_id is not None:
-        player.stage_id = get_stage(stage_id)["id"]
-    elif player.stage_id is None:
-        player.stage_id = DEFAULT_STAGE_ID
-
-    player.game_time = 0
-    player.alert_level = 0.0
-    player.analysis_resource = INITIAL_ANALYSIS_RESOURCE
-    player.current_privilege = INITIAL_PRIVILEGE
-    player.game_status = "playing"
+    for field, value in stage["initial_state"].items():
+        setattr(player, field, value)
     player.key_fragment_a = _generate_key_fragment()
     player.key_fragment_b = _generate_key_fragment()
 
@@ -216,7 +214,7 @@ def reset_game(
         db,
         player,
         "info",
-        _start_message(_player_stage(player)),
+        _start_message(stage),
     )
 
     db.commit()
@@ -252,6 +250,10 @@ def _delete_legacy_pending_actions(db: Session, column: str, ids: list) -> None:
 def remove_obsolete_nodes(db: Session) -> int:
     """game_data.py のどのステージにも存在しない古いノードを DB から削除し、削除した件数を返す。"""
     valid_ids = {n["id"] for n in ALL_STAGE_NODES}
+    for snapshot in db.query(models.GameMap).all():
+        if not isinstance(snapshot.definition, dict) or not isinstance(snapshot.definition.get("nodes"), list):
+            return 0  # Unknown references: do not delete catalog data used by saves.
+        valid_ids.update(n["id"] for n in snapshot.definition["nodes"])
     obsolete_ids = [
         row[0] for row in db.query(models.NodeMaster.id).filter(models.NodeMaster.id.notin_(valid_ids))
     ]
@@ -281,6 +283,7 @@ def cleanup_stale_games(
         return 0
     db.query(models.NodeState).filter(models.NodeState.player_id.in_(stale_ids)).delete(synchronize_session=False)
     db.query(models.GameLog).filter(models.GameLog.player_id.in_(stale_ids)).delete(synchronize_session=False)
+    db.query(models.GameMap).filter(models.GameMap.game_id.in_(stale_ids)).delete(synchronize_session=False)
     _delete_legacy_pending_actions(db, "player_id", stale_ids)
     db.query(models.PlayerStatus).filter(models.PlayerStatus.id.in_(stale_ids)).delete(synchronize_session=False)
     db.commit()
@@ -290,10 +293,9 @@ def cleanup_stale_games(
 def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
     """api-contract.md 2.2 の GameState の形に組み立てる。"""
     frag_a, frag_b = _ensure_player_fragments(player)
-    stage = _player_stage(player)
+    stage = load_map(db, player)
     stage_nodes = stage["nodes"]
-    stage_node_ids = {n["id"] for n in stage_nodes}
-    order = {n["id"]: i for i, n in enumerate(stage_nodes)}
+    from game_rules import evaluate_mission_result as evaluate_rules
     ordered_key_ids = sorted(stage.get("key_fragment_node_ids", set()))
     frag_by_node_id = {}
     if len(ordered_key_ids) >= 1:
@@ -302,10 +304,8 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
         frag_by_node_id[ordered_key_ids[1]] = ("断片B", frag_b)
 
     statuses = _node_statuses(db, player)
-    db_nodes = sorted(
-        db.query(models.NodeMaster).filter(models.NodeMaster.id.in_(stage_node_ids)).all(),
-        key=lambda n: order.get(n.id, len(order)),
-    )
+    from types import SimpleNamespace
+    db_nodes = [SimpleNamespace(**node) for node in stage_nodes]
 
     nodes = []
     for node in db_nodes:
@@ -344,7 +344,7 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
     has_all_keys = bool(ordered_key_ids) and all(statuses.get(kid) == "hacked" for kid in ordered_key_ids)
     cipher_unlocked = has_all_keys and (
         any("暗号キー認証に成功" in l.message for l in logs)
-        or player.analysis_resource < ACTION_COSTS["dataExtract"]["resource"]
+        or player.analysis_resource < stage["action_costs"]["dataExtract"]["resource"]
     )
 
     return {
@@ -361,7 +361,8 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
             "unlocked": cipher_unlocked,
         },
         "securityEvents": _security_events(logs),
-        "evaluation": evaluate_mission_result(player) if player.game_status == "won" else None,
+        "evaluation": evaluate_rules(player, stage["evaluation_config"]) if player.game_status == "won" else None,
+        "mapSnapshot": public_snapshot(db, player, stage, nodes),
         "nodes": nodes,
         "edges": stage["edges"],
         "log": [
@@ -404,9 +405,7 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str,
                  exploit_mismatch: bool = False, exploit_id: Optional[str] = None, question_id: Optional[str] = None) -> None:
     """DB入出力アダプター。判定・状態遷移は純粋ルールへ委譲する。"""
     from game_rules import RuleAction, transition
-    from map_definition import map_from_stage
-
-    definition = map_from_stage(_player_stage(player))
+    definition = load_map(db, player)
     before = _rule_state(db, player)
     result = transition(definition, before, RuleAction(action_type, node_id, passcode, exploit_mismatch, exploit_id, question_id))
     if not result.accepted:

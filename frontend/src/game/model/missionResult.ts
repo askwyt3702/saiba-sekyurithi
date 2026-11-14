@@ -5,7 +5,7 @@ import { EVALUATION_CONFIG } from '../data/stageData';
 export const RESULT_RANK_CONFIG = EVALUATION_CONFIG;
 
 export function calculateMissionResult(state: Pick<GameState,
-  'elapsedSeconds' | 'alertLevel' | 'analysisResource' | 'nodes'>, config = RESULT_RANK_CONFIG) {
+  'elapsedSeconds' | 'alertLevel' | 'analysisResource' | 'nodes' | 'mapSnapshot'>, config = state.mapSnapshot?.definition.rules.evaluation ?? RESULT_RANK_CONFIG) {
   const score = Math.max(0, Math.round(
     config.baseScore
     - Math.max(0, state.elapsedSeconds - config.timeGraceSeconds) * config.timePenaltyPerSecond

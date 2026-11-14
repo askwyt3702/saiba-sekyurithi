@@ -98,6 +98,7 @@ export interface KeyFragments {
 }
 
 export interface GameState {
+  mapSnapshot?: import('./mapDefinition').MapSnapshot;
   securityEvents?: Record<string, ('INFO_CONFIRMED' | 'ANALYSIS_COMPLETED')[]>;
   gameId: string;
   stageId?: number;

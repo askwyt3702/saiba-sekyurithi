@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -58,3 +58,13 @@ class GameLog(Base):
     timestamp = Column(Integer, default=0)              # 記録時点の game_time
     message = Column(String)
     severity = Column(String, default="info")           # info / success / warning / danger
+
+
+class GameMap(Base):
+    """Immutable map for a game; progress and secret key fragments live separately."""
+    __tablename__ = "game_map"
+
+    game_id = Column(Integer, ForeignKey("player_status.id"), primary_key=True)
+    schema_version = Column(Integer, nullable=False, default=1)
+    source = Column(String, nullable=False, default="fixed")
+    definition = Column(JSON, nullable=False)

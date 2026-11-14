@@ -19,7 +19,7 @@ export function breachStatus(
   nodes: NetworkNode[],
   edges: ApiNetworkEdge[],
   privilege: string,
-  stage: StageDefinition,
+  stage: StageDefinition & { securityRules?: Record<string, SecurityRule> },
   securityEvents: Record<string, readonly string[]> = {},
 ): { label: string; tone: 'done' | 'ready' | 'blocked' } {
   if (node.status === 'hacked') return { label: '侵入済み', tone: 'done' };
@@ -29,7 +29,7 @@ export function breachStatus(
   if (PRIVILEGES.indexOf(privilege) < LAYERS.indexOf(node.layer)) {
     return { label: `権限不足(要 ${requiredPrivilege(node.layer)})`, tone: 'blocked' };
   }
-  const rule = (SECURITY_RULES as Record<string, SecurityRule>)[node.id];
+  const rule = (stage.securityRules ?? SECURITY_RULES as Record<string, SecurityRule>)[node.id];
   if (!securityRequirementsMet(rule, securityEvents[node.id])) {
     return { label: rule?.failure_mode === 'consume' ? '確認条件未達（侵入未完了・資源と時間の消費あり）' : '情報確認が必要（未確認の侵入は無消費で拒否）', tone: 'blocked' };
   }

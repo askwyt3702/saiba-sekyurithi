@@ -1,5 +1,6 @@
+import type { GameMapDefinition } from '../../game/model/mapDefinition';
 import { useState } from 'react';
-import { getStageData, isExtractTarget, type StageDefinition } from '../../game/data/stageData';
+import { getStageData, type StageDefinition } from '../../game/data/stageData';
 import { getNodeSecurityMeta, getSecurityChallenge } from '../../game/data/securityLearningData';
 import { canReachNode } from '../../game/model/actionRules';
 import { breachStatus, LAYERS, PRIVILEGES, requiredPrivilege } from './breachStatus';
@@ -20,6 +21,7 @@ type LogFilter = 'all' | LogSeverity;
 
 interface ToolPanelProps {
   securityEvents?: Record<string, readonly string[]>;
+  mapDefinition?: GameMapDefinition;
   stageId: number;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
@@ -39,6 +41,7 @@ function formatTimestamp(seconds: number): string {
 export function ToolPanel({
   securityEvents = {},
   stageId,
+  mapDefinition,
   nodes,
   edges,
   privilege,
@@ -51,7 +54,7 @@ export function ToolPanel({
   const [collapsed, setCollapsed] = useState(() => startsCollapsed(currentViewportWidth()));
   const [tab, setTab] = useState<Tab>('vuln');
   const [logFilter, setLogFilter] = useState<LogFilter>('all');
-  const stage = getStageData(stageId);
+  const stage = mapDefinition ?? getStageData(stageId);
 
   if (collapsed) {
     return (
@@ -105,7 +108,6 @@ export function ToolPanel({
         )}
         {tab === 'mission' && (
           <MissionTab
-            stageId={stageId}
             stage={stage}
             nodes={nodes}
             privilege={privilege}
@@ -232,21 +234,19 @@ function VulnerabilityTab({
 }
 
 function MissionTab({
-  stageId,
   stage,
   nodes,
   privilege,
   keyFragments,
   onSelectNode,
 }: {
-  stageId: number;
   stage: StageDefinition;
   nodes: NetworkNode[];
   privilege: string;
   keyFragments?: KeyFragments;
   onSelectNode: (nodeId: string) => void;
 }) {
-  const targets = nodes.filter((node) => isExtractTarget(node, stageId));
+  const targets = nodes.filter((node) => node.layer === 'Core' && (stage.targetNodeIds.length === 0 || stage.targetNodeIds.includes(node.id)));
   const keyNodes = stage.keyFragmentNodeIds
     .map((id) => nodes.find((node) => node.id === id))
     .filter((node): node is NetworkNode => node !== undefined);

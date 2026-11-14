@@ -9,6 +9,8 @@ function connectionHarness() {
   let cursor = 0;
   let effects = [];
   const http = [];
+  const mocks = [];
+  class HttpFailure extends Error {}
   const stateFor = (stageId) => ({ stageId, gameId: String(stageId), status: 'playing', nodes: [], log: [] });
   class Http {
     constructor(_base, stageId) { this.stageId = stageId; http.push(this); }
@@ -17,7 +19,7 @@ function connectionHarness() {
     disconnect() {}
   }
   class Mock {
-    constructor(_id, stageId) { this.stageId = stageId; }
+    constructor(_id, stageId) { this.stageId = stageId; mocks.push(this); }
     connect(callback) { const state = stateFor(this.stageId); callback({ type: 'state_snapshot', state }); return Promise.resolve(state); }
     disconnect() {}
   }
@@ -39,14 +41,14 @@ function connectionHarness() {
       if (!same(slots[i]?.deps, deps)) effects.push(() => { slots[i]?.cleanup?.(); slots[i] = { deps, cleanup: callback() }; });
     },
   };
-  const dependencies = { react, '../client/httpGameClient': { HttpGameClient: Http },
+  const dependencies = { react, '../client/httpGameClient': { HttpGameClient: Http, HttpGameError: HttpFailure },
     '../client/mockGameClient': { MockGameClient: Mock }, '../data/stageData': { DEFAULT_STAGE_ID: 1 } };
   const { outputText } = ts.transpileModule(readFileSync(new URL('../src/game/hooks/useGameClient.ts', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });
   const module = { exports: {} };
   runInNewContext('(function(require,module,exports){' + outputText + '\n})', { console: { warn() {} } })((id) => dependencies[id], module, module.exports);
-  return { http, render(enabled, stage) {
+  return { http, mocks, HttpFailure, render(enabled, stage) {
     cursor = 0; effects = [];
     const result = module.exports.useGameClient(enabled, stage);
     effects.forEach((effect) => effect());
@@ -67,6 +69,20 @@ test('new stage ignores stale snapshots and old callbacks after disconnection', 
   assert.equal(h.render(true, 2).state.stageId, 2);
   assert.equal(h.render(false, 2).state, null);
   assert.equal(h.render(true, 2).state, null);
+});
+
+test('saved HTTP game or server snapshot error never silently switches to another Mock map', async () => {
+  for (const saved of [true, false]) {
+    const h = connectionHarness();
+    h.render(true, 1);
+    h.http[0].hasSavedGame = saved;
+    h.http[0].reject(saved ? new Error('offline') : new h.HttpFailure('map_snapshot_invalid'));
+    await settle();
+    const result = h.render(true, 1);
+    assert.equal(result.state, null);
+    assert.ok(result.connectionError);
+    assert.equal(h.mocks.length, 0);
+  }
 });
 
 test('backend connection failure falls back to the selected stage2 Mock', async () => {

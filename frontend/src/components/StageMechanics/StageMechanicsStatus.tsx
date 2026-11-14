@@ -1,10 +1,11 @@
+import type { GameMapDefinition } from '../../game/model/mapDefinition';
 import { getStageData } from '../../game/data/stageData';
 import type { NetworkNode } from '../../game/model/types';
 import { isMonitoringActive, missingGateRequirements } from '../../game/model/actionRules';
 import './StageMechanicsStatus.css';
 
-export function StageMechanicsStatus({ stageId, nodes }: { stageId: number; nodes: NetworkNode[] }) {
-  const stage = getStageData(stageId);
+export function StageMechanicsStatus({ stageId, nodes, mapDefinition }: { stageId: number; nodes: NetworkNode[]; mapDefinition?: GameMapDefinition }) {
+  const stage = mapDefinition ?? getStageData(stageId);
   const monitor = stage.conditionalBreachAlert;
   if (!monitor) return null;
   const active = isMonitoringActive(nodes, stage);

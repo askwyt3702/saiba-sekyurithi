@@ -1,5 +1,6 @@
+import type { GameMapDefinition } from '../../game/model/mapDefinition';
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, SECURITY_RULES, getStageData, isExtractTarget } from '../../game/data/stageData';
+import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, SECURITY_RULES, getStageData } from '../../game/data/stageData';
 import type { SecurityRule } from '../../game/model/mapDefinition';
 import { securityRequirementsMet } from '../../game/model/actionRules';
 import { getNodeSecurityMeta, getSecurityChallenge } from '../../game/data/securityLearningData';
@@ -13,7 +14,7 @@ import type {
   GameStatus,
   KeyFragments,
 } from '../../game/model/types';
-import { balanceConfig } from '../../game/data/balanceConfig';
+import { balanceConfig as defaultBalanceConfig } from '../../game/data/balanceConfig';
 import './NodeDetailPanel.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -22,6 +23,7 @@ interface NodeDetailPanelProps {
   node: NetworkNode | null;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
+  mapDefinition?: GameMapDefinition;
   stageId?: number;
   gameStatus?: GameStatus;
   privilege?: string;
@@ -45,6 +47,7 @@ export function NodeDetailPanel({
   nodes,
   edges,
   stageId = DEFAULT_STAGE_ID,
+  mapDefinition,
   gameStatus = 'playing',
   privilege = 'GUEST',
   keyFragments,
@@ -55,7 +58,10 @@ export function NodeDetailPanel({
   logs,
   onAction,
 }: NodeDetailPanelProps) {
-  const stage = getStageData(stageId);
+  const stage = mapDefinition ?? getStageData(stageId);
+  const balanceConfig = mapDefinition ? { ...defaultBalanceConfig, ...mapDefinition.rules.costs, alertDecayPerSecond: mapDefinition.rules.alertDecayPerSecond } : defaultBalanceConfig;
+  const resourceCap = mapDefinition?.rules.maxAnalysisResource ?? MAX_ANALYSIS_RESOURCE;
+  const isTarget = (n: NetworkNode) => n.layer === 'Core' && (stage.targetNodeIds.length === 0 || stage.targetNodeIds.includes(n.id));
   const [passcode, setPasscode] = useState('');
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isExploitOpen, setIsExploitOpen] = useState(false);
@@ -110,7 +116,7 @@ export function NodeDetailPanel({
 
   const reachable = canReachNode(node.id, nodes, edges, stage);
   const playing = gameStatus === 'playing';
-  const securityRule = (SECURITY_RULES as Record<string, SecurityRule>)[node.id];
+  const securityRule = (mapDefinition?.securityRules ?? SECURITY_RULES as Record<string, SecurityRule>)[node.id];
   const confirmed = securityEvents[node.id]?.includes('INFO_CONFIRMED') ?? false;
   const analyzed = securityEvents[node.id]?.includes('ANALYSIS_COMPLETED') ?? false;
   const securityReady = securityRequirementsMet(securityRule, securityEvents[node.id]);
@@ -161,19 +167,19 @@ export function NodeDetailPanel({
       : balanceConfig.dataExtract.resource;
 
   const canExtract =
-    playing && isExtractTarget(node, stageId) &&
+    playing && isTarget(node) &&
     node.status === 'hacked' &&
     analysisResource >= extractResourceCost;
 
   const showPasscodeInput =
     stage.keyFragmentNodeIds.length > 0 &&
-    isExtractTarget(node, stageId) &&
+    isTarget(node) &&
     node.status !== 'hacked';
 
   const fragA = keyFragments?.a ?? null;
   const fragB = keyFragments?.b ?? null;
   const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
-  const securityMeta = getNodeSecurityMeta(node.id);
+  const securityMeta = getNodeSecurityMeta(node.id, securityRule);
   const isInvestigated = confirmed || (
     logs?.some(
       (l) =>
@@ -678,7 +684,7 @@ export function NodeDetailPanel({
                   初期侵入口
                 </span>
               )}
-              {isExtractTarget(node, stageId) && (
+              {isTarget(node) && (
                 <span className="node-info-modal__badge node-info-modal__badge--target">
                   最終目標（データ回収対象）
                 </span>
@@ -732,7 +738,7 @@ export function NodeDetailPanel({
                   {!isUnscanned && effect && (
                     <div className="node-info-modal__item">
                       <strong>初回侵入効果：</strong>
-                      資源 {effect.resourceBonus >= 0 ? '+' : ''}{effect.resourceBonus}（上限{MAX_ANALYSIS_RESOURCE}） ／ 警戒度 {effect.alertDelta >= 0 ? '+' : ''}{effect.alertDelta}%
+                      資源 {effect.resourceBonus >= 0 ? '+' : ''}{effect.resourceBonus}（上限{resourceCap}） ／ 警戒度 {effect.alertDelta >= 0 ? '+' : ''}{effect.alertDelta}%
                     </div>
                   )}
                   {monitored && monitor && (
@@ -807,7 +813,7 @@ export function NodeDetailPanel({
       )}
 
       {playing &&
-        isExtractTarget(node, stageId) &&
+        isTarget(node) &&
         node.status === 'hacked' &&
         analysisResource < extractResourceCost && (
           <p className="node-detail__notice" role="status">

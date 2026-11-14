@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionRequest, ActionResult, GameClient, GameState, ServerEvent } from '../model/types';
 import { MockGameClient } from '../client/mockGameClient';
-import { HttpGameClient } from '../client/httpGameClient';
+import { HttpGameClient, HttpGameError } from '../client/httpGameClient';
 import { DEFAULT_STAGE_ID } from '../data/stageData';
 
 function applyEvent(prev: GameState | null, event: ServerEvent): GameState | null {
@@ -30,6 +30,7 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
   const clientRef = useRef<GameClient | null>(null);
   const connection = useMemo(() => ({ enabled, stageId }), [enabled, stageId]);
   const [snapshot, setSnapshot] = useState<{ connection: object; state: GameState; mode: ConnectionMode } | null>(null);
+  const [failure, setFailure] = useState<{ connection: object; message: string } | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -54,16 +55,19 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
       .then((initial) => {
         if (!cancelled) setSnapshot({ connection, state: initial, mode });
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (cancelled) return;
+        const fail = () => setFailure({ connection, message: '保存済みゲームを読み込めませんでした。接続または保存データを確認してください。' });
+        if (httpClient.hasSavedGame || err instanceof HttpGameError) { fail(); return; }
         console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
         httpClient.disconnect();
         mode = 'mock';
-        const mockClient = new MockGameClient('mock', stageId);
-        clientRef.current = mockClient;
-        void mockClient.connect(handleEvent).then((initial) => {
+        try {
+          const mockClient = new MockGameClient('mock', stageId);
+          clientRef.current = mockClient;
+          const initial = await mockClient.connect(handleEvent);
           if (!cancelled) setSnapshot({ connection, state: initial, mode });
-        });
+        } catch { if (!cancelled) fail(); }
       });
 
     return () => {
@@ -82,5 +86,5 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
 
   const state = enabled && snapshot?.connection === connection && snapshot.state.stageId === stageId ? snapshot.state : null;
   const connectionMode: ConnectionMode | null = state ? snapshot?.mode ?? null : null;
-  return { state, connectionMode, sendAction, reset };
+  return { state, connectionMode, sendAction, reset, connectionError: failure?.connection === connection ? failure.message : null };
 }

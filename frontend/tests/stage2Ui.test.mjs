@@ -34,6 +34,31 @@ function elements(tree, type) {
   return [...(tree.type === type ? [tree] : []), ...[tree.props?.children].flat(Infinity).flatMap((child) => elements(child, type))];
 }
 
+test('map and action panel use the supplied snapshot rather than static stage metadata', () => {
+  const { mapFromStage } = load(new URL('../src/game/model/mapDefinition.ts', import.meta.url));
+  const { getStageData } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
+  const { createMockGameState } = load(new URL('../src/game/data/mockGameState.ts', import.meta.url));
+  const { MapView } = load(new URL('../src/components/MapView/MapView.tsx', import.meta.url));
+  const { NodeDetailPanel } = load(new URL('../src/components/NodeDetailPanel/NodeDetailPanel.tsx', import.meta.url));
+  const map = mapFromStage(getStageData(1));
+  map.nodes[0].position.x += 123;
+  map.entryNodeIds = ['E03'];
+  map.targetNodeIds = ['C04'];
+  const state = createMockGameState('custom', 1, map);
+  const provider = MapView({ stageId: 1, mapDefinition: map, nodes: state.nodes, edges: state.edges, selectedNodeId: null, onSelectNode() {} });
+  const content = provider.props.children.type(provider.props.children.props);
+  const flow = elements(content, 'Flow')[0];
+  assert.equal(flow.props.nodes[0].position.x, map.nodes[0].position.x);
+  assert.deepEqual(plainArray(flow.props.edges.map(e => [e.source, e.target])), plainArray(map.edges.map(e => [e.source, e.target])));
+  const empty = NodeDetailPanel({ mapDefinition: map, node: null, nodes: state.nodes, edges: state.edges, analysisResource: 25, notice: null, onAction() {} });
+  assert.ok(textOf(empty).includes('E03'));
+  const target = { ...state.nodes.find(n => n.id === 'C04'), status: 'hacked' };
+  const panel = NodeDetailPanel({ mapDefinition: map, node: target, nodes: state.nodes, edges: state.edges, privilege: 'ROOT', analysisResource: 25, notice: null, onAction() {} });
+  assert.equal(elements(panel, 'button')[3].props.disabled, false);
+});
+
+function plainArray(value) { return JSON.parse(JSON.stringify(value)); }
+
 test('stage2 card starts stage2 while mission3 remains locked', () => {
   const { MissionScreen } = load(new URL('../src/components/MissionScreen/MissionScreen.tsx', import.meta.url));
   let selected;

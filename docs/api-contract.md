@@ -1,4 +1,40 @@
-# NULL ROUTE フロント/バック データ契約 v0.4
+# NULL ROUTE フロント/バック データ契約 v0.5
+
+## ゲーム別マップSnapshot（固定マップ保存基盤）
+
+ゲーム作成・取得・行動・リセットのGameStateに`mapSnapshot`を追加する。
+形式は`{ schemaVersion: 1, source: 'fixed' | 'legacy-fixed', definition: GameMapDefinition }`。
+`definition`の型は`frontend/src/game/model/mapDefinition.ts`、変換の正本は
+`backend/map_repository.py`。ステージID（`definition.id`）、seed（今回はnull）、
+generatorVersion（fixed-v1）、rulesVersion（turn-v1）、ノード・座標・接続・
+効果・入口・目標・監視・ゲート・重要目標・初期状態・コスト・評価設定を含む。
+
+DBには回答設定を含む完全定義をゲーム作成と同じトランザクションで保存する。
+APIには公開用の写しを返す。未スキャンの説明・脆弱性・ヒント、
+securityRulesのquestion_answersとvulnerabilityを公開しない。
+鍵文字は従来の取得済みノード情報からのみ公開する。
+ルートのGameState.nodes/edgesが進行状態付きの表示データ、
+mapSnapshot.definition.nodesは同じ位置・ノード集合を持つ定義用データ
+（statusはunscanned）であり、進行状態の正本にはしない。
+クライアントからSnapshotを受け付けるAPIは追加しない。
+
+- `POST /api/games`：現在の固定定義を新しいgameIdへ保存する。Stage1は24ノード・38接続。
+- `GET /api/games/{gameId}`：保存済み定義と進行状態を返す。再読み込みで再生成しない。
+- 行動判定・評価はそのゲームの保存定義を参照し、NodeMasterや最新設定へ戻さない。
+- 同一ステージのreset/RETRYは保存定義を保持し、進行・ログ・鍵を初期化する。
+  従来の別stageId指定resetは互換性のため維持し、新ステージの固定定義へ置換する。
+- 未保存の旧ゲームは初回起動/アクセスでlegacy-fixedとして一度だけ補完する。
+  元々保存されていない過去の接続・数値までは復元できないため、接続/ルールは移行時の固定定義、
+  ノード情報は起動時同期前のNodeMasterを採用する。進行は初期化しない。
+- 非対応版・破損定義はHTTP409 `{"detail":"map_snapshot_invalid"}`。別マップへの置換や
+  保存済みHTTPゲームからMockへの自動切替で隠さない。
+
+Mockは同じ生成済み固定データから完全定義を作り、
+`nullroute.mock.snapshot.v1.{stageId}.{gameId}`へ定義・進行・非公開鍵を保存する。
+再開とRETRYは同じ定義を使用する。破損・保存失敗はエラーとし、元の保存を上書きしない。
+HTTPとMockの保存は別系統であり相互変換しない。
+古いAPI応答との型互換のためmapSnapshotはTypeScriptではoptionalだが、更新後Backendは常に返す。
+ランダム生成、seed入力、難易度探索、Stage3の追加実装は今回含めない。
 
 ## 問題機能・誤答ペナルティ
 
