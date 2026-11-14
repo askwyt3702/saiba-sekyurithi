@@ -13,6 +13,14 @@ export function requiredPrivilege(layer: NetworkLayer): string {
   return PRIVILEGES[LAYERS.indexOf(layer)] ?? 'ROOT';
 }
 
+export interface BreachStatus {
+  // バッジに出す短い文言。ノード名を押しつぶさないよう短く保つ
+  label: string;
+  tone: 'done' | 'ready' | 'blocked';
+  // バッジにマウスを乗せたときに出す補足(任意)
+  detail?: string;
+}
+
 // スキャン済みノードに今すぐ侵入できるか。できない場合はその理由を返す。
 export function breachStatus(
   node: NetworkNode,
@@ -21,7 +29,7 @@ export function breachStatus(
   privilege: string,
   stage: StageDefinition,
   securityEvents: Record<string, readonly string[]> = {},
-): { label: string; tone: 'done' | 'ready' | 'blocked' } {
+): BreachStatus {
   if (node.status === 'hacked') return { label: '侵入済み', tone: 'done' };
   const missing = missingGateRequirements(node.id, nodes, stage);
   if (missing.length > 0) return { label: `ロック(要 ${missing.join('・')})`, tone: 'blocked' };
@@ -31,7 +39,13 @@ export function breachStatus(
   }
   const rule = (SECURITY_RULES as Record<string, SecurityRule>)[node.id];
   if (!securityRequirementsMet(rule, securityEvents[node.id])) {
-    return { label: rule?.failure_mode === 'consume' ? '確認条件未達（侵入未完了・資源と時間の消費あり）' : '情報確認が必要（未確認の侵入は無消費で拒否）', tone: 'blocked' };
+    return {
+      label: '要 情報確認',
+      tone: 'blocked',
+      detail: rule?.failure_mode === 'consume'
+        ? '確認前に侵入すると失敗し、資源と時間を消費します'
+        : '確認前の侵入は消費なしで拒否されます',
+    };
   }
   return { label: '侵入可能', tone: 'ready' };
 }

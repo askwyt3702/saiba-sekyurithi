@@ -179,7 +179,9 @@ function VulnerabilityTab({
                     <span className="tool-panel__node-name">
                       {node.id} {node.name}
                     </span>
-                    <span className={`tool-panel__badge tool-panel__badge--${status.tone}`}>{status.label}</span>
+                    <span className={`tool-panel__badge tool-panel__badge--${status.tone}`} title={status.detail}>
+                      {status.label}
+                    </span>
                   </span>
                   <span className="tool-panel__node-meta">
                     {node.layer} ／ 要求権限 {requiredPrivilege(node.layer)}

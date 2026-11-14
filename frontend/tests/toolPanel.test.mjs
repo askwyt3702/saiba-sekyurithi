@@ -52,7 +52,8 @@ test('vulnerability tab lists only scanned nodes and the scannable entry node', 
 
   await client.sendAction({ type: 'scan', nodeId: entry });
   const scanned = render(client.state);
-  assert.ok(scanned.includes('確認条件未達'));
+  assert.ok(scanned.includes('>要 情報確認</span>'));
+  assert.ok(scanned.includes('title="確認前に侵入すると失敗し、資源と時間を消費します"'));
   assert.ok(scanned.includes('RISK: MEDIUM'));
   assert.ok(scanned.includes('CWE-'));
   assert.ok(scanned.includes(client.state.nodes.find((node) => node.id === entry).vulnerability));
@@ -84,6 +85,18 @@ test('breach status explains why a scanned node cannot be breached yet', () => {
 
   const far = { id: 'Z', layer: 'External', status: 'scanned' };
   assert.equal(breachStatus(far, [far], [], 'ROOT', stage).label, '未到達(隣接ノードが未侵入)');
+});
+
+test('security requirement badge stays short and explains the cost in its tooltip', () => {
+  const stage = { entryNodeIds: ['E01', 'E03'], breachRequirements: {} };
+  const consume = { id: 'E01', layer: 'External', status: 'scanned' };
+  const status = breachStatus(consume, [consume], [], 'GUEST', stage);
+  assert.equal(status.label, '要 情報確認');
+  assert.ok(status.label.length <= 8, 'badge label must stay short so the node name is not squeezed');
+  assert.match(status.detail, /資源と時間を消費/);
+
+  const reject = { id: 'E03', layer: 'External', status: 'scanned' };
+  assert.match(breachStatus(reject, [reject], [], 'GUEST', stage).detail, /消費なしで拒否/);
 });
 
 test('tool panel starts collapsed only on narrow screens', () => {
