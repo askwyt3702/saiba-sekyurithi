@@ -15,8 +15,31 @@ import {
 } from '../model/types';
 import { DEFAULT_STAGE_ID } from '../data/stageData';
 
+export class HttpGameError extends Error {
+  readonly status?: number;
+  readonly code?: string;
+  constructor(message: string, status?: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+  get isSnapshotInvalid(): boolean {
+    return this.status === 409 && this.code === 'map_snapshot_invalid';
+  }
+}
+
+async function responseError(res: Response, message: string): Promise<HttpGameError> {
+  let code: string | undefined;
+  try {
+    const body = await res.json();
+    if (typeof body?.detail === 'string') code = body.detail;
+  } catch { /* Proxies may return a non-JSON error page. */ }
+  return new HttpGameError(`${message}: ${res.status}`, res.status, code);
+}
+
 // バックエンドが返す GameState（nodes が ApiNetworkNode[] の形）
 interface ApiGameState {
+  mapSnapshot?: GameState['mapSnapshot'];
   securityEvents?: GameState['securityEvents'];
   gameId: string;
   stageId?: number;
@@ -33,6 +56,9 @@ interface ApiGameState {
 }
 
 function toGameState(raw: ApiGameState): GameState {
+  if (raw.mapSnapshot && (raw.mapSnapshot.schemaVersion !== 1 || raw.mapSnapshot.definition.id !== raw.stageId)) {
+    throw new HttpGameError('Unsupported or inconsistent saved map', 409, 'map_snapshot_invalid');
+  }
   return {
     ...raw,
     nodes: raw.nodes.map(fromApiNode),
@@ -77,7 +103,7 @@ function createGameOnce(apiBase: string, stageId: number): Promise<ApiGameState>
       body: JSON.stringify({ stageId }),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to create game: ${res.status}`);
+        if (!res.ok) throw await responseError(res, 'Failed to create game');
         return (await res.json()) as ApiGameState;
       })
       .finally(() => {
@@ -90,6 +116,7 @@ function createGameOnce(apiBase: string, stageId: number): Promise<ApiGameState>
 
 // ターン制（v0.4決定）に合わせて REST API のみでバックエンドと通信するクライアント。
 export class HttpGameClient implements GameClient {
+  get hasSavedGame(): boolean { return readStoredGameId(this.stageId) !== null; }
   private readonly apiBase: string;
   private readonly stageId: number;
   private gameId: string | null = null;
@@ -118,6 +145,8 @@ export class HttpGameClient implements GameClient {
       body: JSON.stringify(action),
     });
     if (!res.ok) {
+      const error = await responseError(res, 'Failed to perform action');
+      if (error.isSnapshotInvalid) throw error;
       return { accepted: false, reason: 'invalid_state' };
     }
     const data = (await res.json()) as {
@@ -138,7 +167,7 @@ export class HttpGameClient implements GameClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stageId: this.stageId }),
     });
-    if (!res.ok) throw new Error(`Failed to reset game: ${res.status}`);
+    if (!res.ok) throw await responseError(res, 'Failed to reset game');
     const raw = (await res.json()) as ApiGameState;
     if (raw.stageId !== this.stageId) throw new Error('リセット先のステージが一致しません。');
     this.onEvent?.({ type: 'state_snapshot', state: toGameState(raw) });
@@ -162,7 +191,7 @@ export class HttpGameClient implements GameClient {
         if (raw.stageId !== undefined) storeGameId(raw.gameId, raw.stageId, true);
       }
       // 404 はDBが作り直された等で保存済みのゲームが無いだけなので、新規作成に進む
-      if (!res.ok && res.status !== 404) throw new Error(`Failed to load game: ${res.status}`);
+      if (!res.ok && res.status !== 404) throw await responseError(res, 'Failed to load game');
     }
     const raw = await createGameOnce(this.apiBase, this.stageId);
     if (raw.stageId !== this.stageId) throw new Error('指定ステージを開始できません。バックエンドの更新を確認してください。');

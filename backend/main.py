@@ -3,6 +3,7 @@ from typing import Literal, Optional
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -11,8 +12,14 @@ import models
 import game_logic
 from database import engine, SessionLocal
 from game_data import ALL_STAGE_NODES, DEFAULT_STAGE_ID
+from map_repository import ensure_map, MapSnapshotError
 
 app = FastAPI(title="NULL ROUTE API")
+
+
+@app.exception_handler(MapSnapshotError)
+async def invalid_map_snapshot(_request, _error):
+    return JSONResponse(status_code=409, content={"detail": "map_snapshot_invalid"})
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,6 +61,10 @@ def migrate_db():
 def init_db():
     db = SessionLocal()
     try:
+        # Additive migration: freeze old games before updating shared catalog data.
+        for player in db.query(models.PlayerStatus).all():
+            if db.get(models.GameMap, player.id) is None:
+                ensure_map(db, player)
         # 全ステージのノード情報を game_data.py の内容に同期（既存行は上書き、無ければ追加）
         for node in ALL_STAGE_NODES:
             db.merge(models.NodeMaster(**node))

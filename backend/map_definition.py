@@ -1,4 +1,4 @@
-"""ゲーム単位の内部定義。固定ステージをコピーするだけで、生成・DB保存はしない。"""
+"""ゲーム単位の内部定義。固定定義の変換を担当し、DB保存はmap_repositoryへ分離する。"""
 from copy import deepcopy
 from typing import TypedDict
 

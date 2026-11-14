@@ -1,3 +1,4 @@
+import type { GameMapDefinition } from '../../game/model/mapDefinition';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,6 +39,7 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
 ];
 
 interface MapViewProps {
+  mapDefinition?: GameMapDefinition;
   stageId?: number;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
@@ -47,12 +49,13 @@ interface MapViewProps {
 
 function MapContent({
   stageId = DEFAULT_STAGE_ID,
+  mapDefinition,
   nodes,
   edges,
   selectedNodeId,
   onSelectNode,
 }: MapViewProps) {
-  const stage = getStageData(stageId);
+  const stage = mapDefinition ?? getStageData(stageId);
   const { setViewport, getViewport } = useReactFlow();
   // 画面全体の拡大(#root の zoom)はマップには効かせず(MapView.css)、React Flow 自身のズームで同じ大きさに見せる。
   // 外側の zoom が残っていると、ドラッグでマップがマウスより速く動いてしまうため。

@@ -1,3 +1,4 @@
+import { mapForState } from './game/model/mapDefinition';
 
 import { useEffect, useRef, useState } from 'react';
 import { useGameClient } from './game/hooks/useGameClient';
@@ -16,7 +17,7 @@ import { MissionFailure } from './components/MissionFailure/MissionFailure';
 import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
 import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
-import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
+import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE } from './game/data/stageData';
 import './App.css';
 
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
@@ -51,7 +52,7 @@ function App() {
   const [stageId, setStageId] = useState<number>(DEFAULT_STAGE_ID);
 
   // ゲーム画面のときだけゲームデータを取得
-  const { state, connectionMode, sendAction, reset } = useGameClient(screen === 'game', stageId);
+  const { state, connectionMode, sendAction, reset, connectionError } = useGameClient(screen === 'game', stageId);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -89,7 +90,7 @@ function App() {
   // RESOURCE回復可能か
   const canRecover =
     state?.status === 'playing' &&
-    state.analysisResource < MAX_ANALYSIS_RESOURCE &&
+    state.analysisResource < (state.mapSnapshot?.definition.rules.maxAnalysisResource ?? MAX_ANALYSIS_RESOURCE) &&
     state.nodes.some((node) => node.status === 'hacked') &&
     !isRecovering;
 
@@ -211,12 +212,28 @@ function App() {
     );
   }
 
+  if (connectionError) {
+    return (
+      <div className="app-loading app-loading--error" role="alert">
+        <p>{connectionError}</p>
+        <button type="button" onClick={() => {
+          setSelectedNodeId(null);
+          setNotice(null);
+          setIsRecovering(false);
+          setIdsAlertActive(false);
+          setScreen('mission');
+        }}>ミッション選択へ戻る</button>
+      </div>
+    );
+  }
+
   // ゲームデータ読み込み中
   if (!state || (state.stageId ?? DEFAULT_STAGE_ID) !== stageId) {
     return <div className="app-loading">接続中...</div>;
   }
 
   // ゲーム画面
+  const map = mapForState(state);
   return (
     <div className={`app-shell ${idsAlertActive ? 'app-shell--ids-alert' : ''}`}>
       {idsAlertActive && (
@@ -239,10 +256,10 @@ function App() {
           setScreen('mission');
         }}
       />
-      {getStageData(state.stageId ?? stageId).prototypeNotice && (
-        <div className="app-banner" role="note">{getStageData(state.stageId ?? stageId).prototypeNotice}</div>
+      {map.prototypeNotice && (
+        <div className="app-banner" role="note">{map.prototypeNotice}</div>
       )}
-      <StageMechanicsStatus stageId={state.stageId ?? stageId} nodes={state.nodes} />
+      <StageMechanicsStatus mapDefinition={map} stageId={state.stageId ?? stageId} nodes={state.nodes} />
       <TutorialBanner
         stageId={state.stageId ?? stageId}
         nodes={state.nodes}
@@ -275,6 +292,7 @@ function App() {
       )}
       <div className="app-body">
         <ToolPanel
+          mapDefinition={map}
           securityEvents={state.securityEvents}
           stageId={state.stageId ?? stageId}
           nodes={state.nodes}
@@ -287,6 +305,7 @@ function App() {
         />
 
         <MapView
+          mapDefinition={map}
           stageId={state.stageId ?? stageId}
           nodes={state.nodes}
           edges={state.edges}
@@ -295,6 +314,7 @@ function App() {
         />
 
         <NodeDetailPanel
+          mapDefinition={map}
           securityEvents={state.securityEvents}
           alertLevel={state.alertLevel}
           stageId={state.stageId ?? stageId}

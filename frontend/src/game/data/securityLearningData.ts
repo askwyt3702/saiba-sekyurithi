@@ -1405,13 +1405,13 @@ const NODE_SECURITY_META: Record<string, Pick<NodeSecurityMeta, 'riskLevel' | 'i
   'core-1': { riskLevel: 'CRITICAL', infoHint: '機密データベースのSQL文字列連結不備（SQLインジェクション）により機密データを抽出可能です！' },
 };
 
-export function getNodeSecurityMeta(nodeId: string): NodeSecurityMeta {
-  const rule = SECURITY_RULES[nodeId as keyof typeof SECURITY_RULES] as SecurityRule | undefined;
+export function getNodeSecurityMeta(nodeId: string, savedRule?: SecurityRule): NodeSecurityMeta {
+  const rule = savedRule ?? SECURITY_RULES[nodeId as keyof typeof SECURITY_RULES] as SecurityRule | undefined;
   const meta = NODE_SECURITY_META[nodeId] ?? {
     riskLevel: 'MEDIUM' as const,
     infoHint: '対象ノードの開放ポートと脆弱性情報に合致するエクスプロイトを選択してください。',
   };
-  return { ...meta, failureAlert: rule?.exploit_failure_alert ?? 8, failureResource: rule?.failure_resource ?? 0 };
+  return { ...meta, infoHint: rule?.info_hint ?? meta.infoHint, riskLevel: (rule?.risk_level ?? meta.riskLevel) as RiskLevel, failureAlert: rule?.exploit_failure_alert ?? 8, failureResource: rule?.failure_resource ?? 0 };
 }
 
 export function getSecurityChallenge(

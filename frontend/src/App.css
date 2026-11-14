@@ -41,6 +41,30 @@
   font-size: 14px;
 }
 
+.app-loading--error {
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  box-sizing: border-box;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.app-loading--error button {
+  padding: 12px 24px;
+  border: 1px solid #00d8d8;
+  border-radius: 4px;
+  background: #041a18;
+  color: #7dfff0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-loading--error button:hover,
+.app-loading--error button:focus-visible {
+  background: #0b302a;
+}
+
 .app-banner {
   padding: 7px 20px;
   font-family: ui-monospace, Consolas, monospace;

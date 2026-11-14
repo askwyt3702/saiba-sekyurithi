@@ -195,7 +195,7 @@ test('incident report uses actual failure cause and logs and supports retry/titl
   assert.equal(titles, 1);
 });
 
-function mountApp(gameState, reset, sendAction = async () => ({ accepted: true })) {
+function mountApp(gameState, reset, sendAction = async () => ({ accepted: true }), connectionError = null) {
   const effects = [];
   const values = ['game'];
   let cursor = 0;
@@ -210,7 +210,7 @@ function mountApp(gameState, reset, sendAction = async () => ({ accepted: true }
   };
   const dependencies = {
     react,
-    './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction }) },
+    './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction, connectionError }) },
     './game/data/stageData': { MAX_ANALYSIS_RESOURCE: 30, DEFAULT_STAGE_ID: 1, getStageData: () => ({ prototypeNotice: '' }) },
     './components/MissionResult/MissionResult': { MissionResult },
     './components/MissionFailure/MissionFailure': { MissionFailure },
@@ -230,6 +230,19 @@ test('App opens the result only for won games and failure modal only for lost ga
     assert.equal(findElements(rendered, MissionResult).length, status === 'won' ? 1 : 0);
     assert.equal(findElements(rendered, MissionFailure).length, status === 'lost' ? 1 : 0);
   }
+});
+
+test('connection error offers mission selection without resetting or showing a stale result', () => {
+  let resets = 0;
+  const app = mountApp(state, async () => { resets++; }, undefined, 'Invalid saved map');
+  const screen = app.render();
+  assert.equal(screen.props.role, 'alert');
+  assert.equal(findElements(screen, MissionResult).length, 0);
+  const back = findElements(screen, 'button')[0];
+  assert.equal(back.props.children, 'ミッション選択へ戻る');
+  back.props.onClick();
+  assert.equal(app.render().type, 'MissionScreen');
+  assert.equal(resets, 0);
 });
 
 test('App reuses reset for retry and title, changing screen only after success', async () => {

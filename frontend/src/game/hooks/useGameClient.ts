@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionRequest, ActionResult, GameClient, GameState, ServerEvent } from '../model/types';
 import { MockGameClient } from '../client/mockGameClient';
-import { HttpGameClient } from '../client/httpGameClient';
+import { HttpGameClient, HttpGameError } from '../client/httpGameClient';
 import { DEFAULT_STAGE_ID } from '../data/stageData';
 
 function applyEvent(prev: GameState | null, event: ServerEvent): GameState | null {
@@ -30,6 +30,7 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
   const clientRef = useRef<GameClient | null>(null);
   const connection = useMemo(() => ({ enabled, stageId }), [enabled, stageId]);
   const [snapshot, setSnapshot] = useState<{ connection: object; state: GameState; mode: ConnectionMode } | null>(null);
+  const [failure, setFailure] = useState<{ connection: object; message: string } | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -54,16 +55,27 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
       .then((initial) => {
         if (!cancelled) setSnapshot({ connection, state: initial, mode });
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (cancelled) return;
-        console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
+        const fail = (message: string) => setFailure({ connection, message });
         httpClient.disconnect();
+        if (err instanceof HttpGameError && err.isSnapshotInvalid) {
+          fail('保存済みのマップが不正、または非対応の形式です。Backendの保存データを確認してください。');
+          clientRef.current = null;
+          return;
+        }
+        console.warn('[useGameClient] バックエンド接続失敗のため MockGameClient に切り替えます:', err);
         mode = 'mock';
-        const mockClient = new MockGameClient('mock', stageId);
-        clientRef.current = mockClient;
-        void mockClient.connect(handleEvent).then((initial) => {
+        try {
+          const mockClient = new MockGameClient('mock', stageId);
+          clientRef.current = mockClient;
+          const initial = await mockClient.connect(handleEvent);
           if (!cancelled) setSnapshot({ connection, state: initial, mode });
-        });
+        } catch { if (!cancelled) {
+          clientRef.current?.disconnect();
+          clientRef.current = null;
+          fail('Mockゲームを開始できませんでした。ブラウザの保存領域や設定を確認してください。');
+        } }
       });
 
     return () => {
@@ -73,14 +85,32 @@ export function useGameClient(enabled: boolean, stageId: number = DEFAULT_STAGE_
     };
   }, [enabled, stageId, connection]);
 
-  const sendAction = (action: ActionRequest): Promise<ActionResult> => {
-    if (!clientRef.current) return Promise.resolve({ accepted: false, reason: 'invalid_state' });
-    return clientRef.current.sendAction(action);
+  const stopInvalidSnapshot = (error: unknown, client: GameClient) => {
+    if (clientRef.current !== client || !(error instanceof HttpGameError) || !error.isSnapshotInvalid) return false;
+    client.disconnect();
+    clientRef.current = null;
+    setFailure({ connection, message: '保存済みのマップが不正、または非対応の形式です。Backendの保存データを確認してください。' });
+    return true;
   };
 
-  const reset = (): Promise<void> => clientRef.current?.reset() ?? Promise.resolve();
+  const sendAction = async (action: ActionRequest): Promise<ActionResult> => {
+    const client = clientRef.current;
+    if (!client) return { accepted: false, reason: 'invalid_state' };
+    try { return await client.sendAction(action); }
+    catch (error) {
+      if (stopInvalidSnapshot(error, client)) return { accepted: false, reason: 'invalid_state' };
+      throw error;
+    }
+  };
+
+  const reset = async (): Promise<void> => {
+    const client = clientRef.current;
+    if (!client) return;
+    try { await client.reset(); }
+    catch (error) { stopInvalidSnapshot(error, client); throw error; }
+  };
 
   const state = enabled && snapshot?.connection === connection && snapshot.state.stageId === stageId ? snapshot.state : null;
   const connectionMode: ConnectionMode | null = state ? snapshot?.mode ?? null : null;
-  return { state, connectionMode, sendAction, reset };
+  return { state, connectionMode, sendAction, reset, connectionError: failure?.connection === connection ? failure.message : null };
 }
