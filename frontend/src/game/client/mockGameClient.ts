@@ -26,9 +26,53 @@ function generateKeyFragment(): string {
   return out;
 }
 
-type MockStorage = Pick<Storage, 'getItem' | 'setItem'>;
+type MockStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 function browserStorage(): MockStorage | null {
   return typeof window === 'undefined' ? null : window.localStorage ?? null;
+}
+
+interface SavedMockGame {
+  schemaVersion: 1;
+  definition: GameMapDefinition;
+  state: GameState;
+  fragmentA: string;
+  fragmentB: string;
+}
+
+function assertMockSave(input: unknown, gameId: string, stageId: number): asserts input is SavedMockGame {
+  const saved = input as SavedMockGame;
+  if (!saved || saved.schemaVersion !== 1 || saved.definition?.id !== stageId ||
+      saved.state?.gameId !== gameId || saved.state.stageId !== stageId ||
+      !/^[A-HJ-NP-Z2-9]{4}$/.test(saved.fragmentA) || !/^[A-HJ-NP-Z2-9]{4}$/.test(saved.fragmentB)) {
+    throw new Error('Invalid saved Mock map');
+  }
+  assertSavedMap(saved.definition);
+  const { state, definition } = saved;
+  if (!['playing', 'paused', 'won', 'lost'].includes(state.status) ||
+      !Number.isInteger(state.elapsedSeconds) || state.elapsedSeconds < 0 ||
+      !Number.isFinite(state.alertLevel) || state.alertLevel < 0 || state.alertLevel > 100 ||
+      !Number.isInteger(state.analysisResource) || state.analysisResource < 0 || state.analysisResource > definition.rules.maxAnalysisResource ||
+      !definition.rules.privilegeLadder.includes(state.privilege) ||
+      !Array.isArray(state.nodes) || !Array.isArray(state.log) ||
+      JSON.stringify(state.edges) !== JSON.stringify(definition.edges) ||
+      state.nodes.length !== definition.nodes.length || state.nodes.some((n, i) =>
+        n.id !== definition.nodes[i].id || n.layer !== definition.nodes[i].layer ||
+        !['unscanned', 'scanned', 'hacked'].includes(n.status) ||
+        n.position.x !== definition.nodes[i].position.x || n.position.y !== definition.nodes[i].position.y) ||
+      state.log.some(l => typeof l.id !== 'string' || typeof l.message !== 'string' || !Number.isFinite(l.timestamp) ||
+        !['info', 'success', 'warning', 'danger'].includes(l.severity))) {
+    throw new Error('Inconsistent saved Mock progress');
+  }
+  if (state.securityEvents !== undefined && (!state.securityEvents || typeof state.securityEvents !== 'object' ||
+      Object.entries(state.securityEvents).some(([id, events]) => !definition.securityRules[id] || !Array.isArray(events) ||
+        events.some(e => e !== 'INFO_CONFIRMED' && e !== 'ANALYSIS_COMPLETED')))) throw new Error('Invalid saved security events');
+  if (state.keyFragments && (![state.keyFragments.a, state.keyFragments.b].every(v => v === null || typeof v === 'string') ||
+      (state.keyFragments.unlocked !== undefined && typeof state.keyFragments.unlocked !== 'boolean'))) throw new Error('Invalid saved keys');
+  for (const action of ['scan', 'remoteScan', 'breach', 'dataExtract', 'recover'] as const) {
+    const cost = definition.rules.costs[action];
+    if (!cost || !Number.isFinite(cost.time) || cost.time < 0 || !Number.isFinite(cost.resource) || cost.resource < 0 ||
+        !Number.isFinite(cost.alertDelta)) throw new Error('Invalid saved costs');
+  }
 }
 
 export class MockGameClient implements GameClient {
@@ -46,19 +90,21 @@ export class MockGameClient implements GameClient {
     this.stageId = stageId;
     this.storageKey = `nullroute.mock.snapshot.v1.${stageId}.${gameId}`;
     const raw = definition === undefined ? storage?.getItem(this.storageKey) : null;
-    if (raw) {
-      const saved = JSON.parse(raw);
-      if (saved.schemaVersion !== 1 || saved.definition?.id !== stageId || saved.definition?.generatorVersion !== 'fixed-v1' || saved.definition?.rulesVersion !== 'turn-v1' || saved.state?.gameId !== gameId || saved.state?.stageId !== stageId || !Array.isArray(saved.definition?.nodes) || !Array.isArray(saved.definition?.edges) || typeof saved.fragmentA !== 'string' || typeof saved.fragmentB !== 'string') throw new Error('Invalid saved Mock map');
-      assertSavedMap(saved.definition);
-      if (!Array.isArray(saved.state.nodes) || !Array.isArray(saved.state.log) ||
-          JSON.stringify(saved.state.edges) !== JSON.stringify(saved.definition.edges) ||
-          saved.state.nodes.length !== saved.definition.nodes.length || saved.state.nodes.some((n: GameState['nodes'][number], i: number) =>
-            n.id !== saved.definition.nodes[i].id || n.position.x !== saved.definition.nodes[i].position.x || n.position.y !== saved.definition.nodes[i].position.y)) throw new Error('Inconsistent saved Mock progress');
-      this.map = saved.definition;
-      this.state = saved.state;
-      this.fragmentA = saved.fragmentA;
-      this.fragmentB = saved.fragmentB;
-      return;
+    let recovered = false;
+    if (raw !== null && raw !== undefined) {
+      try {
+        const saved: unknown = JSON.parse(raw);
+        assertMockSave(saved, gameId, stageId);
+        this.map = saved.definition;
+        this.state = saved.state;
+        this.fragmentA = saved.fragmentA;
+        this.fragmentB = saved.fragmentB;
+        return;
+      } catch {
+        // Only discard this invalid Mock save; never clear HTTP IDs or other games.
+        storage?.removeItem(this.storageKey);
+        recovered = true;
+      }
     }
     this.map = definition ? JSON.parse(JSON.stringify(definition)) : mapFromStage(getStageData(stageId));
     assertSavedMap(this.map, definition === undefined);
@@ -66,6 +112,8 @@ export class MockGameClient implements GameClient {
     this.fragmentB = generateKeyFragment();
     this.state = createMockGameState(gameId, stageId, this.map);
     this.state.keyFragments = { a: null, b: null };
+    if (recovered) this.state.log.push({ id: nextId(), timestamp: 0, severity: 'warning',
+      message: '保存済みのMockデータが古いか破損しているため、新しいゲームを開始しました。' });
   }
 
   async connect(onEvent: (event: ServerEvent) => void): Promise<GameState> {

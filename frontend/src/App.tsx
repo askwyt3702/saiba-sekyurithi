@@ -207,9 +207,24 @@ function App() {
     );
   }
 
+  if (connectionError) {
+    return (
+      <div className="app-loading app-loading--error" role="alert">
+        <p>{connectionError}</p>
+        <button type="button" onClick={() => {
+          setSelectedNodeId(null);
+          setNotice(null);
+          setIsRecovering(false);
+          setIdsAlertActive(false);
+          setScreen('mission');
+        }}>ミッション選択へ戻る</button>
+      </div>
+    );
+  }
+
   // ゲームデータ読み込み中
   if (!state || (state.stageId ?? DEFAULT_STAGE_ID) !== stageId) {
-    return <div className="app-loading" role={connectionError ? 'alert' : undefined}>{connectionError ?? '接続中...'}</div>;
+    return <div className="app-loading">接続中...</div>;
   }
 
   // ゲーム画面

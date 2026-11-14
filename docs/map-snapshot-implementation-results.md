@@ -1,5 +1,8 @@
 # 固定MapSnapshot保存基盤の検証結果（2026-11-14）
 
+本書は初回実装時点の記録。後続のPR #2レビューで変更した通信失敗時のMock切替と
+古い/破損Mock保存の復旧方針は[レビュー修正報告](pr2-offline-recovery-review.md)を参照。
+
 作業ブランチ：`design/stage1-dynamic-map-20261114`。コミット・pushは未実施。
 詳細契約は[api-contract.md](api-contract.md)、移行は[map-snapshot-migration.md](map-snapshot-migration.md)。
 

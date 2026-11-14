@@ -24,7 +24,7 @@ const { MockGameClient } = load(new URL('../src/game/client/mockGameClient.ts', 
 const plain = value => JSON.parse(JSON.stringify(value));
 const storage = () => {
   const values = new Map();
-  return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
 };
 
 test('saved Mock progress, map and internal keys survive reconstruction; RETRY keeps the map', async () => {
@@ -55,16 +55,46 @@ test('saved Mock progress, map and internal keys survive reconstruction; RETRY k
   assert.deepEqual(plain((await other.connect(() => {})).mapSnapshot.definition.entryNodeIds), ['E01']);
 });
 
-test('corrupt Mock save is rejected without overwriting or silently starting another game', () => {
+test('corrupt Mock save is discarded locally and a new game can be saved and resumed', async () => {
   const disk = storage(), key = 'nullroute.mock.snapshot.v1.1.broken';
   disk.setItem(key, '{broken');
-  assert.throws(() => new MockGameClient('broken', 1, undefined, disk));
-  assert.equal(disk.getItem(key), '{broken');
+  disk.setItem('nullroute.gameId.1', 'backend-game');
+  disk.setItem('nullroute.mock.snapshot.v1.2.other', 'other-game');
+  const client = new MockGameClient('broken', 1, undefined, disk);
+  assert.equal(disk.getItem(key), null);
+  const initial = await client.connect(() => {});
+  assert.equal(initial.elapsedSeconds, 0);
+  assert.equal(initial.analysisResource, 25);
+  assert.ok(initial.log.some(l => l.severity === 'warning' && l.message.includes('新しいゲーム')));
+  assert.ok((await client.sendAction({type:'scan',nodeId:'E01'})).accepted);
+  const resumed = await new MockGameClient('broken', 1, undefined, disk).connect(() => {});
+  assert.equal(resumed.elapsedSeconds, 10);
+  assert.equal(disk.getItem('nullroute.gameId.1'), 'backend-game');
+  assert.equal(disk.getItem('nullroute.mock.snapshot.v1.2.other'), 'other-game');
 });
+
+for (const damage of ['schema', 'version', 'progress', 'status', 'costs', 'security', 'empty', 'null']) {
+  test(`old or invalid ${damage} Mock save recovers without affecting valid other games`, async () => {
+    const disk = storage(), key = 'nullroute.mock.snapshot.v1.1.recovery';
+    const client = new MockGameClient('recovery', 1, undefined, disk);
+    await client.connect(() => {});
+    const saved = JSON.parse(disk.getItem(key));
+    if (damage === 'schema') saved.schemaVersion = 0;
+    if (damage === 'version') saved.definition.rulesVersion = 'old';
+    if (damage === 'progress') saved.state.nodes[0].position.x++;
+    if (damage === 'status') saved.state.analysisResource = 'corrupt';
+    if (damage === 'costs') saved.definition.rules.costs = {};
+    if (damage === 'security') saved.state.securityEvents = { E01: 'corrupt' };
+    disk.setItem(key, damage === 'empty' ? '' : damage === 'null' ? 'null' : JSON.stringify(saved));
+    const recovered = await new MockGameClient('recovery', 1, undefined, disk).connect(() => {});
+    assert.equal(recovered.elapsedSeconds, 0);
+    assert.ok(recovered.log.some(l => l.severity === 'warning'));
+  });
+}
 
 test('storage failure does not advance Mock progress', async () => {
   let fail = false;
-  const disk = { getItem: () => null, setItem() { if (fail) throw new Error('quota'); } };
+  const disk = { getItem: () => null, setItem() { if (fail) throw new Error('quota'); }, removeItem() {} };
   const client = new MockGameClient('quota', 1, undefined, disk);
   await client.connect(() => {});
   const before = plain(client.state);
