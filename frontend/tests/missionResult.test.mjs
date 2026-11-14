@@ -21,7 +21,7 @@ function loadSource(path, overrides = {}) {
     if (id.startsWith('.')) return loadSource(new URL(id + '.ts', new URL(path, import.meta.url)), overrides);
     return require(id);
   };
-  runInNewContext('(function(require, module, exports) {' + outputText + '\n})', { console })(localRequire, module, module.exports);
+  runInNewContext('(function(require, module, exports) {' + outputText + '\n})', { console, setTimeout, clearTimeout, URLSearchParams, window: { location: { search: '' }, history: { replaceState() {} } } })(localRequire, module, module.exports);
   return module.exports;
 }
 const evaluation = loadSource('../src/game/model/missionResult.ts');
@@ -85,7 +85,38 @@ test('result displays the evaluation returned by the API', () => {
   assert.ok(html.includes('SCORE 10'));
 });
 
-function mountResult(props) {
+test('audit report lists hacked nodes with vulnerability and defense metadata', () => {
+  const html = renderToStaticMarkup(createElement(MissionResult, {
+    state: { ...state, nodes: [
+      { id: 'E01', name: 'Gateway', status: 'hacked', vulnerability: '弱いSSHパスワード' },
+      { id: 'C03', name: 'Research DB', status: 'hacked', vulnerability: 'データベース権限設定の不備' },
+      { id: 'I01', name: 'Unhacked target', status: 'scanned' },
+    ] }, onRetry: async () => {}, onTitle: async () => {},
+  }));
+  assert.equal((html.match(/class="mission-result__report-item"/g) ?? []).length, 2);
+  for (const text of ['SECURITY AUDIT', 'Gateway', 'Research DB', 'ATT&amp;CK:', 'CWE-', 'パスワード', 'SQL']) assert.ok(html.includes(text), text);
+  assert.ok(!html.includes('Unhacked target'));
+});
+
+test('attack selection accuracy reflects actual IDS events without changing score or rank', () => {
+  const base = { ...state, nodes: [{ id: 'E01', status: 'hacked' }, { id: 'E02', status: 'hacked' }], log: [] };
+  const render = input => renderToStaticMarkup(createElement(MissionResult, {
+    state: input, onRetry: async () => {}, onTitle: async () => {},
+  }));
+  assert.ok(render(base).includes('PERFECT STEALTH'));
+  const withMistake = { ...base, log: [
+    { id: 'ids', message: '【IDS検知警告】wrong answer', severity: 'danger' },
+    { id: 'confirmed', message: '[SECURITY:E01:INFO_CONFIRMED]', severity: 'success' },
+    { id: 'hint', message: '【調査完了】E01: hint', severity: 'info' },
+  ] };
+  const html = render(withMistake);
+  assert.ok(html.includes('攻撃選定精度 67%'));
+  assert.ok(html.includes('事前調査実施: 1ノード'));
+  assert.ok(!html.includes('PERFECT STEALTH'));
+  assert.deepEqual(evaluation.calculateMissionResult(base), evaluation.calculateMissionResult(withMistake));
+});
+
+function mountResult(props, componentName = 'MissionResult') {
   const values = [];
   const refs = [];
   let cursor = 0;
@@ -102,7 +133,7 @@ function mountResult(props) {
     },
     useEffect() {},
   };
-  const component = loadSource('../src/components/MissionResult/MissionResult.tsx', { ...overrides, react }).MissionResult;
+  const component = loadSource(`../src/components/${componentName}/${componentName}.tsx`, { ...overrides, react })[componentName];
   const render = () => { cursor = 0; refCursor = 0; return component(props); };
   return { render };
 }
@@ -141,11 +172,36 @@ test('failed reset keeps the result available and allows another attempt', async
   assert.ok(findElements(tree, 'button').every((button) => !button.props.disabled));
 });
 
-function mountApp(gameState, reset) {
+test('incident report uses actual failure cause and logs and supports retry/title', async () => {
+  for (const [alertLevel, expected] of [[100, 'CRITICAL DETECTED'], [32, 'RESOURCE EXHAUSTED']]) {
+    const html = renderToStaticMarkup(createElement(MissionFailure, {
+      state: { ...state, status: 'lost', alertLevel, analysisResource: 0,
+        log: [{ id: 'incident', severity: 'danger', message: 'Actual incident evidence' }] },
+      onRetry: async () => {}, onTitle: async () => {},
+    }));
+    assert.ok(html.includes(expected));
+    assert.ok(html.includes('Actual incident evidence'));
+    assert.ok(!html.includes('MISSION COMPLETE'));
+  }
+  let retries = 0;
+  let titles = 0;
+  const mounted = mountResult({ state: { ...state, status: 'lost' },
+    onRetry: async () => { retries++; }, onTitle: async () => { titles++; } }, 'MissionFailure');
+  findElements(mounted.render(), 'button')[0].props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  findElements(mounted.render(), 'button')[1].props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(retries, 1);
+  assert.equal(titles, 1);
+});
+
+function mountApp(gameState, reset, sendAction = async () => ({ accepted: true })) {
+  const effects = [];
   const values = ['game'];
   let cursor = 0;
   const react = {
-    useEffect() {},
+    useEffect(callback) { effects.push(callback); },
+    useRef(initial) { const index = cursor++; if (!(index in values)) values[index] = { current: initial }; return values[index]; },
     useState(initial) {
       const index = cursor++;
       if (!(index in values)) values[index] = typeof initial === 'function' ? initial() : initial;
@@ -154,7 +210,7 @@ function mountApp(gameState, reset) {
   };
   const dependencies = {
     react,
-    './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction: async () => ({ accepted: true }) }) },
+    './game/hooks/useGameClient': { useGameClient: () => ({ state: gameState, reset, sendAction }) },
     './game/data/stageData': { MAX_ANALYSIS_RESOURCE: 30, DEFAULT_STAGE_ID: 1, getStageData: () => ({ prototypeNotice: '' }) },
     './components/MissionResult/MissionResult': { MissionResult },
     './components/MissionFailure/MissionFailure': { MissionFailure },
@@ -164,7 +220,7 @@ function mountApp(gameState, reset) {
     dependencies[`./components/${name}/${name}`] = { [name]: name };
   }
   const App = loadSource('../src/App.tsx', dependencies).default;
-  return { render: () => { cursor = 0; return App(); }, values };
+  return { render: () => { cursor = 0; return App(); }, values, flushEffects: () => effects.splice(0).forEach(effect => effect()) };
 }
 
 test('App opens the result only for won games and failure modal only for lost games', () => {
@@ -201,4 +257,19 @@ test('selecting stage2 routes to its game and does not render a stale stage1 res
   const loading = app.render();
   assert.equal(loading.props.className, 'app-loading');
   assert.equal(findElements(loading, MissionResult).length, 0);
+});
+
+test('IDS animation follows new logs after reset and ignores rejected actions', async () => {
+  const current={...state,status:'playing',log:[],gameId:'ids-test'};
+  const app=mountApp(current,async()=>{},async()=>({accepted:false,reason:'invalid_question'}));
+  app.values[2]='E01';app.render();app.flushEffects();
+  await findElements(app.render(),'NodeDetailPanel')[0].props.onAction('breach',undefined,true,'wrong','wrong');
+  app.flushEffects();assert.ok(!app.render().props.className.includes('app-shell--ids-alert'));
+  current.log=[{id:'first',message:'【IDS検知警告】'}];
+  app.render();app.flushEffects();assert.ok(app.render().props.className.includes('app-shell--ids-alert'));
+  current.log=[{id:'reset',message:'new mission'}];app.render();app.flushEffects();
+  await new Promise(resolve=>setTimeout(resolve,950));
+  assert.ok(!app.render().props.className.includes('app-shell--ids-alert'));
+  current.log.push({id:'second',message:'【IDS検知警告】'});
+  app.render();app.flushEffects();assert.ok(app.render().props.className.includes('app-shell--ids-alert'));
 });

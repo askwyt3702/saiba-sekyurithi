@@ -1,3 +1,6 @@
+import { SECURITY_RULES } from './stageData';
+import type { SecurityRule } from '../model/mapDefinition';
+
 export type QuestionTypeLabel =
   | 'TYPE A: エクスプロイト選択（攻撃手法の特定）'
   | 'TYPE B: 設定・コード解析（悪用箇所の特定）'
@@ -1354,63 +1357,61 @@ export interface NodeSecurityMeta {
   infoHint: string;
 }
 
-const NODE_SECURITY_META: Record<string, NodeSecurityMeta> = {
-  E01: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、試行制限が未導入です。辞書攻撃（hydra）またはsshd_configの設定不備特定が有効です。' },
-  E02: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'DNSサーバーのゾーン転送設定（allow-transfer { any; };）の不備を確認。AXFRクエリにより内部ドメインのレコード一覧を取得可能です。' },
-  E03: { riskLevel: 'LOW', failureAlert: 3, failureResource: 1, infoHint: '共有アーカイブの匿名アクセス（guest ok = yes）が有効です。Null Session接続により資源（RESOURCE +5）を回収可能です。' },
-  D01: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '古いApacheのパストラバーサル脆弱性が残存しており、非公開の管理APIへの不正リクエストが可能です。' },
-  D02: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'メールサーバーのSPFレコードが「+all（全許可）」となっており、送信元ドメイン詐称（SMTPスプーフィング）が可能です。' },
-  D03: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '古い暗号化プロトコル（TLSv1/TLSv1.1）が有効化されており、プロトコル・ダウングレード攻撃が可能です。' },
-  D04: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'Web管理コンソールのIP制限が不十分で、X-Forwarded-Forヘッダ偽装による管理権限バイパスが可能です。' },
-  D05: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '設定ファイルおよびメモリキャッシュに認証シークレットが平文（ハードコード）で残存しています。' },
-  D06: { riskLevel: 'LOW', failureAlert: 4, failureResource: 1, infoHint: 'プロキシ・監査ログの書き込み権限が開放されており、ログ改ざんにより警戒度を削減可能です。' },
-  D07: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '監視装置の制御APIが無認証で露出しており、アラート抑制およびログ改ざんが可能です。' },
-  I01: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '社内Active Directory/IAMで過剰なロール権限またはsudoersのNOPASSWD設定ミスがあり、特権昇格が可能です。' },
-  I02: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '開発環境の `/etc/sudoers` でパスワードなし実行（NOPASSWD: ALL）が許可されており、ADMIN権限への昇格が可能です。' },
-  I03: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '監査ログサーバーが追記専用（WORM）になっておらず、侵入証跡の消去により警戒度を-15%削減可能です。' },
-  I04: { riskLevel: 'HIGH', failureAlert: 7, failureResource: 1, infoHint: 'ARGUS監視AIの制御APIが無認証で露出しており、ポリシー書き換えにより警戒度を-20%引き下げ可能です。' },
-  I05: { riskLevel: 'LOW', failureAlert: 4, failureResource: 1, infoHint: 'バックアップ共有（smb.conf）でゲスト接続が許可されており、解析資源を最大+10補給可能です。' },
-  I06: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '社内ファイル共有のACL設定不備により、無認証で「暗号鍵の断片A」を回収可能です。' },
-  I07: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '管理スクリプト内に秘密鍵・資格情報がハードコード（平文保存）されており、「暗号鍵の断片B」を抽出可能です。' },
-  I08: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '内部ルーターの管理プレーンが分離されておらず、ACL・ルーティング書き換えが可能です。' },
-  I09: { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: 'ファイアウォール最上位にテスト用の全許可ルール（ALLOW ANY）が残っており、資源+3と警戒度-10%を獲得可能です。' },
-  I10: { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '研究開発用REST APIの認可チェック漏れを突き、最深部Coreノードへの最短侵入ルートを開けます。' },
-  C01: { riskLevel: 'CRITICAL', failureAlert: 8, failureResource: 1, infoHint: 'CoreファイアウォールのACL設定不備（最上位のALLOW ANYルール）を突いて最深部へ到達可能です。' },
-  C02: { riskLevel: 'HIGH', failureAlert: 7, failureResource: 1, infoHint: '古いTLS 1.0/1.1プロトコルが有効なままであり、ダウングレード攻撃が通用します。' },
-  C03: { riskLevel: 'CRITICAL', failureAlert: 10, failureResource: 1, infoHint: 'SQL文の文字列連結（プレースホルダ未使用）によるSQLインジェクション脆弱性で極秘データを抽出可能です！' },
-  C04: { riskLevel: 'HIGH', failureAlert: 8, failureResource: 1, infoHint: 'ARGUS緊急防衛システムの未認証APIを操作し、警戒度を-15%大幅低下させます。' },
-  'S2-E01': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '調査用アカウントのSSHパスワード認証が有効で試行制限がなく、辞書攻撃が有効です。' },
-  'S2-D01': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'DNSゾーン転送（allow-transfer { any; };）の露出により、内部通信ルートを取得可能です。' },
-  'S2-D02': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'Web認証窓口のパストラバーサルおよびアクセス制御不備を突いて経路バイパスが可能です。' },
-  'S2-D03': { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: 'トラフィック集約装置のDNS/中継設定不備を確認。S2-I07攻略による監視解除を推奨します。' },
-  'S2-D04': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '社内管理プロキシのアクセス制御不備により、内部サーバーへの通信中継が許可されます。' },
-  'S2-I01': { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '保守用アカウントの過剰権限（IAMロール／sudoers NOPASSWD）からADMIN権限への昇格が可能です。' },
-  'S2-I02': { riskLevel: 'HIGH', failureAlert: 6, failureResource: 1, infoHint: '内部ルーターのACL/ファイアウォール設定不備を突いて転送ゲートへの経路を開放できます。' },
-  'S2-I03': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '予備解析基盤の特権設定ミス（NOPASSWD / 過剰ACL）を突き、解析資源を最大+7補給可能です。' },
-  'S2-I04': { riskLevel: 'HIGH', failureAlert: 7, failureResource: 1, infoHint: '証明書管理APIのレガシーTLS設定・認可不備を突き、S2-C02のゲートロックを解除できます！' },
-  'S2-I05': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '監査ログ中継サーバーのログ改ざん（WORM未設定）により、警戒度を-8%削減可能です。' },
-  'S2-I06': { riskLevel: 'LOW', failureAlert: 4, failureResource: 1, infoHint: '証跡バックアップ共有のゲスト権限開放（guest ok = yes）から解析資源を最大+5回収可能です。' },
-  'S2-I07': { riskLevel: 'CRITICAL', failureAlert: 7, failureResource: 1, infoHint: '常時監視センサーの未認証制御APIを停止することで、追加警戒度+12%を無効化しS2-C04を解放します！' },
-  'S2-C01': { riskLevel: 'HIGH', failureAlert: 8, failureResource: 1, infoHint: 'Core直接転送ゲートのファイアウォールルール不備を突いて原本DBへ接続可能です。' },
-  'S2-C02': { riskLevel: 'CRITICAL', failureAlert: 8, failureResource: 1, infoHint: '相互TLSゲートの旧プロトコル許容・証明書不備を突き、安全に原本DBへ到達できます。' },
-  'S2-C03': { riskLevel: 'CRITICAL', failureAlert: 10, failureResource: 1, infoHint: '原本通信証跡DBのSQLインジェクション（文字列連結）を突いて原本ログを回収します！' },
-  'S2-C04': { riskLevel: 'HIGH', failureAlert: 8, failureResource: 1, infoHint: '監視網の迂回ゲートで未保護の監査ログを消去し、警戒度を-10%削減できます。' },
-  'external-1': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '公開SSHサーバー(22/tcp)でパスワード認証とrootログインが許可されており、辞書攻撃が有効です。' },
-  'dmz-1': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: '古いApache Webサーバーのパストラバーサルおよび管理URLのアクセス制御不備を突けます。' },
-  'dmz-2': { riskLevel: 'MEDIUM', failureAlert: 5, failureResource: 1, infoHint: 'メールサーバーのSPF設定ミス（+all）により、送信元ドメイン詐称が可能です。' },
-  'internal-1': { riskLevel: 'HIGH', failureAlert: 5, failureResource: 1, infoHint: 'Active Directory/sudoersの過剰権限設定を利用してADMIN権限へ昇格可能です。' },
-  'core-1': { riskLevel: 'CRITICAL', failureAlert: 8, failureResource: 1, infoHint: '機密データベースのSQL文字列連結不備（SQLインジェクション）により機密データを抽出可能です！' },
+const NODE_SECURITY_META: Record<string, Pick<NodeSecurityMeta, 'riskLevel' | 'infoHint'>> = {
+  E01: { riskLevel: 'MEDIUM', infoHint: 'Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、試行制限が未導入です。辞書攻撃（hydra）またはsshd_configの設定不備特定が有効です。' },
+  E02: { riskLevel: 'MEDIUM', infoHint: 'DNSサーバーのゾーン転送設定（allow-transfer { any; };）の不備を確認。AXFRクエリにより内部ドメインのレコード一覧を取得可能です。' },
+  E03: { riskLevel: 'LOW', infoHint: '共有アーカイブの匿名アクセス（guest ok = yes）が有効です。Null Session接続により資源（RESOURCE +5）を回収可能です。' },
+  D01: { riskLevel: 'MEDIUM', infoHint: '古いApacheのパストラバーサル脆弱性が残存しており、非公開の管理APIへの不正リクエストが可能です。' },
+  D02: { riskLevel: 'MEDIUM', infoHint: 'メールサーバーのSPFレコードが「+all（全許可）」となっており、送信元ドメイン詐称（SMTPスプーフィング）が可能です。' },
+  D03: { riskLevel: 'HIGH', infoHint: '古い暗号化プロトコル（TLSv1/TLSv1.1）が有効化されており、プロトコル・ダウングレード攻撃が可能です。' },
+  D04: { riskLevel: 'MEDIUM', infoHint: 'Web管理コンソールのIP制限が不十分で、X-Forwarded-Forヘッダ偽装による管理権限バイパスが可能です。' },
+  D05: { riskLevel: 'MEDIUM', infoHint: '設定ファイルおよびメモリキャッシュに認証シークレットが平文（ハードコード）で残存しています。' },
+  D06: { riskLevel: 'LOW', infoHint: 'プロキシ・監査ログの書き込み権限が開放されており、ログ改ざんにより警戒度を削減可能です。' },
+  D07: { riskLevel: 'HIGH', infoHint: '監視装置の制御APIが無認証で露出しており、アラート抑制およびログ改ざんが可能です。' },
+  I01: { riskLevel: 'HIGH', infoHint: '社内Active Directory/IAMで過剰なロール権限またはsudoersのNOPASSWD設定ミスがあり、特権昇格が可能です。' },
+  I02: { riskLevel: 'MEDIUM', infoHint: '開発環境の `/etc/sudoers` でパスワードなし実行（NOPASSWD: ALL）が許可されており、ADMIN権限への昇格が可能です。' },
+  I03: { riskLevel: 'MEDIUM', infoHint: '監査ログサーバーが追記専用（WORM）になっておらず、侵入証跡の消去により警戒度を-15%削減可能です。' },
+  I04: { riskLevel: 'HIGH', infoHint: 'ARGUS監視AIの制御APIが無認証で露出しており、ポリシー書き換えにより警戒度を-20%引き下げ可能です。' },
+  I05: { riskLevel: 'LOW', infoHint: 'バックアップ共有（smb.conf）でゲスト接続が許可されており、解析資源を最大+10補給可能です。' },
+  I06: { riskLevel: 'MEDIUM', infoHint: '社内ファイル共有のACL設定不備により、無認証で「暗号鍵の断片A」を回収可能です。' },
+  I07: { riskLevel: 'MEDIUM', infoHint: '管理スクリプト内に秘密鍵・資格情報がハードコード（平文保存）されており、「暗号鍵の断片B」を抽出可能です。' },
+  I08: { riskLevel: 'HIGH', infoHint: '内部ルーターの管理プレーンが分離されておらず、ACL・ルーティング書き換えが可能です。' },
+  I09: { riskLevel: 'HIGH', infoHint: 'ファイアウォール最上位にテスト用の全許可ルール（ALLOW ANY）が残っており、資源+3と警戒度-10%を獲得可能です。' },
+  I10: { riskLevel: 'MEDIUM', infoHint: '研究開発用REST APIの認可チェック漏れを突き、最深部Coreノードへの最短侵入ルートを開けます。' },
+  C01: { riskLevel: 'CRITICAL', infoHint: 'CoreファイアウォールのACL設定不備（最上位のALLOW ANYルール）を突いて最深部へ到達可能です。' },
+  C02: { riskLevel: 'HIGH', infoHint: '古いTLS 1.0/1.1プロトコルが有効なままであり、ダウングレード攻撃が通用します。' },
+  C03: { riskLevel: 'CRITICAL', infoHint: 'SQL文の文字列連結（プレースホルダ未使用）によるSQLインジェクション脆弱性で極秘データを抽出可能です！' },
+  C04: { riskLevel: 'HIGH', infoHint: 'ARGUS緊急防衛システムの未認証APIを操作し、警戒度を-15%大幅低下させます。' },
+  'S2-E01': { riskLevel: 'MEDIUM', infoHint: '調査用アカウントのSSHパスワード認証が有効で試行制限がなく、辞書攻撃が有効です。' },
+  'S2-D01': { riskLevel: 'MEDIUM', infoHint: 'DNSゾーン転送（allow-transfer { any; };）の露出により、内部通信ルートを取得可能です。' },
+  'S2-D02': { riskLevel: 'MEDIUM', infoHint: 'Web認証窓口のパストラバーサルおよびアクセス制御不備を突いて経路バイパスが可能です。' },
+  'S2-D03': { riskLevel: 'HIGH', infoHint: 'トラフィック集約装置のDNS/中継設定不備を確認。S2-I07攻略による監視解除を推奨します。' },
+  'S2-D04': { riskLevel: 'MEDIUM', infoHint: '社内管理プロキシのアクセス制御不備により、内部サーバーへの通信中継が許可されます。' },
+  'S2-I01': { riskLevel: 'HIGH', infoHint: '保守用アカウントの過剰権限（IAMロール／sudoers NOPASSWD）からADMIN権限への昇格が可能です。' },
+  'S2-I02': { riskLevel: 'HIGH', infoHint: '内部ルーターのACL/ファイアウォール設定不備を突いて転送ゲートへの経路を開放できます。' },
+  'S2-I03': { riskLevel: 'MEDIUM', infoHint: '予備解析基盤の特権設定ミス（NOPASSWD / 過剰ACL）を突き、解析資源を最大+7補給可能です。' },
+  'S2-I04': { riskLevel: 'HIGH', infoHint: '証明書管理APIのレガシーTLS設定・認可不備を突き、S2-C02のゲートロックを解除できます！' },
+  'S2-I05': { riskLevel: 'MEDIUM', infoHint: '監査ログ中継サーバーのログ改ざん（WORM未設定）により、警戒度を-8%削減可能です。' },
+  'S2-I06': { riskLevel: 'LOW', infoHint: '証跡バックアップ共有のゲスト権限開放（guest ok = yes）から解析資源を最大+5回収可能です。' },
+  'S2-I07': { riskLevel: 'CRITICAL', infoHint: '常時監視センサーの未認証制御APIを停止することで、追加警戒度+12%を無効化しS2-C04を解放します！' },
+  'S2-C01': { riskLevel: 'HIGH', infoHint: 'Core直接転送ゲートのファイアウォールルール不備を突いて原本DBへ接続可能です。' },
+  'S2-C02': { riskLevel: 'CRITICAL', infoHint: '相互TLSゲートの旧プロトコル許容・証明書不備を突き、安全に原本DBへ到達できます。' },
+  'S2-C03': { riskLevel: 'CRITICAL', infoHint: '原本通信証跡DBのSQLインジェクション（文字列連結）を突いて原本ログを回収します！' },
+  'S2-C04': { riskLevel: 'HIGH', infoHint: '監視網の迂回ゲートで未保護の監査ログを消去し、警戒度を-10%削減できます。' },
+  'external-1': { riskLevel: 'MEDIUM', infoHint: '公開SSHサーバー(22/tcp)でパスワード認証とrootログインが許可されており、辞書攻撃が有効です。' },
+  'dmz-1': { riskLevel: 'MEDIUM', infoHint: '古いApache Webサーバーのパストラバーサルおよび管理URLのアクセス制御不備を突けます。' },
+  'dmz-2': { riskLevel: 'MEDIUM', infoHint: 'メールサーバーのSPF設定ミス（+all）により、送信元ドメイン詐称が可能です。' },
+  'internal-1': { riskLevel: 'HIGH', infoHint: 'Active Directory/sudoersの過剰権限設定を利用してADMIN権限へ昇格可能です。' },
+  'core-1': { riskLevel: 'CRITICAL', infoHint: '機密データベースのSQL文字列連結不備（SQLインジェクション）により機密データを抽出可能です！' },
 };
 
 export function getNodeSecurityMeta(nodeId: string): NodeSecurityMeta {
-  return (
-    NODE_SECURITY_META[nodeId] ?? {
-      riskLevel: 'MEDIUM',
-      failureAlert: 5,
-      failureResource: 1,
-      infoHint: '対象ノードの開放ポートと脆弱性情報に合致するエクスプロイトを選択してください。',
-    }
-  );
+  const rule = SECURITY_RULES[nodeId as keyof typeof SECURITY_RULES] as SecurityRule | undefined;
+  const meta = NODE_SECURITY_META[nodeId] ?? {
+    riskLevel: 'MEDIUM' as const,
+    infoHint: '対象ノードの開放ポートと脆弱性情報に合致するエクスプロイトを選択してください。',
+  };
+  return { ...meta, failureAlert: rule?.exploit_failure_alert ?? 8, failureResource: rule?.failure_resource ?? 0 };
 }
 
 export function getSecurityChallenge(
@@ -1426,7 +1427,7 @@ export function getSecurityChallenge(
 
   if (found) {
     const questions: ChallengeQuestion[] = found.questions.map((q, qIdx) => ({
-      id: q.id,
+      id: `${nodeId}:${q.id}`,
       questionType: q.questionType,
       prompt: q.prompt,
       codeSnippet: q.codeSnippet,

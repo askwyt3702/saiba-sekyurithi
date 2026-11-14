@@ -148,3 +148,24 @@
   border-color: #ff4255;
   color: #ffffff;
 }
+
+@media (max-width: 1100px) {
+  .status-bar {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 10px 12px;
+  }
+
+  .status-bar__title,
+  .status-bar__item,
+  .status-bar__actions,
+  .status-bar button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .status-bar__item--grow {
+    flex: 1 1 150px;
+    min-width: 120px;
+  }
+}

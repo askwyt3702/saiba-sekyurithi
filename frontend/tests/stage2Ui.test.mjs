@@ -38,16 +38,17 @@ test('stage2 card starts stage2 while mission3 remains locked', () => {
   const { MissionScreen } = load(new URL('../src/components/MissionScreen/MissionScreen.tsx', import.meta.url));
   let selected;
   const tree = MissionScreen({ onSelectMission: (id) => { selected = id; }, onBack() {} });
-  const card =
-    elements(tree, 'article').find((el) => el.props.className?.includes('ms-card--amber')) ??
-    elements(tree, 'button').find((button) => button.props.className === 'mission-card');
+  const card = elements(tree, 'article').find((item) => item.props.className.includes('ms-card--amber'));
   assert.ok(card);
   card.props.onClick();
   assert.equal(selected, 2);
-  const lockedCard =
-    elements(tree, 'article').find((el) => el.props.className?.includes('is-locked')) ??
-    elements(tree, 'div').find((div) => div.props.className === 'mission-card locked');
-  assert.ok(lockedCard);
+  const locked = elements(tree, 'article').filter((item) => item.props.className.includes('is-locked'));
+  assert.equal(locked.length, 1);
+  locked[0].props.onClick();
+  assert.equal(selected, 2);
+  assert.equal(locked[0].props.tabIndex, -1);
+  card.props.onKeyDown({ key: 'Enter', preventDefault() {} });
+  assert.equal(selected, 2);
 });
 
 test('MapView supplies all 16 stage2 nodes and 21 edges to React Flow with its own entry', () => {
@@ -110,7 +111,7 @@ test('gate panel permits scans while locked and enables breach only after the re
     state.nodes.find((node) => node.id === parent).status = 'hacked';
     const node = state.nodes.find((n) => n.id === gate);
     const panel = () => NodeDetailPanel({ stageId: 2, nodes: state.nodes, edges: state.edges, node,
-      analysisResource: 25, privilege: 'ROOT', alertLevel: 10, notice: null, onAction() {} });
+      securityEvents: { [gate]: ['INFO_CONFIRMED'] }, analysisResource: 25, privilege: 'ROOT', alertLevel: 10, notice: null, onAction() {} });
     assert.ok(textOf(panel()).includes('ゲート：ロック中'));
     assert.ok(textOf(panel()).includes(required));
     assert.equal(elements(panel(), 'button')[0].props.disabled, false);
@@ -158,6 +159,12 @@ test('TutorialBanner guides Stage 0 through steps 1-7 and hides on Stage 1/2', (
 
   state0.nodes.find((n) => n.id === 'external-1').status = 'scanned';
   assert.ok(renderStep('external-1').includes('STEP 3 / 7'));
+  for (const message of ['[SECURITY:external-1:INFO_CONFIRMED]', '【調査完了】external-1: SSH hint']) {
+    const confirmed = textOf(TutorialBanner({ stageId: 0, nodes: state0.nodes,
+      logs: [{ id: 'confirm', timestamp: 0, severity: 'success', message }],
+      selectedNodeId: 'external-1', onSelectNode() {} }));
+    assert.ok(confirmed.includes('事前調査が完了しました'));
+  }
 
   state0.nodes.find((n) => n.id === 'external-1').status = 'hacked';
   assert.ok(renderStep('external-1').includes('STEP 4 / 7'));

@@ -32,12 +32,14 @@ function resolveTutorialStep(
   const int1 = getNode('internal-1');
   const core1 = getNode('core-1');
 
-  const isInfoConfirmed = (nodeName?: string) =>
+  const isInfoConfirmed = (node?: NetworkNode) =>
     Boolean(
-      nodeName &&
+      node &&
         logs.some(
           (entry) =>
-            entry.message.includes('【事前調査完了】') && entry.message.includes(nodeName),
+            entry.message.includes(`[SECURITY:${node.id}:INFO_CONFIRMED]`) ||
+            entry.message.includes(`【調査完了】${node.id}:`) ||
+            (entry.message.includes('【事前調査完了】') && entry.message.includes(node.name)),
         ),
     );
 
@@ -71,7 +73,7 @@ function resolveTutorialStep(
 
   // STEP 3: external-1 スキャン済み（未侵入）
   if (ext1.status === 'scanned') {
-    const confirmed = isInfoConfirmed(ext1.name);
+    const confirmed = isInfoConfirmed(ext1);
     return {
       step: 3,
       totalSteps: 7,
@@ -111,7 +113,7 @@ function resolveTutorialStep(
       };
     }
 
-    const confirmed = isInfoConfirmed(scannedDmz.name);
+    const confirmed = isInfoConfirmed(scannedDmz);
     return {
       step: 4,
       totalSteps: 7,
@@ -146,7 +148,7 @@ function resolveTutorialStep(
       };
     }
 
-    const confirmed = isInfoConfirmed(int1.name);
+    const confirmed = isInfoConfirmed(int1);
     return {
       step: 5,
       totalSteps: 7,
@@ -181,7 +183,7 @@ function resolveTutorialStep(
       };
     }
 
-    const confirmed = isInfoConfirmed(core1.name);
+    const confirmed = isInfoConfirmed(core1);
     return {
       step: 6,
       totalSteps: 7,

@@ -4,8 +4,6 @@ API層(main.py)からは「状態の取得」と「アクションの適用」�
 バランス数値は balance_config.py、ステージ構造は game_data.py に分離してある。
 """
 from datetime import datetime, timedelta
-from math import floor
-import re
 import secrets
 from typing import Optional
 
@@ -26,7 +24,6 @@ from balance_config import (
     MAX_ANALYSIS_RESOURCE,
     RESOURCE_RECOVERY_AMOUNT,
     STALE_GAME_DAYS,
-    SECURITY_RULES,
 )
 from game_data import (
     RESOURCE_REWARDS,
@@ -37,12 +34,7 @@ from game_data import (
 )
 
 
-
-
-
-
 TIMED_ACTIONS = ("scan", "remoteScan", "breach", "dataExtract", "recover")
-
 
 
 class ActionRejected(Exception):
@@ -61,10 +53,6 @@ KEY_FRAGMENT_LENGTH = 4
 
 def _generate_key_fragment() -> str:
     return "".join(secrets.choice(KEY_FRAGMENT_ALPHABET) for _ in range(KEY_FRAGMENT_LENGTH))
-
-
-def _normalize_passcode(value: str) -> str:
-    return re.sub(r"[\s\-]", "", value).upper()
 
 
 def _ensure_player_fragments(player: models.PlayerStatus) -> tuple[str, str]:
@@ -86,18 +74,6 @@ def ensure_key_fragments(db: Session) -> None:
         db.commit()
 
 
-def _clamp_alert(value: float) -> float:
-    return max(0.0, min(100.0, value))
-
-
-def _privilege_index(privilege: str) -> int:
-    return PRIVILEGE_LADDER.index(privilege) if privilege in PRIVILEGE_LADDER else 0
-
-
-def _layer_index(layer: str) -> int:
-    return LAYER_ORDER.index(layer) if layer in LAYER_ORDER else len(LAYER_ORDER) - 1
-
-
 def _player_stage(player: models.PlayerStatus) -> dict:
     stage_id = player.stage_id if player.stage_id is not None else DEFAULT_STAGE_ID
     return get_stage(stage_id)
@@ -109,16 +85,6 @@ def _start_message(stage: dict) -> str:
     if stage["id"] == 1:
         return "侵入作戦を開始しました。唯一の初期侵入口E01をスキャンして侵入してください。ターン制のため操作時だけ時間が進みます。"
     return "基礎侵入訓練を開始しました。公開サーバーが入口です。ステージ1の初期侵入口はE01のみです。"
-
-
-def _neighbors(node_id: str, edges: list[dict]) -> set[str]:
-    result = set()
-    for e in edges:
-        if e["source"] == node_id:
-            result.add(e["target"])
-        elif e["target"] == node_id:
-            result.add(e["source"])
-    return result
 
 
 def _node_statuses(db: Session, player: models.PlayerStatus) -> dict[str, str]:
@@ -169,35 +135,18 @@ def add_log(
 
 
 def evaluate_mission_result(player: models.PlayerStatus) -> dict:
-    """表示と同じ警戒度・共有係数でS〜D評価を計算する。"""
-    config = EVALUATION_CONFIG
-    score = max(0, floor(
-        config["baseScore"]
-        - max(0, player.game_time - config["timeGraceSeconds"]) * config["timePenaltyPerSecond"]
-        - round(player.alert_level, 2) * config["alertPenaltyPerPoint"]
-        + min(config["resourceBonusCap"], max(0, player.analysis_resource)) * config["resourceBonusPerPoint"]
-        + 0.5
-    ))
-    threshold = next(t for t in config["thresholds"] if score >= t["minimum"])
-    return {"rank": threshold["rank"], "score": score, "title": threshold["title"]}
+    from game_rules import evaluate_mission_result as evaluate
+    return evaluate(player, EVALUATION_CONFIG)
 
-def _security_event_done(
-    db: Session,
-    player: models.PlayerStatus,
-    node_id: str,
-    event_key: str,
-) -> bool:
-    marker = f"[SECURITY:{node_id}:{event_key}]"
 
-    return (
-        db.query(models.GameLog)
-        .filter(
-            models.GameLog.player_id == player.id,
-            models.GameLog.message == marker,
-        )
-        .first()
-        is not None
-    )
+def _security_events(logs) -> dict[str, list[str]]:
+    result = {}
+    for log in logs:
+        if log.message.startswith("[SECURITY:") and log.message.endswith("]"):
+            parts = log.message[1:-1].split(":")
+            if len(parts) == 3 and parts[2] in ("INFO_CONFIRMED", "ANALYSIS_COMPLETED"):
+                result.setdefault(parts[1], []).append(parts[2])
+    return result
 
 
 # ---------- ゲームの生成・取得 ----------
@@ -411,6 +360,7 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
             "b": collected_b,
             "unlocked": cipher_unlocked,
         },
+        "securityEvents": _security_events(logs),
         "evaluation": evaluate_mission_result(player) if player.game_status == "won" else None,
         "nodes": nodes,
         "edges": stage["edges"],
@@ -428,545 +378,46 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
 
 # ---------- アクション ----------
 
-def _validate_timed_action(
-    db: Session,
-    player: models.PlayerStatus,
-    action_type: str,
-    node: Optional[models.NodeMaster],
-) -> None:
-    if player.game_status != "playing":
-        raise ActionRejected("invalid_state")
-
-    
-    if action_type == "recover":
-        statuses = _node_statuses(db, player)
-
-        # 侵入済みノードが必要
-        if not any(status == "hacked" for status in statuses.values()):
-            raise ActionRejected("node_unreachable")
-
-        # RESOURCEが上限なら回復できない
-        if player.analysis_resource >= MAX_ANALYSIS_RESOURCE:
-            raise ActionRejected("invalid_state")
-
-        return
-
-    if node is None:
-        raise ActionRejected("invalid_state")
-
-    stage = _player_stage(player)
-    stage_node_ids = {n["id"] for n in stage["nodes"]}
-    if node.id not in stage_node_ids:
-        raise ActionRejected("invalid_state")
-
-    cost = ACTION_COSTS[action_type]
-    statuses = _node_statuses(db, player)
-    key_ids = stage["key_fragment_node_ids"]
-    has_all_keys = bool(key_ids) and all(statuses.get(kid) == "hacked" for kid in key_ids)
-    required_resource = 0 if (action_type == "dataExtract" and has_all_keys) else cost["resource"]
-
-    if player.analysis_resource < required_resource:
-        raise ActionRejected("insufficient_resource")
-
-    status = statuses.get(node.id, "unscanned")
-    entry_ids = stage["entry_node_ids"]
-    has_foothold = any(statuses.get(nid) == "hacked" for nid in stage_node_ids)
-    # リモートスキャンも最初の侵入を迂回しない。拠点確保後は遠隔調査できる。
-    if action_type in ("scan", "remoteScan", "breach") and not has_foothold and node.id not in entry_ids:
-        raise ActionRejected("node_unreachable")
-
-    
-    if action_type in ("scan", "remoteScan"):
-        # ノードごとのスキャン方式を確認
-        rule = SECURITY_RULES.get(node.id, {})
-        allowed_scan_types = rule.get(
-            "allowed_scan_types",
-            ["scan", "remoteScan"]
-        )
-
-        if action_type not in allowed_scan_types:
-            raise ActionRejected("invalid_state")
-
-        if status != "unscanned":
-            raise ActionRejected("invalid_state")
-
-        if action_type == "scan":
-            # 通常スキャンは侵入済みノードの隣接先だけ
-            # ステージごとに指定した入口ノードだけは初期探索を許可
-            has_hacked_neighbor = any(
-                statuses.get(neighbor_id) == "hacked"
-                for neighbor_id in _neighbors(node.id, stage["edges"])
-            )
-
-            if node.id not in entry_ids and not has_hacked_neighbor:
-                raise ActionRejected("node_unreachable")
-
-    elif action_type == "breach":
-        if status == "hacked":
-            raise ActionRejected("invalid_state")
-
-        # 入口以外は、侵入済みの隣接ノードが必要
-        if node.id not in entry_ids:
-            if not any(
-                statuses.get(neighbor_id) == "hacked"
-                for neighbor_id in _neighbors(node.id, stage["edges"])
-            ):
-                raise ActionRejected("node_unreachable")
-
-        # 到達可能なノードは、先にスキャンが必要
-        if status != "scanned":
-            raise ActionRejected("node_not_scanned")
-
-        if any(statuses.get(required) != "hacked" for required in stage.get("breach_requirements", {}).get(node.id, [])):
-            raise ActionRejected("node_locked")
-
-        # 必要な権限を確認
-        if (
-            _privilege_index(player.current_privilege)
-            < _layer_index(node.layer)
-        ):
-            raise ActionRejected("insufficient_privilege")
-
-
-    elif action_type == "dataExtract":
-        if node.layer != "Core" or status != "hacked":
-            raise ActionRejected("invalid_state")
-        target_ids = stage["target_node_ids"]
-        if target_ids and node.id not in target_ids:
-            raise ActionRejected("invalid_state")
-
-
-def _advance_time(
-    player: models.PlayerStatus,
-    seconds: int,
-    alert_delta: float,
-) -> None:
-    """アクションにかかった時間を経過させ、警戒度を更新する。"""
-
-    player.game_time += seconds
-
-    player.alert_level = _clamp_alert(
-        player.alert_level
-        - ALERT_DECAY_PER_SECOND * seconds
-        + alert_delta
+def _rule_state(db: Session, player: models.PlayerStatus):
+    from game_rules import RuleState
+    authenticated = db.query(models.GameLog).filter(
+        models.GameLog.player_id == player.id,
+        models.GameLog.message.like("%暗号キー認証に成功%"),
+    ).first() is not None
+    return RuleState(
+        game_time=player.game_time, alert_level=player.alert_level,
+        analysis_resource=player.analysis_resource, current_privilege=player.current_privilege,
+        game_status=player.game_status, node_statuses=_node_statuses(db, player),
+        fragment_a=player.key_fragment_a or "", fragment_b=player.key_fragment_b or "",
+        cipher_authenticated=authenticated,
+        security_events=_security_events(db.query(models.GameLog).filter_by(player_id=player.id).order_by(models.GameLog.id).all()),
     )
-
-
-def _has_any_affordable_action(db: Session, player: models.PlayerStatus) -> bool:
-    """Use action validation to detect dead ends, including recovery."""
-    try:
-        _validate_timed_action(db, player, "recover", None)
-        return True
-    except ActionRejected:
-        pass
-    stage = _player_stage(player)
-    for data in stage["nodes"]:
-        node = db.get(models.NodeMaster, data["id"])
-        for action in ("scan", "remoteScan", "breach", "dataExtract"):
-            try:
-                _validate_timed_action(db, player, action, node)
-                return True
-            except ActionRejected:
-                pass
-    return False
-
-
-def _check_game_over(db: Session, player: models.PlayerStatus) -> None:
-    if player.game_status != "playing":
-        return
-    if player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
-        player.game_status = "lost"
-        add_log(db, player, "danger", "警戒度が限界に達しました。侵入が検知され、作戦は失敗です。")
-    elif not _has_any_affordable_action(db, player):
-        player.game_status = "lost"
-        add_log(db, player, "danger", "解析資源が枯渇しました。これ以上の作戦継続は不可能です。")
-
-
-def _apply_node_effect(db: Session, player: models.PlayerStatus, node: models.NodeMaster) -> None:
-    """侵入成功時の資源補給・警戒度変化・鍵断片取得を適用する。"""
-    frag_a, frag_b = _ensure_player_fragments(player)
-    stage = _player_stage(player)
-    key_ids = stage["key_fragment_node_ids"]
-    ordered_key_ids = sorted(key_ids)
-    effect = stage["node_effects"].get(node.id)
-    if effect:
-        # 同一ノードの補給は RESOURCE_REWARDS と二重加算しない。
-        # NODE_EFFECTS 側に設定があればそちらの値を優先する。
-        res_bonus = effect.get("resource_bonus", 0)
-        alert_delta = effect.get("alert_delta", 0.0)
-        if res_bonus:
-            before = player.analysis_resource
-            player.analysis_resource = min(MAX_ANALYSIS_RESOURCE, max(0, before + res_bonus))
-            actual_bonus = player.analysis_resource - before
-            add_log(db, player, "success", f"{node.name}: RESOURCE +{actual_bonus} ({player.analysis_resource}/{MAX_ANALYSIS_RESOURCE})")
-        if alert_delta:
-            player.alert_level = _clamp_alert(player.alert_level + alert_delta)
-        msg = effect.get("log")
-        if len(ordered_key_ids) >= 1 and node.id == ordered_key_ids[0]:
-            msg = f"【重要】{node.name}から「暗号鍵の断片A: {frag_a}」を入手しました。"
-        elif len(ordered_key_ids) >= 2 and node.id == ordered_key_ids[1]:
-            msg = f"【重要】{node.name}から「暗号鍵の断片B: {frag_b}」を入手しました。"
-        if msg:
-            add_log(db, player, "info", msg)
-    else:
-        reward = RESOURCE_REWARDS.get(node.id, 0) if stage["id"] == DEFAULT_STAGE_ID else 0
-        if reward:
-            before = player.analysis_resource
-            player.analysis_resource = min(MAX_ANALYSIS_RESOURCE, before + reward)
-            add_log(db, player, "success", f"{node.name}: RESOURCE +{player.analysis_resource - before} ({player.analysis_resource}/{MAX_ANALYSIS_RESOURCE})")
-
-    if key_ids and node.id in key_ids:
-        statuses = _node_statuses(db, player)
-        statuses[node.id] = "hacked"
-        if all(statuses.get(kid) == "hacked" for kid in key_ids):
-            add_log(
-                db,
-                player,
-                "success",
-                f"すべての暗号鍵断片が揃いました！断片A「{frag_a}」と断片B「{frag_b}」を繋げた暗号を最終目標の侵入時に入力すると、警戒度上昇を0に抑えられます。",
-            )
 
 
 def _monitoring_extra(stage: dict, statuses: dict[str, str], node_id: str) -> float:
-    monitor = stage.get("conditional_breach_alert")
-    if monitor and node_id in monitor["target_node_ids"] and statuses.get(monitor["disabled_by_node_id"]) != "hacked":
-        return monitor["alert_delta"]
-    return 0
+    from game_rules import _monitoring_extra as monitoring_extra
+    return monitoring_extra(stage, statuses, node_id)
 
 
-def _log_mechanics_unlocked(db: Session, player: models.PlayerStatus, node_id: str) -> None:
-    stage = _player_stage(player)
-    statuses = _node_statuses(db, player)
-    monitor = stage.get("conditional_breach_alert")
-    if monitor and node_id == monitor["disabled_by_node_id"]:
-        add_log(db, player, "success", f"監視解除: {node_id}攻略により対象ノードの追加警戒度+{monitor['alert_delta']}%が無効になりました。")
-    for gate, required in stage.get("breach_requirements", {}).items():
-        if node_id in required and statuses.get(gate) != "hacked" and all(statuses.get(n) == "hacked" for n in required):
-            add_log(db, player, "success", f"ゲート解除: {gate} の侵入条件を満たしました（前提: {', '.join(sorted(required))}）。")
+def apply_action(db: Session, player: models.PlayerStatus, action_type: str,
+                 node_id: Optional[str], passcode: Optional[str] = None,
+                 exploit_mismatch: bool = False, exploit_id: Optional[str] = None, question_id: Optional[str] = None) -> None:
+    """DB入出力アダプター。判定・状態遷移は純粋ルールへ委譲する。"""
+    from game_rules import RuleAction, transition
+    from map_definition import map_from_stage
 
-
-def apply_action(
-    db: Session,
-    player: models.PlayerStatus,
-    action_type: str,
-    node_id: Optional[str],
-    passcode: Optional[str] = None,
-    exploit_mismatch: bool = False,
-    exploit_id: Optional[str] = None,
-) -> None:
-    """アクションを検証して適用する。却下時は ActionRejected を投げる。"""
-
-    if action_type == "pause":
-        if player.game_status != "playing":
-            raise ActionRejected("invalid_state")
-
-        player.game_status = "paused"
-        add_log(db, player, "info", "作戦を一時停止しました。")
-        db.commit()
-        return
-
-    if action_type == "resume":
-        if player.game_status != "paused":
-            raise ActionRejected("invalid_state")
-
-        player.game_status = "playing"
-        add_log(db, player, "info", "作戦を再開しました。")
-        db.commit()
-        return
-
-    # E01：情報確認
-    if action_type == "confirmInfo":
-        if player.game_status != "playing":
-            raise ActionRejected("invalid_state")
-
-        if node_id not in SECURITY_RULES:
-            raise ActionRejected("invalid_state")
-
-        statuses = _node_statuses(db, player)
-
-        if statuses.get(node_id) != "scanned":
-            raise ActionRejected("node_not_scanned")
-
-        if _security_event_done(db, player, node_id, "INFO_CONFIRMED"):
-            raise ActionRejected("invalid_state")
-
-        add_log(
-            db,
-            player,
-            "success",
-            f"[SECURITY:{node_id}:INFO_CONFIRMED]"
-        )
-        rule = SECURITY_RULES.get(node_id, {})
-        hint = rule.get("info_hint")
-        if hint:
-            add_log(db, player, "info", f"【調査完了】{hint}")
-        db.commit()
-        return
-
-    # E01：解析イベント完了
-    if action_type == "completeAnalysis":
-        if player.game_status != "playing":
-            raise ActionRejected("invalid_state")
-
-        if node_id not in SECURITY_RULES:
-            raise ActionRejected("invalid_state")
-
-        if not _security_event_done(
-            db, player, node_id, "INFO_CONFIRMED"
-        ):
-            raise ActionRejected("invalid_state")
-
-        if _security_event_done(
-            db, player, node_id, "ANALYSIS_COMPLETED"
-        ):
-            raise ActionRejected("invalid_state")
-
-        add_log(
-            db,
-            player,
-            "success",
-            f"[SECURITY:{node_id}:ANALYSIS_COMPLETED]"
-        )
-        db.commit()
-        return
-    if action_type not in TIMED_ACTIONS:
-        raise ActionRejected("invalid_state")
-
-    # RESOURCE回復はノード選択不要
-    if action_type == "recover":
-        _validate_timed_action(db, player, action_type, None)
-
-        cost = ACTION_COSTS["recover"]
-
-        player.analysis_resource = min(
-            MAX_ANALYSIS_RESOURCE,
-            player.analysis_resource + RESOURCE_RECOVERY_AMOUNT,
-        )
-
-        _advance_time(
-            player,
-            cost["time"],
-            cost["alert_delta"],
-        )
-
-        add_log(
-            db,
-            player,
-            "success",
-            f"解析資源を回復しました。"
-            f"現在のRESOURCE: {player.analysis_resource}",
-        )
-
-        _check_game_over(db, player)
-        db.commit()
-        return
-
-    node = None
-
-    if node_id is not None:
-        node = db.query(models.NodeMaster).filter(
-            models.NodeMaster.id == node_id
-        ).first()
-
-    _validate_timed_action(
-        db,
-        player,
-        action_type,
-        node,
-    )
-
-    # セキュリティロジック：侵入手法（エクスプロイト）の判定
-    if action_type == "breach":
-        rule = SECURITY_RULES.get(node.id, {}) if node else {}
-        correct_exploits = rule.get("correct_exploits", [])
-
-        # exploit_id が指定されている場合はバックエンド側で正誤判定
-        is_wrong = False
-        if exploit_id is not None:
-            if correct_exploits and exploit_id not in correct_exploits:
-                is_wrong = True
-        elif exploit_mismatch:
-            is_wrong = True
-
-        if is_wrong:
-            alert_penalty = rule.get("failure_alert", 8.0)
-            res_penalty = rule.get("failure_resource", 1)
-
-            player.analysis_resource = max(0, player.analysis_resource - res_penalty)
-            player.alert_level = _clamp_alert(player.alert_level + alert_penalty)
-            add_log(
-                db,
-                player,
-                "danger",
-                f"【IDS検知警告】{node.name}への不適切な攻撃手法が検知されました！解析資源 -{res_penalty}、警戒度 +{alert_penalty:.0f}%（現在: {player.alert_level:.0f}%）。",
-            )
-            _check_game_over(db, player)
-            db.commit()
-            return
-
-    # E02：情報確認が完了しているかチェック（既存バランス設計維持のためコメントアウト）
-    # if action_type == "breach" and node.id == "E02":
-    #     info_done = _security_event_done(
-    #         db, player, node.id, "INFO_CONFIRMED"
-    #     )
-    #
-    #     if not info_done:
-    #         cost = ACTION_COSTS[action_type]
-    #         player.analysis_resource -= cost["resource"]
-    #
-    #         _advance_time(
-    #             player,
-    #             cost["time"],
-    #             SECURITY_RULES[node.id]["failure_alert"]
-    #         )
-    #
-    #         add_log(
-    #             db,
-    #             player,
-    #             "warning",
-    #             f"{node.name} の情報確認が完了していません。"
-    #         )
-    #
-    #         _check_game_over(db, player)
-    #         db.commit()
-    #         return
-
-    stage = _player_stage(player)
-    key_ids = stage["key_fragment_node_ids"]
-    target_ids = stage["target_node_ids"]
-    cost = ACTION_COSTS[action_type]
-    # 鍵が揃っていればデータ回収時、または最終目標への暗号付き侵入時の警戒度増加を打ち消す。
-    alert_delta = cost["alert_delta"]
-    has_all_keys = False
-    silent_breach = False
-    if key_ids:
-        statuses = _node_statuses(db, player)
-        has_all_keys = all(statuses.get(kid) == "hacked" for kid in key_ids)
-
-    if action_type == "breach" and passcode is not None and passcode.strip() != "":
-        frag_a, frag_b = _ensure_player_fragments(player)
-        expected_cipher = _normalize_passcode(frag_a + frag_b)
-        submitted_cipher = _normalize_passcode(passcode)
-        is_target = (not target_ids and node.layer == "Core") or (node.id in target_ids)
-        if not is_target or not key_ids or not has_all_keys or submitted_cipher != expected_cipher:
-            raise ActionRejected("invalid_passcode")
-        silent_breach = True
-        alert_delta = 0.0
-
-    if action_type == "dataExtract" and key_ids and has_all_keys:
-        alert_delta = 0.0
-        cipher_authenticated = db.query(models.GameLog).filter(
-            models.GameLog.player_id == player.id,
-            models.GameLog.message.like("%暗号キー認証に成功%"),
-        ).first() is not None
-        resource_cost = 0 if (cipher_authenticated or player.analysis_resource < cost["resource"]) else cost["resource"]
-    else:
-        resource_cost = cost["resource"]
-
-    monitoring_extra = _monitoring_extra(stage, _node_statuses(db, player), node.id) if action_type == "breach" else 0
-    alert_delta += monitoring_extra
-
-    player.analysis_resource -= resource_cost
-
-    _advance_time(
-        player,
-        cost["time"],
-        alert_delta,
-    )
-
-    if monitoring_extra:
-        add_log(db, player, "warning", f"条件付き監視: {node.id} 侵入の追加警戒度 +{monitoring_extra}%。")
-
-    # 検知はノード効果・鍵以外の事後軽減・勝利より優先する。
-    # 鍵による回収の軽減は上のalert_delta計算で既に適用済み。
-    if player.alert_level >= ALERT_GAME_OVER_THRESHOLD:
-        _check_game_over(db, player)
-        db.commit()
-        return
-
-    if action_type in ("scan", "remoteScan"):
-        _set_node_status(db, player, node.id, "scanned")
-
-        scan_label = (
-            "リモートスキャン"
-            if action_type == "remoteScan"
-            else "通常スキャン"
-        )
-
-        add_log(
-            db,
-            player,
-            "success",
-            f"{node.name} の{scan_label}が完了しました。"
-            f"脆弱性: {node.vulnerability or '不明'}"
-        )
-
-
-    elif action_type == "breach":
-        _set_node_status(db, player, node.id, "hacked")
-
-
-
-        # 侵入したレイヤーに応じて権限を昇格
-        granted = min(
-            _layer_index(node.layer) + 1,
-            len(PRIVILEGE_LADDER) - 1,
-        )
-
-        if granted > _privilege_index(player.current_privilege):
-            player.current_privilege = PRIVILEGE_LADDER[granted]
-
-            add_log(
-                db,
-                player,
-                "success",
-                f"{node.name} への侵入に成功。権限が {player.current_privilege} に昇格しました。",
-            )
-        elif silent_breach:
-            add_log(
-                db,
-                player,
-                "success",
-                f"暗号キー認証に成功！{node.name} へ隠密侵入しました（警戒度上昇なし）。",
-            )
-        else:
-            add_log(db, player, "success", f"{node.name} への侵入に成功しました。")
-        _apply_node_effect(db, player, node)
-        _log_mechanics_unlocked(db, player, node.id)
-
-        # ノードごとの成功報酬（既存バランス設計維持のためコメントアウト）
-        # rule = SECURITY_RULES.get(node.id)
-        # if rule:
-        #     reward = rule.get("success_resource", 0)
-        #     player.analysis_resource += reward
-        #     add_log(
-        #         db,
-        #         player,
-        #         "success",
-        #         f"{node.name} の攻略報酬として解析資源を{reward}獲得しました。"
-        #     )
-
-    elif action_type == "dataExtract":
-        if has_all_keys:
-            add_log(db, player, "success", f"復元した暗号鍵を使用し、{node.name} から極秘研究データを隠密回収しました。目的達成！")
-        else:
-            add_log(db, player, "success", f"{node.name} から機密データを回収しました。目的達成！")
-        player.game_status = "won"
-        ev = evaluate_mission_result(player)
-        add_log(
-            db,
-            player,
-            "success",
-            f"作戦評価: RANK {ev['rank']}（スコア: {ev['score']} / 経過: {player.game_time}秒 / 最終警戒度: {player.alert_level:.0f}% / 残資源: {player.analysis_resource}） - {ev['title']}",
-        )
-
-    if player.alert_level >= 70 and player.game_status == "playing":
-        add_log(
-            db,
-            player,
-            "warning",
-            f"警戒度が {player.alert_level:.0f}% に上昇しています。",
-        )
-
-    _check_game_over(db, player)
+    definition = map_from_stage(_player_stage(player))
+    before = _rule_state(db, player)
+    result = transition(definition, before, RuleAction(action_type, node_id, passcode, exploit_mismatch, exploit_id, question_id))
+    if not result.accepted:
+        raise ActionRejected(result.reason)
+    after = result.state
+    for attribute in ("game_time", "alert_level", "analysis_resource", "current_privilege", "game_status"):
+        setattr(player, attribute, getattr(after, attribute))
+    for nid, status in after.node_statuses.items():
+        if before.node_statuses.get(nid) != status:
+            _set_node_status(db, player, nid, status)
+    for event in result.events:
+        db.add(models.GameLog(player_id=player.id, timestamp=event.timestamp,
+                              message=event.message, severity=event.severity))
     db.commit()

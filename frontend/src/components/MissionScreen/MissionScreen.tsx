@@ -29,8 +29,8 @@ const MISSIONS: MissionItem[] = [
     hazardTag: 'TRACE: ISOLATED',
     title: '基礎侵入訓練',
     description:
-      '5ノードの隔離ネットワークで、スキャン・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。初期侵入口はE01のみ。',
-    targetNode: 'C01 (CORE)',
+      '5ノードの隔離ネットワークで、スキャン・情報確認・問題回答・侵入・データ回収を習得せよ。操作時だけ時間が進むターン制。初期侵入口はexternal-1のみ。',
+    targetNode: 'core-1 (CORE)',
     idsStatus: 'PASSIVE (訓練用監視)',
     difficultyLabel: '訓練 / LOW RISK',
     difficultyLevel: 1,

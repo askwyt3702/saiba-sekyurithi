@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
-import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData, isExtractTarget } from '../../game/data/stageData';
+import { useEffect, useRef, useState } from 'react';
+import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, SECURITY_RULES, getStageData, isExtractTarget } from '../../game/data/stageData';
+import type { SecurityRule } from '../../game/model/mapDefinition';
+import { securityRequirementsMet } from '../../game/model/actionRules';
 import { getNodeSecurityMeta, getSecurityChallenge } from '../../game/data/securityLearningData';
 import { canReachNode, canRemoteScanNode, isMonitoringActive, missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
   ActionType,
+  ActionResult,
   NetworkNode,
   ApiNetworkEdge,
   GameStatus,
@@ -25,6 +28,7 @@ interface NodeDetailPanelProps {
   keyFragments?: KeyFragments;
   analysisResource: number;
   alertLevel?: number;
+  securityEvents?: Record<string, string[]>;
   notice: string | null;
   logs?: Array<{ message: string }>;
   onAction: (
@@ -32,7 +36,8 @@ interface NodeDetailPanelProps {
     passcode?: string,
     exploitMismatch?: boolean,
     exploitId?: string,
-  ) => void;
+    questionId?: string,
+  ) => void | Promise<ActionResult | void>;
 }
 
 export function NodeDetailPanel({
@@ -45,6 +50,7 @@ export function NodeDetailPanel({
   keyFragments,
   analysisResource,
   alertLevel = 0,
+  securityEvents = {},
   notice,
   logs,
   onAction,
@@ -57,6 +63,8 @@ export function NodeDetailPanel({
   const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
   const [penalizedChoiceIds, setPenalizedChoiceIds] = useState<string[]>([]);
   const [solvedQuestionIds, setSolvedQuestionIds] = useState<string[]>([]);
+  const answerPending = useRef(false);
+  const modalAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modalAlert, setModalAlert] = useState(false);
 
   useEffect(() => {
@@ -65,7 +73,9 @@ export function NodeDetailPanel({
     setQuestionIndex(0);
     setSelectedExploitId(null);
     setPenalizedChoiceIds([]);
+    setSolvedQuestionIds([]);
     setModalAlert(false);
+    if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
   }, [node?.id, stageId]);
 
   useEffect(() => {
@@ -86,6 +96,8 @@ export function NodeDetailPanel({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isInfoOpen, isExploitOpen]);
 
+  useEffect(() => () => { if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current); }, []);
+
   if (!node) {
     return (
       <aside className="node-detail node-detail--empty">
@@ -98,6 +110,10 @@ export function NodeDetailPanel({
 
   const reachable = canReachNode(node.id, nodes, edges, stage);
   const playing = gameStatus === 'playing';
+  const securityRule = (SECURITY_RULES as Record<string, SecurityRule>)[node.id];
+  const confirmed = securityEvents[node.id]?.includes('INFO_CONFIRMED') ?? false;
+  const analyzed = securityEvents[node.id]?.includes('ANALYSIS_COMPLETED') ?? false;
+  const securityReady = securityRequirementsMet(securityRule, securityEvents[node.id]);
   const effect = stage.nodeEffects[node.id];
   const required = stage.breachRequirements[node.id];
   const missing = missingGateRequirements(node.id, nodes, stage);
@@ -113,12 +129,14 @@ export function NodeDetailPanel({
 
   // 通常スキャンはExternal層か、侵入済みノードの隣接先のみ
   const canScan =
+    (securityRule?.allowed_scan_types?.includes('scan') ?? true) &&
     isUnscanned &&
     playing && reachable &&
     analysisResource >= balanceConfig.scan.resource;
 
   // リモートスキャンは未スキャンならどこでも可能
   const canRemoteScan =
+    (securityRule?.allowed_scan_types?.includes('remoteScan') ?? true) &&
     isUnscanned &&
     playing && canRemoteScanNode(node.id, nodes, stage) &&
     analysisResource >= balanceConfig.remoteScan.resource;
@@ -126,6 +144,7 @@ export function NodeDetailPanel({
   const canBreach =
     node.status === 'scanned' &&
     !locked &&
+    !(securityRule?.failure_mode === 'reject' && !securityReady) &&
     playing && reachable && privileges.indexOf(privilege) >= layers.indexOf(node.layer) &&
     analysisResource >= balanceConfig.breach.resource;
 
@@ -155,21 +174,22 @@ export function NodeDetailPanel({
   const fragB = keyFragments?.b ?? null;
   const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
   const securityMeta = getNodeSecurityMeta(node.id);
-  const isInvestigated =
+  const isInvestigated = confirmed || (
     logs?.some(
       (l) =>
         l.message.includes(`[SECURITY:${node.id}:INFO_CONFIRMED]`) ||
         l.message.includes(`【調査完了】${node.id}`)
-    ) ?? false;
+    ) ?? false);
   const currentQuestion =
     challenge.questions[questionIndex % challenge.questions.length] ?? challenge.questions[0];
   const selectedChoice =
     currentQuestion.choices.find((c) => c.id === selectedExploitId) ?? null;
-  // 事前調査（情報確認）済みの場合は、不正解のダミー選択肢1つを「調査により除外済」として特定する
+  const wrongAlert = securityRule?.exploit_failure_alert ?? 8;
+  const wrongResource = securityRule?.failure_resource ?? 0;
+
   const filteredOutChoiceId = isInvestigated
     ? (currentQuestion.choices.find((c) => !c.isCorrect)?.id ?? null)
     : null;
-
   const openExploitModal = () => {
     const firstUnsolvedIdx = challenge.questions.findIndex((q) => !solvedQuestionIds.includes(q.id));
     setQuestionIndex(firstUnsolvedIdx >= 0 ? firstUnsolvedIdx : 0);
@@ -177,15 +197,29 @@ export function NodeDetailPanel({
     setIsExploitOpen(true);
   };
 
-  const handleSelectExploitChoice = (choiceId: string, isCorrect: boolean) => {
-    setSelectedExploitId(choiceId);
-    if (!isCorrect) {
+  const handleSelectExploitChoice = async (choiceId: string, isCorrect: boolean) => {
+    if (!canBreach || answerPending.current) return;
+    if (!isCorrect && securityRule?.correct_exploits?.length && !securityReady) return;
+    const flash = () => {
+      if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
       setModalAlert(true);
-      setTimeout(() => setModalAlert(false), 900);
-      if (!penalizedChoiceIds.includes(choiceId)) {
+      modalAlertTimer.current = setTimeout(() => setModalAlert(false), 900);
+    };
+    if (isCorrect || penalizedChoiceIds.includes(choiceId)) {
+      if (!isCorrect) flash();
+      setSelectedExploitId(choiceId);
+      return;
+    }
+    answerPending.current = true;
+    try {
+      const result = await onAction('breach', undefined, true, choiceId, currentQuestion.id);
+      if (result && result.accepted) {
+        flash();
         setPenalizedChoiceIds((prev) => [...prev, choiceId]);
-        onAction('breach', undefined, true, choiceId);
-      }
+        setSelectedExploitId(choiceId);
+      } else setSelectedExploitId(null);
+    } finally {
+      answerPending.current = false;
     }
   };
 
@@ -196,6 +230,16 @@ export function NodeDetailPanel({
         {isInvestigated && <span className="node-detail__investigated-badge">調査済 ✓</span>}
       </h2>
       {stage.entryNodeIds.includes(node.id) && <p>初期侵入口：{node.id}</p>}
+      {securityRule && node.status !== 'hacked' && (
+        <section className="node-detail__mechanics" aria-label="侵入前の確認条件">
+          {securityRule.allowed_scan_types?.length === 1 && securityRule.allowed_scan_types[0] === 'scan' && <p>このノードは通常スキャンのみ使用できます。</p>}
+          <p>情報確認：{confirmed ? '完了' : '未完了'}{securityRule.required_analysis && ` ／ 解析：${analyzed ? '完了' : '未完了'}`}</p>
+          {!securityReady && <p role="status">{securityRule.failure_mode === 'consume'
+            ? `条件未達で侵入を実行すると、資源${balanceConfig.breach.resource}・${balanceConfig.breach.time}秒・警戒度実増${securityRule.failure_alert - balanceConfig.alertDecayPerSecond * balanceConfig.breach.time}%を消費し、侵入は未完了になります。`
+            : '情報未確認の侵入は無消費で拒否されます。情報確認を完了してください。'}</p>}
+          <p>情報確認ボタンから説明を読み、確認操作を完了してください。</p>
+        </section>
+      )}
       {monitored && monitor && (
         <section className="node-detail__mechanics" aria-label="監視情報">
           <p><strong>{isMonitoringActive(nodes, stage) ? '監視対象：追加警戒度あり' : '監視解除済み：追加警戒度なし'}</strong></p>
@@ -336,7 +380,6 @@ export function NodeDetailPanel({
           type="button"
           className={`node-detail__info-button ${isInvestigated ? 'node-detail__info-button--checked' : ''}`}
           onClick={() => {
-            onAction('confirmInfo' as TimedActionType);
             setIsInfoOpen(true);
           }}
         >
@@ -376,6 +419,8 @@ export function NodeDetailPanel({
             </header>
 
             <div className="node-info-modal__body">
+              {notice && <p role="alert">{notice}</p>}
+              {securityRule?.correct_exploits?.length && !securityReady ? <p role="status">先に情報確認・必要な解析を完了してください。確認条件不足の実行は従来の失敗ペナルティになります。</p> : null}
               <div className="exploit-terminal-box">
                 <div className="exploit-terminal-box__line">
                   <span className="exploit-terminal-box__tag">[TARGET]</span> {node.id} ({node.name}) ／ 階層: {node.layer} ／ 現在の警戒度: <strong>{alertLevel.toFixed(1)}%</strong>
@@ -444,7 +489,7 @@ export function NodeDetailPanel({
                 <div className="exploit-terminal-box__prompt">
                   &gt; {currentQuestion.prompt}
                   <span className="exploit-terminal-box__penalty-note">
-                    （※不正解を選ぶとIDSに検知され、警戒度 +{securityMeta.failureAlert}%・解析資源 -{securityMeta.failureResource} のペナルティが発生します）
+                    {`（不正解：警戒度 +${wrongAlert}%、資源 -${wrongResource}、時間消費なし）`}
                   </span>
                 </div>
                 {currentQuestion.codeSnippet && (
@@ -473,6 +518,7 @@ export function NodeDetailPanel({
                       key={choice.id}
                       type="button"
                       className={`exploit-choice ${stateClass}`}
+                      disabled={!canBreach}
                       onClick={() => handleSelectExploitChoice(choice.id, choice.isCorrect)}
                     >
                       <div className="exploit-choice__head">
@@ -481,7 +527,7 @@ export function NodeDetailPanel({
                         </span>
                         {(isSelected || wasPenalized) ? (
                           <span className={`exploit-choice__badge ${choice.isCorrect ? 'exploit-choice__badge--ok' : 'exploit-choice__badge--ng'}`}>
-                            {choice.isCorrect ? '有効 (MATCH)' : `IDS検知 (警戒度 +${securityMeta.failureAlert}% / 資源 -${securityMeta.failureResource})`}
+                            {choice.isCorrect ? '有効 (MATCH)' : `IDS検知 (警戒度 +${wrongAlert}% / 資源 -${wrongResource})`}
                           </span>
                         ) : isFilteredOut ? (
                           <span className="exploit-choice__badge exploit-choice__badge--filtered">
@@ -504,7 +550,7 @@ export function NodeDetailPanel({
                   <div className="exploit-feedback__title">
                     {selectedChoice.isCorrect
                       ? '[+] EXPLOIT READY — 脆弱性に合致する解答を確認しました！'
-                      : `🚨 [!] IDS ALERT — 不適切な選択が検知され、警戒度 +${securityMeta.failureAlert}%・解析資源 -${securityMeta.failureResource} のペナルティを受けました（現在警戒度: ${alertLevel.toFixed(1)}%）`}
+                      : `🚨 [!] IDS ALERT — 警戒度 +${wrongAlert}%、資源 -${wrongResource}（現在: ${alertLevel.toFixed(1)}%）`}
                   </div>
                   <p className="exploit-feedback__text">{selectedChoice.feedback}</p>
                   {selectedChoice.isCorrect && (
@@ -561,17 +607,22 @@ export function NodeDetailPanel({
                   type="button"
                   className="exploit-modal__execute-btn"
                   disabled={!selectedChoice?.isCorrect || !canBreach}
-                  onClick={() => {
-                    setSolvedQuestionIds((prev) =>
-                      prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id],
-                    );
-                    setIsExploitOpen(false);
-                    onAction(
-                      'breach',
-                      showPasscodeInput ? passcode : undefined,
-                      false,
-                      selectedExploitId ?? undefined,
-                    );
+                  onClick={async () => {
+                    if (answerPending.current) return;
+                    answerPending.current = true;
+                    try {
+                      const result = await onAction(
+                        'breach',
+                        showPasscodeInput ? passcode : undefined,
+                        false,
+                        selectedExploitId ?? undefined,
+                        currentQuestion.id,
+                      );
+                      if (result && result.accepted) {
+                        if (securityReady) setSolvedQuestionIds((prev) => prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id]);
+                        setIsExploitOpen(false);
+                      }
+                    } finally { answerPending.current = false; }
                   }}
                 >
                   {showPasscodeInput && passcode.trim() !== ''
@@ -721,12 +772,21 @@ export function NodeDetailPanel({
             </div>
 
             <footer className="node-info-modal__footer">
+              {securityRule && node.status === 'scanned' && (
+                <>
+                  <button type="button" className="node-info-modal__close-btn" disabled={!playing || confirmed} onClick={() => onAction('confirmInfo')}>
+                    {confirmed ? '情報確認済み' : '情報を確認した'}
+                  </button>
+                  {securityRule.required_analysis && <button type="button" className="node-info-modal__close-btn" disabled={!playing || !confirmed || analyzed} onClick={() => onAction('completeAnalysis')}>
+                    {analyzed ? '解析完了済み' : '解析を完了する'}
+                  </button>}
+                </>
+              )}
               {canBreach && (
                 <button
                   type="button"
                   className="exploit-modal__execute-btn"
                   onClick={() => {
-                    onAction('confirmInfo' as TimedActionType);
                     setIsInfoOpen(false);
                     openExploitModal();
                   }}
