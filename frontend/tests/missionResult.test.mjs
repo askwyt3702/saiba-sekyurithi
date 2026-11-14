@@ -242,6 +242,9 @@ test('App reuses reset for retry and title, changing screen only after success',
   await result.props.onTitle();
   assert.equal(resets, 2);
   assert.equal(app.values[0], 'title');
+  await result.props.onSelectMission();
+  assert.equal(resets, 3);
+  assert.equal(app.values[0], 'mission');
   const failing = mountApp(state, async () => { throw new Error('offline'); });
   await assert.rejects(findElements(failing.render(), MissionResult)[0].props.onTitle, /offline/);
   assert.equal(failing.values[0], 'game');
@@ -272,4 +275,33 @@ test('IDS animation follows new logs after reset and ignores rejected actions', 
   assert.ok(!app.render().props.className.includes('app-shell--ids-alert'));
   current.log.push({id:'second',message:'【IDS検知警告】'});
   app.render();app.flushEffects();assert.ok(app.render().props.className.includes('app-shell--ids-alert'));
+});
+
+test('MissionResult and MissionFailure support MISSIONS navigation and map-inspect minimize/restore', async () => {
+  for (const [componentName, gameStatus] of [['MissionResult', 'won'], ['MissionFailure', 'lost']]) {
+    let missions = 0;
+    const mounted = mountResult(
+      {
+        state: { ...state, status: gameStatus },
+        onRetry: async () => {},
+        onTitle: async () => {},
+        onSelectMission: async () => { missions++; },
+      },
+      componentName,
+    );
+    let buttons = findElements(mounted.render(), 'button');
+    assert.equal(buttons.length, 4);
+    buttons[2].props.onClick();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(missions, 1);
+
+    // Click "🗺 マップを確認" (buttons[3]) to minimize modal
+    buttons[3].props.onClick();
+    const minimizedTree = mounted.render();
+    assert.equal(findElements(minimizedTree, 'dialog').length, 0);
+    const minButtons = findElements(minimizedTree, 'button');
+    // Click "レポートを再表示" (minButtons[0]) to restore modal
+    minButtons[0].props.onClick();
+    assert.equal(findElements(mounted.render(), 'dialog').length, 1);
+  }
 });

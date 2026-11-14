@@ -243,13 +243,14 @@
 /* アクションボタン */
 .mission-failure__actions {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 22px;
 }
 
 .mission-failure__actions button {
-  flex: 1;
-  padding: 14px;
+  flex: 1 1 130px;
+  padding: 14px 10px;
   border-radius: 4px;
   font: inherit;
   font-weight: 700;
@@ -267,6 +268,77 @@
   background: transparent;
   border: 1px solid #7f1d1d;
   color: #fecaca;
+}
+
+.mission-failure__actions .btn-mission {
+  background: rgba(244, 63, 94, 0.18);
+  border: 1px solid #fb7185;
+  color: #ffe4e6;
+}
+
+.mission-failure__actions .btn-inspect {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  letter-spacing: 1px;
+}
+
+.mission-failure-minimized {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  background: rgba(20, 8, 12, 0.96);
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 24px rgba(239, 68, 68, 0.3);
+  color: #fce7f3;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.mission-failure-minimized__badge {
+  color: #f87171;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.mission-failure-minimized__hint {
+  color: #fca5a5;
+  font-size: 11px;
+}
+
+.mission-failure-minimized__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mission-failure-minimized__actions button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #7f1d1d;
+  background: rgba(24, 9, 14, 0.9);
+  color: #fecaca;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mission-failure-minimized__actions button.btn-restore {
+  background: #ef4444;
+  border-color: #f87171;
+  color: #180407;
+}
+
+.mission-failure-minimized__actions button:hover:not(:disabled) {
+  filter: brightness(1.15);
 }
 
 .mission-failure__actions button:hover:not(:disabled) {

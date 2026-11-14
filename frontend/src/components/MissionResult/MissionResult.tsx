@@ -8,13 +8,15 @@ interface MissionResultProps {
   state: GameState;
   onRetry: () => Promise<void>;
   onTitle: () => Promise<void>;
+  onSelectMission?: () => Promise<void>;
 }
 
-export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
+export function MissionResult({ state, onRetry, onTitle, onSelectMission }: MissionResultProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pendingRef = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [minimized, setMinimized] = useState(false);
   const calculated = calculateMissionResult(state);
   const result = { ...calculated, ...state.evaluation };
   const idsAlertCount = (state.log ?? []).filter((l) => l.message.includes('【IDS検知警告】')).length;
@@ -25,10 +27,11 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
       : 100;
 
   useEffect(() => {
+    if (minimized) return;
     const dialog = dialogRef.current;
     dialog?.showModal();
     return () => dialog?.close();
-  }, []);
+  }, [minimized]);
 
   const navigate = async (action: () => Promise<void>) => {
     if (pendingRef.current) return;
@@ -45,6 +48,32 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
       setPending(false);
     }
   };
+
+  if (minimized) {
+    return (
+      <div className="mission-result-minimized" role="region" aria-label="作戦完了レポート（最小化中）">
+        <span className="mission-result-minimized__badge">
+          MISSION COMPLETE // RANK {result.rank} ({result.score} PT)
+        </span>
+        <span className="mission-result-minimized__hint">
+          マップ・ノード詳細・イベントログを自由に確認できます
+        </span>
+        <div className="mission-result-minimized__actions">
+          <button type="button" className="btn-restore" disabled={pending} onClick={() => setMinimized(false)}>
+            📊 レポートを再表示
+          </button>
+          <button type="button" disabled={pending} onClick={() => void navigate(onRetry)}>
+            RETRY
+          </button>
+          {onSelectMission && (
+            <button type="button" disabled={pending} onClick={() => void navigate(onSelectMission)}>
+              MISSIONS
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <dialog ref={dialogRef} className="mission-result" aria-labelledby="mission-result-title"
@@ -113,8 +142,16 @@ export function MissionResult({ state, onRetry, onTitle }: MissionResultProps) {
 
         {error && <p className="mission-result__error" role="alert">{error}</p>}
         <div className="mission-result__actions" aria-busy={pending}>
-          <button type="button" disabled={pending} onClick={() => void navigate(onRetry)}>RETRY</button>
-          <button type="button" disabled={pending} onClick={() => void navigate(onTitle)}>TITLE</button>
+          <button type="button" className="btn-primary" disabled={pending} onClick={() => void navigate(onRetry)}>RETRY</button>
+          <button type="button" className="btn-secondary" disabled={pending} onClick={() => void navigate(onTitle)}>TITLE</button>
+          {onSelectMission && (
+            <button type="button" className="btn-mission" disabled={pending} onClick={() => void navigate(onSelectMission)}>
+              MISSIONS
+            </button>
+          )}
+          <button type="button" className="btn-inspect" disabled={pending} onClick={() => setMinimized(true)}>
+            🗺 マップを確認
+          </button>
         </div>
         {pending && <p role="status">次の作戦を準備中...</p>}
       </div>

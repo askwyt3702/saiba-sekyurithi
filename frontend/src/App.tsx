@@ -180,6 +180,11 @@ function App() {
     setScreen('title');
   };
 
+  const returnToMission = async () => {
+    await restartMission();
+    setScreen('mission');
+  };
+
   // タイトル画面
   if (screen === 'title') {
     return (
@@ -246,7 +251,12 @@ function App() {
         onSelectNode={handleSelectNode}
       />
       {state.status === 'won' && (
-        <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
+        <MissionResult
+          state={state}
+          onRetry={restartMission}
+          onTitle={returnToTitle}
+          onSelectMission={returnToMission}
+        />
       )}
       {state.status === 'lost' && (
         <>
@@ -255,7 +265,12 @@ function App() {
               ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
               : '作戦失敗：警戒度が限界に達しました。'}
           </div>
-          <MissionFailure state={state} onRetry={restartMission} onTitle={returnToTitle} />
+          <MissionFailure
+            state={state}
+            onRetry={restartMission}
+            onTitle={returnToTitle}
+            onSelectMission={returnToMission}
+          />
         </>
       )}
       <div className="app-body">
