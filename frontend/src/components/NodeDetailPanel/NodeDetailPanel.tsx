@@ -223,7 +223,8 @@ export function NodeDetailPanel({
         await ensureSecurityReady();
       }
       const result = await onAction('breach', undefined, true, choiceId, currentQuestion.id);
-      if (!result || result.accepted) {
+      // 通信失敗(App が undefined を返す)は成功扱いにしない
+      if (result && result.accepted) {
         flash();
         setPenalizedChoiceIds((prev) => [...prev, choiceId]);
         setSelectedExploitId(choiceId);
@@ -633,7 +634,8 @@ export function NodeDetailPanel({
                         selectedExploitId ?? undefined,
                         currentQuestion.id,
                       );
-                      if (!result || result.accepted) {
+                      // 通信失敗(App が undefined を返す)は成功扱いにしない
+                      if (result && result.accepted) {
                         setSolvedQuestionIds((prev) => prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id]);
                         setIsExploitOpen(false);
                       }
