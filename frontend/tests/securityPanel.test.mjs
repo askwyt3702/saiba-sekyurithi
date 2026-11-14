@@ -104,13 +104,6 @@ for (const id of ['E01', 'E02', 'E03']) {
     assert.ok(elements(panel(), 'div').some((d) => d.props.role === 'dialog'));
     const before = JSON.stringify(client.state);
     assert.equal(client.state.securityEvents[id], undefined, 'opening a modal alone must not confirm');
-    if (id !== 'E03') {
-      const unchanged = JSON.stringify(client.state);
-      elements(panel(), 'button').find((b) => textOf(b).startsWith('ハッキング端末（侵入）')).props.onClick();
-      assert.equal(JSON.stringify(client.state), unchanged, 'opening the exploit terminal must not auto-confirm');
-      button('情報確認・解説を見る').props.onClick();
-      assert.equal(JSON.stringify(client.state), unchanged, 'returning to information must not auto-confirm');
-    }
     if (id === 'E01') assert.equal(button('解析を完了する').props.disabled, true);
     button('情報を確認した').props.onClick();
     assert.equal((await pending).accepted, true);
@@ -251,6 +244,112 @@ test('E01 and E02 allow clicking wrong choices in the exploit modal without spoi
     await choices()[wrongIdx].props.onClick();
     assert.ok(choices()[wrongIdx].props.className.includes('exploit-choice--wrong'));
     assert.ok(elements(panel(), 'div').some((el) => el.props.className?.includes('exploit-modal--ids-alert')));
+    assert.equal(
+      choices().some((b) => b.props.className.includes('exploit-choice--filtered')),
+      false,
+      'Guessing a wrong choice without recon must not auto-filter the remaining dummy choice',
+    );
+  }
+});
+
+test('proceeding from info modal to exploit modal auto-confirms and disables the excluded dummy choice', async () => {
+  hookValues = [];
+  hookCursor = 0;
+  const client = new MockGameClient('auto-confirm-and-filter', 1);
+  await client.connect(() => {});
+  await client.sendAction({ type: 'scan', nodeId: 'E01' });
+  const panel = () => {
+    hookCursor = 0;
+    return NodeDetailPanel({
+      node: client.state.nodes.find((n) => n.id === 'E01'),
+      nodes: client.state.nodes,
+      edges: client.state.edges,
+      stageId: 1,
+      gameStatus: client.state.status,
+      analysisResource: client.state.analysisResource,
+      privilege: client.state.privilege,
+      alertLevel: client.state.alertLevel,
+      securityEvents: client.state.securityEvents,
+      notice: null,
+      onAction(type, passcode, exploitMismatch, exploitId, questionId) {
+        return client.sendAction({ type, nodeId: 'E01', passcode, exploitMismatch, exploitId, questionId });
+      },
+    });
+  };
+  const button = (label) => elements(panel(), 'button').find((b) => textOf(b) === label);
+  button('情報確認').props.onClick();
+  elements(panel(), 'button').find((b) => textOf(b).startsWith('ハッキング端末（侵入）')).props.onClick();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(client.state.securityEvents.E01?.includes('INFO_CONFIRMED'));
+  assert.ok(client.state.securityEvents.E01?.includes('ANALYSIS_COMPLETED'));
+
+  const choices = () => elements(panel(), 'button').filter((b) => b.props.className?.startsWith('exploit-choice '));
+  const filteredChoice = choices().find((b) => b.props.className.includes('exploit-choice--filtered'));
+  assert.ok(filteredChoice, 'Expected 1 dummy choice to be filtered out');
+  assert.equal(filteredChoice.props.disabled, true, 'Filtered out dummy choice must be disabled');
+
+  const beforeClick = JSON.stringify(client.state);
+  await filteredChoice.props.onClick();
+  assert.equal(JSON.stringify(client.state), beforeClick, 'Clicking filtered out choice must do nothing');
+});
+
+test('4-layer step-up security difficulty scales question type, dummy filtering, and Core payload encryption', async () => {
+  for (const [nodeId, expectedLayerPrefix, expectFilter, expectEncrypted] of [
+    ['E01', 'TYPE A', true, false],
+    ['D01', 'TYPE B', true, false],
+    ['I01', 'TYPE ', false, false],
+    ['C03', 'TYPE C', false, true],
+  ]) {
+    hookValues = [];
+    hookCursor = 0;
+    const client = new MockGameClient(`layer-scale-${nodeId}`, 1);
+    await client.connect(() => {});
+    client.state.privilege = 'ROOT';
+    for (const item of client.state.nodes) {
+      item.status = item.id === nodeId ? 'scanned' : 'hacked';
+      item.vulnerability = STAGES[1].vulnerabilities[item.id] ?? null;
+    }
+    const panel = () => {
+      hookCursor = 0;
+      return NodeDetailPanel({
+        node: client.state.nodes.find((n) => n.id === nodeId),
+        nodes: client.state.nodes,
+        edges: client.state.edges,
+        stageId: 1,
+        gameStatus: client.state.status,
+        analysisResource: client.state.analysisResource,
+        privilege: client.state.privilege,
+        alertLevel: client.state.alertLevel,
+        securityEvents: client.state.securityEvents,
+        notice: null,
+        onAction(type, passcode, exploitMismatch, exploitId, questionId) {
+          return client.sendAction({ type, nodeId, passcode, exploitMismatch, exploitId, questionId });
+        },
+      });
+    };
+    // Open exploit modal directly before recon
+    elements(panel(), 'button')[2].props.onClick();
+    const modalTextBefore = textOf(panel());
+    assert.ok(modalTextBefore.includes(expectedLayerPrefix), `${nodeId} should start at ${expectedLayerPrefix}`);
+    assert.equal(
+      modalTextBefore.includes('ENCRYPTED PAYLOAD'),
+      expectEncrypted,
+      `${nodeId} encrypted state before recon should be ${expectEncrypted}`,
+    );
+
+    // Run free recon inside the modal
+    const reconBtn = elements(panel(), 'button').find((b) => textOf(b).includes('事前調査を実行'));
+    await reconBtn.props.onClick();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const modalTextAfter = textOf(panel());
+    assert.equal(modalTextAfter.includes('ENCRYPTED PAYLOAD'), false, `${nodeId} should decrypt after recon`);
+    if (expectEncrypted) {
+      assert.ok(modalTextAfter.includes('[復号済]'), `${nodeId} should show decrypted marker after recon`);
+    }
+    const choices = elements(panel(), 'button').filter((b) => b.props.className?.startsWith('exploit-choice '));
+    const filteredCount = choices.filter((b) => b.props.className.includes('exploit-choice--filtered')).length;
+    assert.equal(filteredCount, expectFilter ? 1 : 0, `${nodeId} filtered dummy count after recon`);
   }
 });
 

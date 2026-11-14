@@ -981,12 +981,28 @@
 }
 
 .exploit-choice--filtered {
-  opacity: 0.52;
+  opacity: 0.48;
   border-style: dashed;
+  cursor: not-allowed;
+}
+
+.exploit-choice--filtered .exploit-choice__title {
+  text-decoration: line-through;
+  color: #64748b;
 }
 
 .exploit-choice__badge--filtered {
   background: rgba(100, 116, 139, 0.25);
   border: 1px solid #64748b;
   color: #cbd5e1;
+}
+
+.exploit-choice__desc--encrypted {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px dashed rgba(245, 158, 11, 0.45);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: monospace;
+  font-size: 11.5px;
 }

@@ -63,6 +63,7 @@ export function NodeDetailPanel({
   const [selectedExploitId, setSelectedExploitId] = useState<string | null>(null);
   const [penalizedChoiceIds, setPenalizedChoiceIds] = useState<string[]>([]);
   const [solvedQuestionIds, setSolvedQuestionIds] = useState<string[]>([]);
+  const [silentConfirmedNodes, setSilentConfirmedNodes] = useState<string[]>([]);
   const answerPending = useRef(false);
   const modalAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modalAlert, setModalAlert] = useState(false);
@@ -173,12 +174,17 @@ export function NodeDetailPanel({
   const fragB = keyFragments?.b ?? null;
   const challenge = getSecurityChallenge(node.id, node.vulnerability, node.info);
   const securityMeta = getNodeSecurityMeta(node.id);
-  const isInvestigated = confirmed || (
-    logs?.some(
-      (l) =>
-        l.message.includes(`[SECURITY:${node.id}:INFO_CONFIRMED]`) ||
-        l.message.includes(`【調査完了】${node.id}`)
-    ) ?? false);
+  const isSilentOnly = silentConfirmedNodes.includes(node.id);
+  const isInvestigated =
+    !isSilentOnly &&
+    (confirmed ||
+      (logs?.some(
+        (l) =>
+          l.message.includes(`[SECURITY:${node.id}:INFO_CONFIRMED]`) ||
+          l.message.includes(`【調査完了】${node.id}`),
+      ) ??
+        false));
+
   const currentQuestion =
     challenge.questions[questionIndex % challenge.questions.length] ?? challenge.questions[0];
   const selectedChoice =
@@ -186,9 +192,18 @@ export function NodeDetailPanel({
   const wrongAlert = securityRule?.exploit_failure_alert ?? 8;
   const wrongResource = securityRule?.failure_resource ?? 0;
 
-  const filteredOutChoiceId = isInvestigated
-    ? (currentQuestion.choices.find((c) => !c.isCorrect)?.id ?? null)
-    : null;
+  // 浅い層（Stage 0 / External / DMZ）のみ事前調査でダミー1択を自動除外。Internal / Core は3択ガチ勝負
+  const canFilterDummyChoice =
+    stageId === 0 || node.layer === 'External' || node.layer === 'DMZ';
+  // Core層（Stage 1/2）は事前調査を行うまで選択肢の解説文が暗号化される
+  const isDescriptionEncrypted =
+    stageId !== 0 && node.layer === 'Core' && !isInvestigated;
+
+  const filteredOutChoiceId =
+    isInvestigated && canFilterDummyChoice
+      ? ([...currentQuestion.choices].reverse().find((c) => !c.isCorrect)?.id ?? null)
+      : null;
+
   const openExploitModal = () => {
     const firstUnsolvedIdx = challenge.questions.findIndex((q) => !solvedQuestionIds.includes(q.id));
     setQuestionIndex(firstUnsolvedIdx >= 0 ? firstUnsolvedIdx : 0);
@@ -196,7 +211,12 @@ export function NodeDetailPanel({
     setIsExploitOpen(true);
   };
 
-  const ensureSecurityReady = async () => {
+  const ensureSecurityReady = async (silent = false) => {
+    if (silent && !confirmed) {
+      setSilentConfirmedNodes((prev) => (prev.includes(node.id) ? prev : [...prev, node.id]));
+    } else if (!silent) {
+      setSilentConfirmedNodes((prev) => prev.filter((id) => id !== node.id));
+    }
     if (securityRule?.required_info && !confirmed) {
       await onAction('confirmInfo');
     }
@@ -207,6 +227,7 @@ export function NodeDetailPanel({
 
   const handleSelectExploitChoice = async (choiceId: string, isCorrect: boolean) => {
     if (!canBreach || answerPending.current) return;
+    if (filteredOutChoiceId === choiceId && !penalizedChoiceIds.includes(choiceId)) return;
     const flash = () => {
       if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
       setModalAlert(true);
@@ -220,7 +241,7 @@ export function NodeDetailPanel({
     answerPending.current = true;
     try {
       if (!securityReady) {
-        await ensureSecurityReady();
+        await ensureSecurityReady(true);
       }
       const result = await onAction('breach', undefined, true, choiceId, currentQuestion.id);
       // 通信失敗(App が undefined を返す)は成功扱いにしない
@@ -438,6 +459,18 @@ export function NodeDetailPanel({
                   {' '}／ <span className={`risk-badge risk-badge--${securityMeta.riskLevel.toLowerCase()}`}>RISK: {securityMeta.riskLevel}</span>
                 </div>
                 <div className="exploit-terminal-box__line">
+                  <span className="exploit-terminal-box__tag">[SECURITY]</span>{' '}
+                  {stageId === 0
+                    ? 'Lv.0 [TUTORIAL // 基礎演習・調査で2択絞込]'
+                    : node.layer === 'External'
+                      ? 'Lv.1 [EXTERNAL // 基礎脆弱性・調査で2択絞込]'
+                      : node.layer === 'DMZ'
+                        ? 'Lv.2 [DMZ // 設定＆コード解析・調査で2択絞込]'
+                        : node.layer === 'Internal'
+                          ? 'Lv.3 [INTERNAL // 深層防御・3択ガチ勝負（ダミー除外なし）]'
+                          : 'Lv.4 [CORE // 最高機密・ペイロード暗号化＆3択ガチ勝負]'}
+                </div>
+                <div className="exploit-terminal-box__line">
                   <span className="exploit-terminal-box__tag exploit-terminal-box__tag--vuln">[VULN]</span>{' '}
                   <strong>{node.vulnerability ?? '不明'}</strong>（{challenge.category}）
                 </div>
@@ -462,14 +495,24 @@ export function NodeDetailPanel({
                   <div className="exploit-recon-box exploit-recon-box--done">
                     <div className="exploit-recon-box__head">
                       <span className="exploit-recon-box__badge">RECON INTEL ✓</span>
-                      <strong>事前調査（情報確認）完了 — 無関係なダミー攻撃手法を1つ除外しました</strong>
+                      <strong>
+                        {canFilterDummyChoice
+                          ? '事前調査（情報確認）完了 — 無関係なダミー攻撃手法を1つ除外しました'
+                          : node.layer === 'Core'
+                            ? '事前調査（情報確認）完了 — 暗号化されていたペイロード解説を復号しました（深層Coreのため3択維持）'
+                            : '事前調査（情報確認）完了 — 深層Internalのためダミー自動除外なし（調査ヒントを基に3択から見極めてください）'}
+                      </strong>
                     </div>
                     <p className="exploit-recon-box__text">{securityMeta.infoHint}</p>
                   </div>
                 ) : (
                   <div className="exploit-recon-box">
                     <span className="exploit-recon-box__prompt">
-                      💡 攻撃手法に迷ったら、無料の「事前調査（情報確認）」でヒント取得＆ダミー選択肢を1つ除外できます
+                      {canFilterDummyChoice
+                        ? '💡 攻撃手法に迷ったら、無料の「事前調査（情報確認）」でヒント取得＆ダミー選択肢を1つ除外できます'
+                        : node.layer === 'Core'
+                          ? '🔒 Core層セキュリティ保護：無料の「事前調査（情報確認）」を実行すると、暗号化された選択肢の解説文を復号＆ヒントを取得できます'
+                          : '💡 深層Internal（3択ガチ勝負）：ダミー自動除外はありませんが、無料の「事前調査（情報確認）」で突破ヒントを取得できます'}
                     </span>
                     <button
                       type="button"
@@ -531,7 +574,7 @@ export function NodeDetailPanel({
                       key={choice.id}
                       type="button"
                       className={`exploit-choice ${stateClass}`}
-                      disabled={!canBreach}
+                      disabled={!canBreach || isFilteredOut}
                       onClick={() => handleSelectExploitChoice(choice.id, choice.isCorrect)}
                     >
                       <div className="exploit-choice__head">
@@ -549,7 +592,17 @@ export function NodeDetailPanel({
                         ) : null}
                       </div>
                       <code className="exploit-choice__cmd">{choice.command}</code>
-                      <p className="exploit-choice__desc">{choice.description}</p>
+                      {isDescriptionEncrypted ? (
+                        <p className="exploit-choice__desc exploit-choice__desc--encrypted">
+                          🔒 [ENCRYPTED PAYLOAD // 「事前調査（情報確認）」を実行するとペイロード詳細解説を復号できます]
+                        </p>
+                      ) : (
+                        <p className="exploit-choice__desc">
+                          {stageId !== 0 && node.layer === 'Core' && isInvestigated
+                            ? `🔓 [復号済] ${choice.description}`
+                            : choice.description}
+                        </p>
+                      )}
                     </button>
                   );
                 })}
@@ -625,7 +678,7 @@ export function NodeDetailPanel({
                     answerPending.current = true;
                     try {
                       if (!securityReady) {
-                        await ensureSecurityReady();
+                        await ensureSecurityReady(true);
                       }
                       const result = await onAction(
                         'breach',
@@ -791,7 +844,15 @@ export function NodeDetailPanel({
             <footer className="node-info-modal__footer">
               {securityRule && node.status === 'scanned' && (
                 <>
-                  <button type="button" className="node-info-modal__close-btn" disabled={!playing || confirmed} onClick={() => onAction('confirmInfo')}>
+                  <button
+                    type="button"
+                    className="node-info-modal__close-btn"
+                    disabled={!playing || confirmed}
+                    onClick={() => {
+                      setSilentConfirmedNodes((prev) => prev.filter((id) => id !== node.id));
+                      onAction('confirmInfo');
+                    }}
+                  >
                     {confirmed ? '情報確認済み' : '情報を確認した'}
                   </button>
                   {securityRule.required_analysis && <button type="button" className="node-info-modal__close-btn" disabled={!playing || !confirmed || analyzed} onClick={() => onAction('completeAnalysis')}>
@@ -804,6 +865,7 @@ export function NodeDetailPanel({
                   type="button"
                   className="exploit-modal__execute-btn"
                   onClick={() => {
+                    void ensureSecurityReady();
                     setIsInfoOpen(false);
                     openExploitModal();
                   }}

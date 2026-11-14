@@ -1434,8 +1434,18 @@ export function getSecurityChallenge(
       choices: rotateChoices(q.choices, `${nodeId}-${qIdx}`),
     }));
 
-    // ノードIDによって最初に出る問題の順番も変える（ステージ内でTYPE AとTYPE B/Cがバランスよく出る）
-    const startIdx = nodeId.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % questions.length;
+    // 階層（深さ）に応じて最初に出題する問題タイプ（TYPE A -> B -> B/C -> C）をステップアップさせる
+    const preferredTypePrefix = (() => {
+      if (/^(?:S2-)?D\d+$/.test(nodeId)) return 'TYPE B'; // DMZ: TYPE B（設定・コード解析）
+      if (/^(?:S2-)?I\d+$/.test(nodeId)) {
+        const charSum = nodeId.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+        return charSum % 2 === 0 ? 'TYPE B' : 'TYPE C'; // Internal: TYPE B または TYPE C
+      }
+      if (/^(?:S2-)?C\d+$/.test(nodeId)) return 'TYPE C'; // Core: TYPE C（実践攻撃コマンド＆ペイロード）
+      return 'TYPE A'; // Stage 0 (tutorial) および External: TYPE A（基礎エクスプロイト選択）
+    })();
+    const foundIdx = questions.findIndex((q) => q.questionType.startsWith(preferredTypePrefix));
+    const startIdx = foundIdx >= 0 ? foundIdx : 0;
     const orderedQuestions = [...questions.slice(startIdx), ...questions.slice(0, startIdx)];
 
     const hasRealInfo = Boolean(nodeInfo && !nodeInfo.includes('不明'));
