@@ -45,18 +45,9 @@ interface Notice {
 
 type Screen = 'title' | 'mission' | 'game';
 
-// game.htmlからの遷移に対応
-function hasAutostartParam(): boolean {
-  return (
-    new URLSearchParams(window.location.search).get('autostart') === '1'
-  );
-}
-
 function App() {
   // タイトル画面・ミッション選択画面
-  const [screen, setScreen] = useState<Screen>(() =>
-    hasAutostartParam() ? 'mission' : 'title'
-  );
+  const [screen, setScreen] = useState<Screen>('title');
   const [stageId, setStageId] = useState<number>(DEFAULT_STAGE_ID);
 
   // ゲーム画面のときだけゲームデータを取得
@@ -76,12 +67,6 @@ function App() {
       setIdsAlertActive(false);
     }, 900);
   };
-
-  useEffect(() => {
-    if (hasAutostartParam()) {
-      window.history.replaceState({}, '', '/');
-    }
-  }, []);
 
   useEffect(() => {
     if (!state?.log) return;

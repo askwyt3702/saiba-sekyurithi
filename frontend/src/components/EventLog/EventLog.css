@@ -1,40 +1,20 @@
+/* ========================================
+   CYBER LABYRINTH - 下部ターミナル・イベントログ
+======================================== */
 
-/* イベントログ全体 */
 .event-log {
-  height: 120px;
+  height: 124px;
   min-height: 0;
   flex-shrink: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 8px 16px;
-  background: #0d0e12;
-  border-top: 1px solid #2a2e38;
+  background: #020704;
+  border-top: 1px solid rgba(0, 255, 100, 0.25);
   font-family: ui-monospace, Consolas, monospace;
   font-size: 12px;
   box-sizing: border-box;
-}
-
-/* ログの各行 */
-.event-log__entry {
-  display: flex;
-  gap: 8px;
-  padding: 2px 0;
-  color: #9ca3af;
-}
-
-.event-log__time {
-  opacity: 0.5;
-}
-
-.event-log__entry--success {
-  color: #22c55e;
-}
-
-.event-log__entry--warning {
-  color: #eab308;
-}
-
-.event-log__entry--danger {
-  color: #ef4444;
 }
 
 /* 折りたたみ時 */
@@ -45,41 +25,58 @@
 
 /* ログの開閉ボタン */
 .event-log__toggle {
-  position: sticky;
-  top: 0;
+  position: static;
+  flex-shrink: 0;
   width: 100%;
-  padding: 5px 8px;
+  padding: 4px 10px;
   margin-bottom: 6px;
-  border: 1px solid #374151;
-  border-radius: 4px;
-  background: #1c2430;
-  color: #cbd5e1;
+  border: 1px solid rgba(0, 255, 100, 0.25);
+  border-radius: 3px;
+  background: #05140b;
+  color: #7ef0a8;
   font-family: inherit;
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .event-log__toggle:hover {
-  background: #263244;
+  background: rgba(0, 255, 100, 0.15);
+  border-color: #00ff64;
+  color: #ffffff;
 }
-
 
 /* ログ一覧のスクロール領域 */
-.event-log {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.event-log__toggle {
-  position: static;
-  flex-shrink: 0;
-}
-
 .event-log__list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: #475569 #0d0e12;
+  scrollbar-color: #1f4d33 #020704;
+}
+
+/* ログの各行 */
+.event-log__entry {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  color: #93bda3;
+}
+
+.event-log__time {
+  color: #558066;
+}
+
+.event-log__entry--success {
+  color: #00ff64;
+}
+
+.event-log__entry--warning {
+  color: #fbbf24;
+}
+
+.event-log__entry--danger {
+  color: #ff6b78;
 }

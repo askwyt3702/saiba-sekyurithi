@@ -1,142 +1,173 @@
-
 /* ========================================
-   NULL ROUTE - Network Node Design
+   CYBER LABYRINTH - ネットワークノードデザイン
 ======================================== */
 
 .network-node {
-  width: 180px;
-  min-width: 180px;
+  width: 184px;
+  min-width: 184px;
   box-sizing: border-box;
-  padding: 14px 12px;
-  border-radius: 10px;
-  border: 2px solid #475569;
-  background: #1c2430;
-  color: #f1f5f9;
+  padding: 13px 12px;
+  border-radius: 5px;
+  border: 1.5px solid #2d4a3a;
+  border-top: 3px solid #3c634d;
+  background: #05110a;
+  color: #e6f7ed;
   font-family: ui-monospace, Consolas, monospace;
   text-align: center;
   cursor: pointer;
+  position: relative;
   transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.2s ease;
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background 0.18s ease;
 }
 
 /* 階層名 */
 .network-node__layer {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1px;
-  color: #94a3b8;
+  letter-spacing: 1.5px;
+  color: #6b9e80;
   text-transform: uppercase;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(0, 255, 100, 0.12);
 }
 
 /* ノード名 */
 .network-node__name {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.5;
-  margin-top: 5px;
-  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin-top: 7px;
+  color: #f2fff6;
 }
 
-/* 未発見 */
+/* 未発見 (UNKNOWN) */
 .network-node--unscanned {
   border-style: dashed;
-  border-color: #64748b;
-  background: #1b2029;
+  border-color: #365242;
+  border-top: 2px solid #486e58;
+  background: rgba(5, 14, 9, 0.9);
 }
 
 .network-node--unscanned .network-node__name {
-  color: #cbd5e1;
+  color: #93b5a1;
 }
 
-/* スキャン済み */
+/* スキャン済み (SCANNED: サイバーシアン) */
 .network-node--scanned {
-  border-color: #3b82f6;
-  background: #14243a;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+  border-color: #19d4f0;
+  border-top: 3px solid #38bdf8;
+  background: linear-gradient(180deg, #061d28 0%, #041118 100%);
+  box-shadow: 0 0 14px rgba(25, 212, 240, 0.25);
 }
 
-/* 侵入済み */
+.network-node--scanned .network-node__layer {
+  color: #67e8f9;
+  border-bottom-color: rgba(56, 189, 248, 0.2);
+}
+
+/* 侵入済み (HACKED: ネオングリーン) */
 .network-node--hacked {
-  border-color: #22c55e;
-  background: #132b20;
-  box-shadow: 0 0 14px rgba(34, 197, 94, 0.35);
+  border-color: #00e660;
+  border-top: 3px solid #00ff64;
+  background: linear-gradient(180deg, #072615 0%, #04140b 100%);
+  box-shadow: 0 0 16px rgba(0, 255, 100, 0.3);
 }
 
-/* Core階層 */
+.network-node--hacked .network-node__layer {
+  color: #65ff9f;
+  border-bottom-color: rgba(0, 255, 100, 0.22);
+}
+
+/* Core階層（最深部ターゲット強調） */
 .network-node--core {
-  border-width: 3px;
+  border-width: 2px;
+  border-top-width: 4px;
 }
 
-/* 選択中 */
+/* 選択中ターゲットロック */
 .network-node--selected {
-  outline: 2px solid #c084fc;
+  outline: 2px solid #00ff64;
   outline-offset: 3px;
-  box-shadow: 0 0 16px rgba(192, 132, 252, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 100, 0.45);
+  transform: translateY(-2px);
 }
 
-/* マウスを乗せたとき */
+/* マウスホバー */
 .network-node:hover {
-  border-color: #e2e8f0;
-  box-shadow: 0 0 14px rgba(148, 163, 184, 0.25);
+  border-color: #a7f3d0;
+  transform: translateY(-2px);
 }
 
-/* 攻略候補（侵入済みノードに隣接） */
+/* 攻略候補（侵入済みノードに隣接：アンバー発光） */
 .map-view .react-flow__node.map-node--reachable
   .network-node:not(.network-node--hacked) {
-  border-color: #facc15;
-  box-shadow: 0 0 14px rgba(250, 204, 21, 0.35);
+  border-color: #fbbf24;
+  border-top-color: #f59e0b;
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.32);
 }
 
-
-/* ノードの状態表示 */
-
+/* ノードの状態表示バッジ */
 .network-node__status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   margin-top: 8px;
-  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.38);
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 1px;
-  color: #94a3b8;
+  letter-spacing: 1.5px;
+  color: #7c9e8a;
 }
 
 .network-node__status-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #64748b;
+  background: #527561;
 }
 
 .network-node--scanned .network-node__status {
-  color: #60a5fa;
+  color: #67e8f9;
+  background: rgba(6, 55, 75, 0.45);
 }
 
 .network-node--scanned .network-node__status-dot {
-  background: #3b82f6;
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
 }
 
 .network-node--hacked .network-node__status {
-  color: #4ade80;
+  color: #00ff64;
+  background: rgba(0, 65, 30, 0.45);
 }
 
 .network-node--hacked .network-node__status-dot {
-  background: #22c55e;
+  background: #00ff64;
+  box-shadow: 0 0 6px #00ff64;
 }
+
 .network-node__mechanic {
   margin-top: 6px;
   padding-top: 4px;
-  border-top: 1px solid #526071;
-  font-size: 11px;
+  border-top: 1px dashed rgba(0, 255, 100, 0.22);
+  font-size: 10.5px;
   line-height: 1.4;
-  color: #c2e5e3;
+  color: #8ee8d8;
 }
-.network-node--monitored .network-node__mechanic { color: #f5c57d; }
-.network-node--locked .network-node__mechanic { color: #fda4af; }
 
+.network-node--monitored .network-node__mechanic {
+  color: #fbbf24;
+}
+
+.network-node--locked .network-node__mechanic {
+  color: #ff8a96;
+}
 /* 特殊作戦効果バッジ（痕跡消去・資源補給・鍵断片） */
 .network-node__effect {
   margin-top: 6px;
@@ -149,7 +180,7 @@
 .node-effect-tag {
   display: inline-block;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 3px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -164,10 +195,10 @@
 }
 
 .node-effect-tag--supply {
-  background: rgba(34, 197, 94, 0.2);
-  border: 1px solid #22c55e;
+  background: rgba(0, 255, 100, 0.16);
+  border: 1px solid #00ff64;
   color: #86efac;
-  text-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+  text-shadow: 0 0 6px rgba(0, 255, 100, 0.5);
 }
 
 .node-effect-tag--key {
