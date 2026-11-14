@@ -50,11 +50,11 @@ def to_wire(stage):
     return deepcopy(result)
 
 
-def from_wire(value):
+def from_wire(value, *, supported_generator_versions=("fixed-v1",)):
     """Decode without consulting current stage/config data (including old saved games)."""
     try:
         w = deepcopy(value)
-        if w["generatorVersion"] != "fixed-v1" or w["rulesVersion"] != "turn-v1":
+        if w["generatorVersion"] not in supported_generator_versions or w["rulesVersion"] != "turn-v1":
             raise MapSnapshotError("Unsupported map version")
         ids = [n["id"] for n in w["nodes"]]
         if not ids or len(set(ids)) != len(ids) or any(e["source"] not in ids or e["target"] not in ids for e in w["edges"]):
