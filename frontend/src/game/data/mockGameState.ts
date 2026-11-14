@@ -1,17 +1,19 @@
 import type { GameState } from '../model/types';
 import { DEFAULT_STAGE_ID, getStageData, INITIAL_ANALYSIS_RESOURCE } from './stageData';
+import type { GameMapDefinition } from '../model/mapDefinition';
 
 // ステージの中身は stageData.ts(backend/game_data.py から生成)を使う。
-export function createMockGameState(gameId: string, stageId: number = DEFAULT_STAGE_ID): GameState {
-  const stage = getStageData(stageId);
+export function createMockGameState(gameId: string, stageId: number = DEFAULT_STAGE_ID, definition?: GameMapDefinition): GameState {
+  const stage = definition ?? getStageData(stageId);
   return {
     gameId,
     stageId: stage.id,
     evaluation: null,
+    securityEvents: {},
     status: 'playing',
     elapsedSeconds: 0,
     alertLevel: 0,
-    analysisResource: INITIAL_ANALYSIS_RESOURCE,
+    analysisResource: definition?.initialState.analysisResource ?? INITIAL_ANALYSIS_RESOURCE,
     privilege: 'GUEST',
     nodes: stage.nodes.map((node) => ({ ...node, position: { ...node.position } })),
     edges: stage.edges.map((edge) => ({ ...edge })),
@@ -25,5 +27,6 @@ export function createMockGameState(gameId: string, stageId: number = DEFAULT_ST
         severity: 'info',
       },
     ],
+    ...(definition?.initialState ?? {}),
   };
 }

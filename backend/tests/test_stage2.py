@@ -48,15 +48,15 @@ def test_stage2_mechanics_preserve_advanced_difficulty():
     assert stage["node_effects"]["S2-I07"]["alert_delta"] == -15
 
 
-def test_stage1_and_stage2_games_and_resets_are_independent(client, act):
+def test_stage1_and_stage2_games_and_resets_are_independent(client, ready_act):
     a = client.post("/api/games", json={"stageId": 1}).json()["gameId"]
-    before = act(a, "scan", "E01")["state"]
+    before = ready_act(a, "scan", "E01")["state"]
     b = client.post("/api/games", json={"stageId": 2}).json()["gameId"]
     assert a != b
-    assert act(b, "scan", "S2-E01")["accepted"]
-    assert act(b, "breach", "S2-E01")["accepted"]
-    assert act(b, "scan", "E01")["reason"] == "invalid_state"
-    assert act(a, "scan", "S2-E01")["reason"] == "invalid_state"
+    assert ready_act(b, "scan", "S2-E01")["accepted"]
+    assert ready_act(b, "breach", "S2-E01")["accepted"]
+    assert ready_act(b, "scan", "E01")["reason"] == "invalid_state"
+    assert ready_act(a, "scan", "S2-E01")["reason"] == "invalid_state"
     reset = client.post(f"/api/games/{b}/reset", json={"stageId": 2}).json()
     assert reset["stageId"] == 2 and reset["analysisResource"] == 25
     assert reset["elapsedSeconds"] == 0
@@ -65,12 +65,12 @@ def test_stage1_and_stage2_games_and_resets_are_independent(client, act):
     assert client.get(f"/api/games/{a}").json() == before
 
 
-def test_only_stage2_target_can_clear(client, act, set_player):
+def test_only_stage2_target_can_clear(client, ready_act, set_player):
     gid = client.post("/api/games", json={"stageId": 2}).json()["gameId"]
     for node in ("S2-E01", "S2-D01", "S2-D03", "S2-I01", "S2-I02", "S2-C01"):
-        assert act(gid, "scan", node)["accepted"]
-        assert act(gid, "breach", node)["accepted"]
-    result = act(gid, "dataExtract", "S2-C01")
+        assert ready_act(gid, "scan", node)["accepted"]
+        assert ready_act(gid, "breach", node)["accepted"]
+    result = ready_act(gid, "dataExtract", "S2-C01")
     assert result["accepted"] is False and result["reason"] == "invalid_state"
     assert result["state"]["status"] == "playing"
 
@@ -79,35 +79,35 @@ def test_only_stage2_target_can_clear(client, act, set_player):
     ("S2-C02", "S2-I04", ["S2-E01", "S2-D01", "S2-D03", "S2-I01", "S2-I02", "S2-I03"]),
     ("S2-C04", "S2-I07", ["S2-E01", "S2-D01", "S2-D03", "S2-I01", "S2-I02"]),
 ])
-def test_gate_rejection_preserves_entire_state_and_unlock_logs_once(gate, required, route, client, act):
+def test_gate_rejection_preserves_entire_state_and_unlock_logs_once(gate, required, route, client, ready_act, act):
     gid = client.post("/api/games", json={"stageId": 2}).json()["gameId"]
     for node in route:
-        assert act(gid, "scan", node)["accepted"]
-        assert act(gid, "breach", node)["accepted"]
-    assert act(gid, "scan", gate)["accepted"]
+        assert ready_act(gid, "scan", node)["accepted"]
+        assert ready_act(gid, "breach", node)["accepted"]
+    assert ready_act(gid, "scan", gate)["accepted"]
     before = client.get(f"/api/games/{gid}").json()
     rejected = act(gid, "breach", gate)
     assert rejected["accepted"] is False
     assert rejected["reason"] == "node_locked"
     assert rejected["state"] == before
-    assert act(gid, "scan", required)["accepted"]
-    unlocked = act(gid, "breach", required)["state"]
+    assert ready_act(gid, "scan", required)["accepted"]
+    unlocked = ready_act(gid, "breach", required)["state"]
     gate_logs = [line for line in unlocked["log"] if line["message"].startswith(f"ゲート解除: {gate} ")]
     assert len(gate_logs) == 1
     if required == "S2-I07":
         assert len([line for line in unlocked["log"] if line["message"].startswith("監視解除:")]) == 1
-    again = act(gid, "breach", required)
+    again = ready_act(gid, "breach", required)
     assert again["accepted"] is False
     assert again["state"] == unlocked
-    assert act(gid, "breach", gate)["accepted"]
+    assert ready_act(gid, "breach", gate)["accepted"]
 
 
-def test_reset_restores_monitoring_and_locks(client, act):
+def test_reset_restores_monitoring_and_locks(client, ready_act):
     import game_logic
     gid = client.post("/api/games", json={"stageId": 2}).json()["gameId"]
     for node in ("S2-E01", "S2-D02", "S2-D04", "S2-I05", "S2-I07"):
-        assert act(gid, "scan", node)["accepted"]
-        assert act(gid, "breach", node)["accepted"]
+        assert ready_act(gid, "scan", node)["accepted"]
+        assert ready_act(gid, "breach", node)["accepted"]
     with main.SessionLocal() as db:
         player = db.get(models.PlayerStatus, int(gid))
         assert game_logic._monitoring_extra(game_data.get_stage(2), game_logic._node_statuses(db, player), "S2-C03") == 0

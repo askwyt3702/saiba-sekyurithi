@@ -1,0 +1,502 @@
+{
+  "C01": {
+    "vulnerability": "\u30d5\u30a1\u30a4\u30a2\u30a6\u30a9\u30fc\u30eb\u7ba1\u7406\u8a2d\u5b9a\u306e\u4e0d\u5099",
+    "risk_level": "CRITICAL",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "net_route",
+      "net_fw_r1",
+      "net_def_c"
+    ],
+    "failure_alert": 8.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "C01: Core\u30d5\u30a1\u30a4\u30a2\u30a6\u30a9\u30fc\u30eb\u306e\u8a2d\u5b9a\u3092\u78ba\u8a8d\u3002\u7ba1\u7406\u30d7\u30ec\u30fc\u30f3\u306eACL\u8a2d\u5b9a\u304c\u7518\u304f\u3001SNMP RW\u6a29\u9650\u306b\u3088\u308b\u30eb\u30fc\u30eb\u66f8\u304d\u63db\u3048\u3067\u6700\u6df1\u90e8\u3078\u306e\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u304c\u8a31\u53ef\u3055\u308c\u307e\u3059\u3002"
+  },
+  "C02": {
+    "vulnerability": "\u53e4\u3044\u6697\u53f7\u8a8d\u8a3c\u8a2d\u5b9a",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "vpn_downgrade",
+      "vpn_cfg_ok",
+      "vpn_def_c"
+    ],
+    "failure_alert": 7.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "C02: \u6697\u53f7\u8a8d\u8a3c\u30b5\u30fc\u30d0\u30fc\u306e\u6697\u53f7\u5316\u30d7\u30ed\u30c8\u30b3\u30eb\u3092\u78ba\u8a8d\u3002\u53e4\u3044SSL/TLS\u6697\u53f7\u30b9\u30a4\u30fc\u30c8\uff08RC4/3DES\uff09\u304c\u6709\u52b9\u3067\u3001\u65e2\u77e5\u306e\u9375\u5fa9\u5143\u30fb\u6697\u53f7\u89e3\u8aad\u624b\u6cd5\u304c\u901a\u7528\u3057\u307e\u3059\u3002"
+  },
+  "C03": {
+    "vulnerability": "\u30c7\u30fc\u30bf\u30d9\u30fc\u30b9\u6a29\u9650\u8a2d\u5b9a\u306e\u4e0d\u5099",
+    "risk_level": "CRITICAL",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "db_sqli_union",
+      "db_code_a",
+      "db_def_c"
+    ],
+    "failure_alert": 10.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "C03: \u7814\u7a76\u30c7\u30fc\u30bf\u30d9\u30fc\u30b9\u306e\u63a5\u7d9a\u30a8\u30f3\u30c9\u30dd\u30a4\u30f3\u30c8\u3092\u78ba\u8a8d\u3002Web\u30d5\u30a9\u30fc\u30e0\u3084API\u306eSQL\u30af\u30a8\u30ea\u7d44\u307f\u7acb\u3066\u4e0d\u5099\uff08SQL\u30a4\u30f3\u30b8\u30a7\u30af\u30b7\u30e7\u30f3\uff09\u306b\u3088\u308a\u3001\u6975\u79d8\u7814\u7a76\u30c7\u30fc\u30bf\u306e\u62bd\u51fa\u304c\u53ef\u80fd\u3067\u3059\uff01"
+  },
+  "C04": {
+    "vulnerability": "\u7dca\u6025\u5236\u5fa1\u6a5f\u80fd\u306e\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "log_tamper",
+      "log_def_ok",
+      "log_cfg_b"
+    ],
+    "failure_alert": 8.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "C04: ARGUS\u7dca\u6025\u9632\u885b\u30b7\u30b9\u30c6\u30e0\u306e\u5236\u5fa1\u7aef\u672b\u3092\u78ba\u8a8d\u3002\u7dca\u6025\u906e\u65adAPI\u306e\u8a8d\u8a3c\u4e0d\u5099\u3092\u7a81\u304d\u3001\u7dca\u6025\u9632\u885b\u30d7\u30ed\u30c8\u30b3\u30eb\u3092\u89e3\u9664\u3057\u3066\u8b66\u6212\u5ea6\u3092-15%\u5927\u5e45\u4f4e\u4e0b\u3055\u305b\u307e\u3059\u3002"
+  },
+  "S2-E01": {
+    "vulnerability": "\u8abf\u67fb\u7528\u30a2\u30ab\u30a6\u30f3\u30c8\u306e\u5f31\u3044\u8a8d\u8a3c",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "ssh_bf",
+      "ssh_cfg_b",
+      "ssh_def_c"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "GUEST",
+    "info_hint": "S2-E01: \u8abf\u67fb\u7528\u30a2\u30ab\u30a6\u30f3\u30c8\u306eSSH\u8a8d\u8a3c\u3092\u78ba\u8a8d\u3002\u5e73\u6613\u306a\u521d\u671f\u30d1\u30b9\u30ef\u30fc\u30c9\u304c\u6b8b\u5b58\u3057\u3066\u304a\u308a\u3001\u8f9e\u66f8\u653b\u6483\u306b\u3088\u308b\u4fb5\u5165\u304c\u6709\u52b9\u3067\u3059\u3002"
+  },
+  "S2-D01": {
+    "vulnerability": "\u4e2d\u7d99\u30b5\u30fc\u30d3\u30b9\u306e\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "dns_axfr",
+      "dns_cfg_ok",
+      "dns_def_c"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "USER",
+    "info_hint": "S2-D01: \u516c\u958b\u901a\u4fe1\u30ea\u30ec\u30fc\u306eDNS\u8a2d\u5b9a\u3092\u78ba\u8a8d\u3002\u30be\u30fc\u30f3\u8ee2\u9001\u306e\u9732\u51fa\u306b\u3088\u308a\u3001\u9ad8\u901f\u5074\uff08S2-D03\uff09\u3078\u306e\u5185\u90e8\u901a\u4fe1\u30eb\u30fc\u30c8\u304c\u5224\u660e\u3057\u307e\u3057\u305f\u3002"
+  },
+  "S2-D02": {
+    "vulnerability": "\u8a8d\u8a3c\u7a93\u53e3\u306e\u30a2\u30af\u30bb\u30b9\u5236\u5fa1\u4e0d\u5099",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "web_bypass",
+      "web_def_ok",
+      "web_cfg_b"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "USER",
+    "info_hint": "S2-D02: \u8a8d\u8a3c\u7a93\u53e3Web\u30b5\u30fc\u30d3\u30b9\u306e\u30a2\u30af\u30bb\u30b9\u5236\u5fa1\u3092\u78ba\u8a8d\u3002\u30d8\u30c3\u30c0\u691c\u8a3c\u306e\u4e0d\u5099\u3092\u7a81\u304d\u3001\u7ba1\u7406\u30d7\u30ed\u30ad\u30b7\uff08S2-D04\uff09\u3078\u306e\u7d4c\u8def\u30d0\u30a4\u30d1\u30b9\u304c\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "S2-D03": {
+    "vulnerability": "\u96c6\u7d04\u30b5\u30fc\u30d3\u30b9\u306e\u6a29\u9650\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "dns_axfr",
+      "dns_cfg_ok",
+      "dns_def_c"
+    ],
+    "failure_alert": 6.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "USER",
+    "info_hint": "S2-D03: \u30c8\u30e9\u30d5\u30a3\u30c3\u30af\u96c6\u7d04\u88c5\u7f6e\u306e\u69cb\u6210\u3092\u78ba\u8a8d\u3002S2-I01\u30fbS2-C01\u30fbS2-C03\u3078\u306e\u901a\u4fe1\u306f\u5e38\u6642\u76e3\u8996\uff08\u8b66\u6212\u5ea6+12%\uff09\u3055\u308c\u3066\u3044\u307e\u3059\u3002S2-I07\u653b\u7565\u306b\u3088\u308b\u76e3\u8996\u89e3\u9664\u3092\u63a8\u5968\u3057\u307e\u3059\u3002"
+  },
+  "S2-D04": {
+    "vulnerability": "\u7ba1\u7406\u30d7\u30ed\u30ad\u30b7\u306e\u8a8d\u8a3c\u4e0d\u5099",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "web_bypass",
+      "web_def_ok",
+      "web_cfg_b"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "USER",
+    "info_hint": "S2-D04: \u793e\u5185\u7ba1\u7406\u30d7\u30ed\u30ad\u30b7\u306e\u8a2d\u5b9a\u3092\u78ba\u8a8d\u3002\u8a3c\u660e\u66f8\u7ba1\u7406\u30b5\u30fc\u30d0\u30fc\uff08S2-I04\uff09\u304a\u3088\u3073\u76e3\u67fb\u30ed\u30b0\u4e2d\u7d99\uff08S2-I05\uff09\u3078\u306e\u901a\u4fe1\u4e2d\u7d99\u304c\u8a31\u53ef\u3055\u308c\u307e\u3059\u3002"
+  },
+  "S2-I01": {
+    "vulnerability": "\u4ea4\u63db\u30cf\u30d6\u306e\u7ba1\u7406\u6a29\u9650\u4e0d\u5099",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "priv_esc",
+      "priv_sudo_b",
+      "priv_def_c"
+    ],
+    "failure_alert": 6.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "S2-I01: \u901a\u4fe1\u4ea4\u63db\u30cf\u30d6\u306e\u7ba1\u7406\u6a29\u9650\u3092\u78ba\u8a8d\u3002\u4fdd\u5b88\u7528\u30a2\u30ab\u30a6\u30f3\u30c8\u306e\u6a29\u9650\u8a2d\u5b9a\u30df\u30b9\u304b\u3089ADMIN\u6a29\u9650\u3078\u306e\u6607\u683c\u304c\u53ef\u80fd\u3067\u3059\u3002\u203bS2-I07\u672a\u653b\u7565\u6642\u306f\u8ffd\u52a0\u8b66\u6212\u5ea6+12%\u304c\u767a\u751f\u3057\u307e\u3059\u3002"
+  },
+  "S2-I02": {
+    "vulnerability": "\u5185\u90e8\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u8a2d\u5b9a\u306e\u4e0d\u5099",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "net_route",
+      "net_fw_r1",
+      "net_def_c"
+    ],
+    "failure_alert": 6.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "S2-I02: \u5185\u90e8\u30eb\u30fc\u30bf\u30fc\u306eACL\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u8a2d\u5b9a\u3092\u78ba\u8a8d\u3002\u8ee2\u9001\u5236\u5fa1\u30c6\u30fc\u30d6\u30eb\u3092\u66f8\u304d\u63db\u3048\u308b\u3053\u3068\u3067\u3001\u8ee2\u9001\u30b2\u30fc\u30c8\uff08S2-C01\uff09\u304a\u3088\u3073\u8fc2\u56de\u30b2\u30fc\u30c8\uff08S2-C04\uff09\u3078\u306e\u7d4c\u8def\u304c\u958b\u304b\u308c\u307e\u3059\u3002"
+  },
+  "S2-I03": {
+    "vulnerability": "\u89e3\u6790\u57fa\u76e4\u306e\u30a2\u30af\u30bb\u30b9\u5236\u5fa1\u4e0d\u5099",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "priv_esc",
+      "priv_sudo_b",
+      "priv_def_c"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "S2-I03: \u4e88\u5099\u89e3\u6790\u57fa\u76e4\u306e\u30af\u30e9\u30b9\u30bf\u8a2d\u5b9a\u3092\u78ba\u8a8d\u3002\u6b8b\u5b58\u3059\u308b\u8a08\u7b97\u30ea\u30bd\u30fc\u30b9\u30a2\u30fc\u30ab\u30a4\u30d6\u3092\u56de\u53ce\u3057\u3001\u89e3\u6790\u8cc7\u6e90\u3092\u6700\u5927+7\u88dc\u7d66\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "S2-I04": {
+    "vulnerability": "\u8a3c\u660e\u66f8\u7ba1\u7406API\u306e\u4fdd\u8b77\u4e0d\u8db3",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "vpn_downgrade",
+      "vpn_cfg_ok",
+      "vpn_def_c"
+    ],
+    "failure_alert": 7.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "S2-I04: \u793e\u5185PKI\u8a3c\u660e\u66f8\u7ba1\u7406API\u3092\u78ba\u8a8d\u3002\u6b63\u898f\u30af\u30e9\u30a4\u30a2\u30f3\u30c8\u8a3c\u660e\u66f8\u3092\u30a8\u30af\u30b9\u30dd\u30fc\u30c8\u53ef\u80fd\u3067\u3059\u3002\u3053\u308c\u306b\u3088\u308a\u8a3c\u660e\u66f8\u8a8d\u8a3c\u30b2\u30fc\u30c8\uff08S2-C02\uff09\u306e\u524d\u63d0\u30ed\u30c3\u30af\u304c\u89e3\u9664\u3055\u308c\u307e\u3059\uff01"
+  },
+  "S2-I05": {
+    "vulnerability": "\u76e3\u67fb\u30ed\u30b0\u7ba1\u7406\u306e\u6a29\u9650\u4e0d\u5099",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "log_tamper",
+      "log_def_ok",
+      "log_cfg_b"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "S2-I05: \u76e3\u67fb\u30ed\u30b0\u4e2d\u7d99\u30b5\u30fc\u30d0\u30fc\u306e\u66f8\u304d\u63db\u3048\u6a29\u9650\u3092\u78ba\u8a8d\u3002\u4e2d\u7d99\u30d0\u30c3\u30d5\u30a1\u306e\u901a\u4fe1\u30ed\u30b0\u3092\u6d88\u53bb\u3059\u308b\u3053\u3068\u3067\u3001\u5168\u4f53\u306e\u8b66\u6212\u5ea6\u3092-8%\u524a\u6e1b\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "S2-I06": {
+    "vulnerability": "\u30d0\u30c3\u30af\u30a2\u30c3\u30d7\u9818\u57df\u306e\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "LOW",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "acl_smb",
+      "acl_cfg_ok",
+      "acl_def_c"
+    ],
+    "failure_alert": 4.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "S2-I06: \u8a3c\u8de1\u30d0\u30c3\u30af\u30a2\u30c3\u30d7\u306e\u30d1\u30fc\u30df\u30c3\u30b7\u30e7\u30f3\u8a2d\u5b9a\u3092\u78ba\u8a8d\u3002\u8aad\u307f\u53d6\u308a\u53ef\u80fd\u306a\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u304b\u3089\u3001\u89e3\u6790\u8cc7\u6e90\u3092\u6700\u5927+5\u56de\u53ce\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "S2-I07": {
+    "vulnerability": "\u5236\u5fa1\u7aef\u672b\u306e\u8a8d\u8a3c\u4e0d\u5099",
+    "risk_level": "CRITICAL",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "log_tamper",
+      "log_def_ok",
+      "log_cfg_b"
+    ],
+    "failure_alert": 7.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "S2-I07: \u5e38\u6642\u76e3\u8996\u30bb\u30f3\u30b5\u30fc\u306e\u5236\u5fa1\u7aef\u672b\u3092\u78ba\u8a8d\u3002\u5236\u5fa1API\u3092\u505c\u6b62\u3059\u308b\u3053\u3068\u3067\u3001\u5bfe\u8c61\u30ce\u30fc\u30c9\uff08S2-I01/C01/C03\uff09\u306e\u8ffd\u52a0\u8b66\u6212\u5ea6+12%\u3092\u7121\u52b9\u5316\u3057\u3001\u76e3\u8996\u8fc2\u56de\u30b2\u30fc\u30c8\uff08S2-C04\uff09\u3092\u89e3\u653e\u3057\u307e\u3059\uff01"
+  },
+  "S2-C01": {
+    "vulnerability": "\u8ee2\u9001\u30b2\u30fc\u30c8\u306e\u6a29\u9650\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "net_route",
+      "net_fw_r1",
+      "net_def_c"
+    ],
+    "failure_alert": 8.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "S2-C01: Core\u76f4\u63a5\u8ee2\u9001\u30b2\u30fc\u30c8\u306eACL\u8a2d\u5b9a\u3092\u78ba\u8a8d\u3002\u524d\u63d0\u30ed\u30c3\u30af\u306a\u3057\u3067\u539f\u672cDB\uff08S2-C03\uff09\u3078\u63a5\u7d9a\u53ef\u80fd\u3067\u3059\u304c\u3001S2-I07\u672a\u653b\u7565\u6642\u306f\u8ffd\u52a0\u8b66\u6212\u5ea6+12%\u304c\u767a\u751f\u3057\u307e\u3059\u3002"
+  },
+  "S2-C02": {
+    "vulnerability": "\u8a8d\u8a3c\u30b2\u30fc\u30c8\u306e\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "CRITICAL",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "vpn_downgrade",
+      "vpn_cfg_ok",
+      "vpn_def_c"
+    ],
+    "failure_alert": 8.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "S2-C02: \u76f8\u4e92TLS\u8a3c\u660e\u66f8\u8a8d\u8a3c\u30b2\u30fc\u30c8\u3092\u78ba\u8a8d\u3002S2-I04\u304b\u3089\u53d6\u5f97\u3057\u305f\u30af\u30e9\u30a4\u30a2\u30f3\u30c8\u8a3c\u660e\u66f8\u3092\u63d0\u793a\u3059\u308b\u3053\u3068\u3067\u3001\u539f\u672cDB\uff08S2-C03\uff09\u3078\u306e\u5b89\u5168\u306a\u4fb5\u5165\u8def\u304c\u958b\u304b\u308c\u307e\u3059\u3002"
+  },
+  "S2-C03": {
+    "vulnerability": "\u8a3c\u8de1DB\u306e\u6a29\u9650\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "CRITICAL",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "db_sqli_union",
+      "db_code_a",
+      "db_def_c"
+    ],
+    "failure_alert": 10.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "S2-C03: \u539f\u672c\u901a\u4fe1\u8a3c\u8de1\u30c7\u30fc\u30bf\u30d9\u30fc\u30b9\u3092\u78ba\u8a8d\u3002SQL\u30a4\u30f3\u30b8\u30a7\u30af\u30b7\u30e7\u30f3\u8106\u5f31\u6027\u3092\u7a81\u3044\u3066\u539f\u672c\u30ed\u30b0\u3092\u62bd\u51fa\u3057\u3001\u507d\u88c5\u3055\u308c\u305f\u901a\u4fe1\u8a3c\u8de1\u306e\u771f\u5b9f\u3092\u56de\u53ce\u3057\u307e\u3059\uff01"
+  },
+  "S2-C04": {
+    "vulnerability": "\u8fc2\u56de\u30b2\u30fc\u30c8\u306e\u7ba1\u7406\u8a2d\u5b9a\u4e0d\u5099",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "log_tamper",
+      "log_def_ok",
+      "log_cfg_b"
+    ],
+    "failure_alert": 8.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "S2-C04: \u76e3\u8996\u7db2\u306e\u8fc2\u56de\u30b2\u30fc\u30c8\u3092\u78ba\u8a8d\u3002S2-I07\u306e\u505c\u6b62\u306b\u3088\u308a\u89e3\u653e\u3055\u308c\u3001\u4fb5\u5165\u6642\u306b\u76e3\u8996\u30ed\u30b0\u3092\u6d88\u53bb\u3057\u3066\u8b66\u6212\u5ea6\u3092-10%\u524a\u6e1b\u3067\u304d\u307e\u3059\u3002"
+  },
+  "external-1": {
+    "vulnerability": "\u5f31\u3044SSH\u30d1\u30b9\u30ef\u30fc\u30c9",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "ssh_bf",
+      "ssh_cfg_b",
+      "ssh_def_c"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "GUEST",
+    "info_hint": "external-1: \u516c\u958bSSH\u30b5\u30fc\u30d0\u30fc\u306e\u30dd\u30fc\u30c822\u3092\u78ba\u8a8d\u3002\u30d1\u30b9\u30ef\u30fc\u30c9\u8a66\u884c\u56de\u6570\u306e\u5236\u9650\u304c\u306a\u304f\u3001\u8f9e\u66f8\u653b\u6483\u306b\u3088\u308b\u4fb5\u5165\u304c\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "dmz-1": {
+    "vulnerability": "\u53e4\u3044Apache\u306e\u65e2\u77e5\u306e\u8106\u5f31\u6027",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "web_bypass",
+      "web_def_ok",
+      "web_cfg_b"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "USER",
+    "info_hint": "dmz-1: \u53e4\u3044\u30d0\u30fc\u30b8\u30e7\u30f3\u306eApache Web\u30b5\u30fc\u30d0\u30fc\u3092\u78ba\u8a8d\u3002\u65e2\u77e5\u306e\u30d1\u30b9\u30c8\u30e9\u30d0\u30fc\u30b5\u30eb\u8106\u5f31\u6027\u306b\u3088\u308a\u3001\u5185\u90e8\u8a2d\u5b9a\u30d5\u30a1\u30a4\u30eb\u306e\u95b2\u89a7\u304c\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "dmz-2": {
+    "vulnerability": "\u6f0f\u6d29\u3057\u305f\u793e\u54e1\u30a2\u30c9\u30ec\u30b9\u3078\u306e\u30d5\u30a3\u30c3\u30b7\u30f3\u30b0",
+    "risk_level": "MEDIUM",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "mail_spoof",
+      "mail_spf_ok",
+      "mail_def_c"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "USER",
+    "info_hint": "dmz-2: \u793e\u54e1\u5411\u3051\u30e1\u30fc\u30eb\u30b5\u30fc\u30d0\u30fc\u3092\u78ba\u8a8d\u3002\u9001\u4fe1\u5143\u30c9\u30e1\u30a4\u30f3\u691c\u8a3c\uff08SPF/DMARC\uff09\u304c\u7518\u304f\u3001\u6a19\u7684\u578b\u30e1\u30fc\u30eb\u306e\u9001\u4fe1\u304c\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "internal-1": {
+    "vulnerability": "Active Directory\u306e\u6a29\u9650\u8a2d\u5b9a\u30df\u30b9",
+    "risk_level": "HIGH",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "priv_esc",
+      "priv_sudo_b",
+      "priv_def_c"
+    ],
+    "failure_alert": 5.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ADMIN",
+    "info_hint": "internal-1: Active Directory\u306e\u30c9\u30e1\u30a4\u30f3\u69cb\u6210\u3092\u78ba\u8a8d\u3002\u30b5\u30fc\u30d3\u30b9\u30a2\u30ab\u30a6\u30f3\u30c8\u306e\u904e\u5270\u6a29\u9650\u3092\u5229\u7528\u3057\u3066ADMIN\u6a29\u9650\u3078\u306e\u6607\u683c\u304c\u53ef\u80fd\u3067\u3059\u3002"
+  },
+  "core-1": {
+    "vulnerability": "SQL\u30a4\u30f3\u30b8\u30a7\u30af\u30b7\u30e7\u30f3",
+    "risk_level": "CRITICAL",
+    "required_scan": true,
+    "allowed_scan_types": [
+      "scan",
+      "remoteScan"
+    ],
+    "required_info": true,
+    "correct_exploits": [
+      "db_sqli_union",
+      "db_code_a",
+      "db_def_c"
+    ],
+    "failure_alert": 8.0,
+    "failure_resource": 1,
+    "success_resource": 0,
+    "required_privilege": "ROOT",
+    "info_hint": "core-1: \u6a5f\u5bc6\u30c7\u30fc\u30bf\u30d9\u30fc\u30b9\u306e\u30af\u30a8\u30ea\u51e6\u7406\u3092\u78ba\u8a8d\u3002SQL\u30a4\u30f3\u30b8\u30a7\u30af\u30b7\u30e7\u30f3\u8106\u5f31\u6027\u306b\u3088\u308a\u3001\u6a5f\u5bc6\u30c7\u30fc\u30bf\u306e\u62bd\u51fa\u304c\u53ef\u80fd\u3067\u3059\uff01"
+  }
+}

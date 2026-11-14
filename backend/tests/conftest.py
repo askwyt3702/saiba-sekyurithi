@@ -18,6 +18,31 @@ from fastapi.testclient import TestClient
 
 import main
 import models
+from balance_config import SECURITY_RULES
+
+
+@pytest.fixture
+def ready_act(act, client):
+    """旧来の通常攻略テスト用。侵入前の新確認操作を明示的に完了する。
+
+    条件未達・拒否・ペナルティの試験は生のactを使う。
+    """
+    def perform(game_id, type_, node=None, passcode=None):
+        if type_ == "breach" and node in SECURITY_RULES:
+            state = client.get(f"/api/games/{game_id}").json()
+            target = next((n for n in state["nodes"] if n["id"] == node), None)
+            if state["status"] == "playing" and target and target["data"]["status"] == "scanned":
+                events = state.get("securityEvents", {}).get(node, [])
+                if "INFO_CONFIRMED" not in events:
+                    assert act(game_id, "confirmInfo", node)["accepted"]
+                if SECURITY_RULES[node].get("required_analysis") and "ANALYSIS_COMPLETED" not in events:
+                    assert act(game_id, "completeAnalysis", node)["accepted"]
+        rule = SECURITY_RULES.get(node, {})
+        answers = rule.get("question_answers", {})
+        question = next(iter(answers), None)
+        answer = answers[question][0] if question else next(iter(rule.get("correct_exploits", [])), None)
+        return act(game_id, type_, node, passcode, exploitId=answer if type_ == "breach" else None, questionId=question if type_ == "breach" else None)
+    return perform
 
 
 @pytest.fixture(scope="session")
@@ -52,12 +77,18 @@ def set_player():
 def act(client):
     """アクションを送り、レスポンス全体(accepted/reason/state)を返す。"""
 
-    def _act(game_id, type_, node=None, passcode=None):
+    def _act(game_id, type_, node=None, passcode=None, exploitMismatch=False, exploitId=None, questionId=None):
         body = {"type": type_}
         if node is not None:
             body["nodeId"] = node
         if passcode is not None:
             body["passcode"] = passcode
+        if questionId is not None:
+            body["questionId"] = questionId
+        if exploitId is not None:
+            body["exploitId"] = exploitId
+        if exploitMismatch:
+            body["exploitMismatch"] = True
         res = client.post(f"/api/games/{game_id}/actions", json=body)
         assert res.status_code == 200, res.text
         return res.json()

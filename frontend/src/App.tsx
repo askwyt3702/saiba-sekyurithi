@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameClient } from './game/hooks/useGameClient';
 import type {
   ActionRejectReason,
@@ -23,6 +23,10 @@ import './App.css';
 type TimedActionType = Exclude<ActionType, 'pause' | 'resume'>;
 
 const REJECT_MESSAGES: Record<ActionRejectReason, string> = {
+  question_required: '問題を選択してください。',
+  invalid_question: '問題IDが無効です。',
+  exploit_required: '攻撃手法を選択してください。',
+  security_requirements_unmet: '侵入前に情報確認が必要です。ノード詳細の情報確認を完了してください。',
   insufficient_resource: '解析資源が足りません。',
   insufficient_privilege:
     '権限が足りません。より手前の階層のノードに侵入して権限を上げてください。',
@@ -54,30 +58,32 @@ function App() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
   const [idsAlertActive, setIdsAlertActive] = useState(false);
-  const [prevLogLength, setPrevLogLength] = useState(0);
+  const idsLogs = useRef<{ gameId: string | null; seen: Set<string> }>({ gameId: null, seen: new Set() });
+  const idsAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const triggerIdsAlert = () => {
     playSound('alert');
+    if (idsAlertTimer.current) clearTimeout(idsAlertTimer.current);
     setIdsAlertActive(true);
-    setTimeout(() => {
+    idsAlertTimer.current = setTimeout(() => {
       setIdsAlertActive(false);
     }, 900);
   };
 
   useEffect(() => {
     if (!state?.log) return;
-    if (state.log.length > prevLogLength) {
-      const newLogs = state.log.slice(prevLogLength);
-      setPrevLogLength(state.log.length);
-      if (
-        newLogs.some(
-          (l) => l.message.includes('【IDS検知警告】') || l.message.includes('検知されました！')
-        )
-      ) {
-        triggerIdsAlert();
-      }
+    const cursor = idsLogs.current;
+    if (cursor.gameId !== state.gameId) {
+      idsLogs.current = { gameId: state.gameId, seen: new Set(state.log.map((entry) => entry.id)) };
+      return;
     }
-  }, [state?.log, prevLogLength]);
+    const newLogs = state.log.filter((entry) => !cursor.seen.has(entry.id));
+    for (const entry of newLogs) cursor.seen.add(entry.id);
+    if (newLogs.some((entry) => entry.message.includes('【IDS検知警告】'))) triggerIdsAlert();
+  }, [state?.gameId, state?.log]);
+
+  useEffect(() => () => { if (idsAlertTimer.current) clearTimeout(idsAlertTimer.current); }, []);
+
   // 選択中のノード
   const selectedNode =
     state?.nodes.find((node) => node.id === selectedNodeId) ?? null;
@@ -101,21 +107,15 @@ function App() {
     passcode?: string,
     exploitMismatch?: boolean,
     exploitId?: string,
+    questionId?: string,
   ) => {
     if (!selectedNode) return;
 
     const nodeId = selectedNode.id;
     setNotice(null);
 
-    if (exploitMismatch) {
-      triggerIdsAlert();
-    }
-
     try {
-      if (type === 'breach' && !exploitMismatch && (nodeId === 'E01' || nodeId === 'E02' || nodeId === 'E03')) {
-        await sendAction({ type: 'confirmInfo' as ActionType, nodeId }).catch(() => {});
-      }
-      const result = await sendAction({ type, nodeId, passcode, exploitMismatch, exploitId });
+      const result = await sendAction({ type, nodeId, passcode, exploitMismatch, exploitId, questionId });
 
       if (!result.accepted) {
         playSound('alert');
@@ -129,6 +129,7 @@ function App() {
         else if (type === 'dataExtract') playSound('extract');
         else playSound('click');
       }
+      return result;
     } catch (err) {
       console.error('[App] アクション送信に失敗しました:', err);
 
@@ -189,6 +190,11 @@ function App() {
   const returnToTitle = async () => {
     await restartMission();
     setScreen('title');
+  };
+
+  const returnToMission = async () => {
+    await restartMission();
+    setScreen('mission');
   };
 
   // タイトル画面
@@ -263,7 +269,12 @@ function App() {
         onSelectNode={handleSelectNode}
       />
       {state.status === 'won' && (
-        <MissionResult state={state} onRetry={restartMission} onTitle={returnToTitle} />
+        <MissionResult
+          state={state}
+          onRetry={restartMission}
+          onTitle={returnToTitle}
+          onSelectMission={returnToMission}
+        />
       )}
       {state.status === 'lost' && (
         <>
@@ -272,11 +283,17 @@ function App() {
               ? '作戦失敗：解析資源が不足し、これ以上の作戦継続は不可能です。'
               : '作戦失敗：警戒度が限界に達しました。'}
           </div>
-          <MissionFailure state={state} onRetry={restartMission} onTitle={returnToTitle} />
+          <MissionFailure
+            state={state}
+            onRetry={restartMission}
+            onTitle={returnToTitle}
+            onSelectMission={returnToMission}
+          />
         </>
       )}
       <div className="app-body">
         <ToolPanel
+          securityEvents={state.securityEvents}
           stageId={state.stageId ?? stageId}
           nodes={state.nodes}
           edges={state.edges}
@@ -296,6 +313,7 @@ function App() {
         />
 
         <NodeDetailPanel
+          securityEvents={state.securityEvents}
           alertLevel={state.alertLevel}
           stageId={state.stageId ?? stageId}
           gameStatus={state.status}

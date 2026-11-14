@@ -7,19 +7,22 @@ interface MissionFailureProps {
   state: GameState;
   onRetry: () => Promise<void>;
   onTitle: () => Promise<void>;
+  onSelectMission?: () => Promise<void>;
 }
 
-export function MissionFailure({ state, onRetry, onTitle }: MissionFailureProps) {
+export function MissionFailure({ state, onRetry, onTitle, onSelectMission }: MissionFailureProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pendingRef = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
+    if (minimized) return;
     const dialog = dialogRef.current;
     dialog?.showModal();
     return () => dialog?.close();
-  }, []);
+  }, [minimized]);
 
   const navigate = async (action: () => Promise<void>) => {
     if (pendingRef.current) return;
@@ -45,6 +48,32 @@ export function MissionFailure({ state, onRetry, onTitle }: MissionFailureProps)
   const recentIncidentLogs = (state.log ?? [])
     .filter((l) => l.severity === 'danger' || l.severity === 'warning' || l.message.includes('検知') || l.message.includes('失敗'))
     .slice(-4);
+
+  if (minimized) {
+    return (
+      <div className="mission-failure-minimized" role="region" aria-label="インシデントレポート（最小化中）">
+        <span className="mission-failure-minimized__badge">
+          OPERATION FAILED // {isAlertThreshold ? 'ALERT 100%' : 'RESOURCE 0'}
+        </span>
+        <span className="mission-failure-minimized__hint">
+          最終盤面のノード状態やイベントログを振り返りできます
+        </span>
+        <div className="mission-failure-minimized__actions">
+          <button type="button" className="btn-restore" disabled={pending} onClick={() => setMinimized(false)}>
+            🚨 レポートを再表示
+          </button>
+          <button type="button" disabled={pending} onClick={() => void navigate(onRetry)}>
+            RETRY
+          </button>
+          {onSelectMission && (
+            <button type="button" disabled={pending} onClick={() => void navigate(onSelectMission)}>
+              MISSIONS
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <dialog
@@ -144,6 +173,14 @@ export function MissionFailure({ state, onRetry, onTitle }: MissionFailureProps)
           </button>
           <button type="button" className="btn-title" disabled={pending} onClick={() => void navigate(onTitle)}>
             TITLE タイトル
+          </button>
+          {onSelectMission && (
+            <button type="button" className="btn-mission" disabled={pending} onClick={() => void navigate(onSelectMission)}>
+              MISSIONS 作戦選択
+            </button>
+          )}
+          <button type="button" className="btn-inspect" disabled={pending} onClick={() => setMinimized(true)}>
+            🗺 マップを確認
           </button>
         </div>
         {pending && <p role="status" className="mission-failure__pending">次の作戦を準備中...</p>}

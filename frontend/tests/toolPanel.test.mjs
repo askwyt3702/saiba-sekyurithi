@@ -37,6 +37,7 @@ function render(state) {
   return renderToStaticMarkup(createElement(ToolPanel, {
     stageId: state.stageId ?? 1, nodes: state.nodes, edges: state.edges, privilege: state.privilege,
     keyFragments: state.keyFragments, log: state.log, selectedNodeId: null, onSelectNode() {},
+    securityEvents: state.securityEvents,
   }));
 }
 
@@ -51,11 +52,26 @@ test('vulnerability tab lists only scanned nodes and the scannable entry node', 
 
   await client.sendAction({ type: 'scan', nodeId: entry });
   const scanned = render(client.state);
-  assert.ok(scanned.includes('侵入可能'));
+  assert.ok(scanned.includes('>要 情報確認</span>'));
+  assert.ok(scanned.includes('title="確認前に侵入すると失敗し、資源と時間を消費します"'));
+  assert.ok(scanned.includes('RISK: MEDIUM'));
+  assert.ok(scanned.includes('CWE-'));
   assert.ok(scanned.includes(client.state.nodes.find((node) => node.id === entry).vulnerability));
 
-  await client.sendAction({ type: 'breach', nodeId: entry });
+  await client.sendAction({ type: 'confirmInfo', nodeId: entry });
+  assert.ok(render(client.state).includes('調査済 ✓'));
+  await client.sendAction({ type: 'completeAnalysis', nodeId: entry });
+  await client.sendAction({ type: 'breach', nodeId: entry, exploitId: entry === 'E01' ? 'ssh_bf' : undefined, questionId: entry === 'E01' ? 'E01:ssh-q1' : undefined });
   assert.ok(render(client.state).includes('侵入済み'));
+});
+
+test('diagnostics show supply and trace removal effects from generated stage data', async () => {
+  const client = new MockGameClient('diagnostic-effects', 1);
+  await client.connect(() => {});
+  for (const id of ['I05', 'I03']) client.state.nodes.find(node => node.id === id).status = 'scanned';
+  const html = render(client.state);
+  assert.ok(html.includes('資源 +10'));
+  assert.ok(html.includes('痕跡 -15%'));
 });
 
 test('breach status explains why a scanned node cannot be breached yet', () => {
@@ -69,6 +85,18 @@ test('breach status explains why a scanned node cannot be breached yet', () => {
 
   const far = { id: 'Z', layer: 'External', status: 'scanned' };
   assert.equal(breachStatus(far, [far], [], 'ROOT', stage).label, '未到達(隣接ノードが未侵入)');
+});
+
+test('security requirement badge stays short and explains the cost in its tooltip', () => {
+  const stage = { entryNodeIds: ['E01', 'E03'], breachRequirements: {} };
+  const consume = { id: 'E01', layer: 'External', status: 'scanned' };
+  const status = breachStatus(consume, [consume], [], 'GUEST', stage);
+  assert.equal(status.label, '要 情報確認');
+  assert.ok(status.label.length <= 8, 'badge label must stay short so the node name is not squeezed');
+  assert.match(status.detail, /資源と時間を消費/);
+
+  const reject = { id: 'E03', layer: 'External', status: 'scanned' };
+  assert.match(breachStatus(reject, [reject], [], 'GUEST', stage).detail, /消費なしで拒否/);
 });
 
 test('tool panel starts collapsed only on narrow screens', () => {

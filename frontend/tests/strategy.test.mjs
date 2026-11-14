@@ -36,10 +36,10 @@ const scenarios = JSON.parse(readFileSync(new URL('../../backend/tests/fixtures/
 const root = new URL('../../', import.meta.url);
 const candidates = ['backend/.venv/Scripts/python.exe', 'backend/.venv/bin/python', '.venv/bin/python'];
 const python = process.env.NULL_ROUTE_TEST_PYTHON ?? candidates.map((candidate) => fileURLToPath(new URL(candidate, root))).find(existsSync) ?? 'python';
-const actual = spawnSync(python, ['scripts/simulate_stage_routes.py'], { cwd: fileURLToPath(root), encoding: 'utf8' });
+const actual = spawnSync(python, ['scripts/simulate_stage_routes.py'], { cwd: fileURLToPath(root), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
 // Pythonやバックエンドのライブラリを入れていない手元の環境では、比較テストだけスキップする(他のテストは実行する)。
 // CI(CI=true)とPythonを明示した場合(NULL_ROUTE_TEST_PYTHON)は、スキップせず失敗させる。
-const pythonMissing = Boolean(actual.error) || actual.status === 9009
+const pythonMissing = actual.error?.code === 'ENOENT' || actual.status === 9009
   || /ModuleNotFoundError|No module named/.test(actual.stderr ?? '');
 const requirePython = process.env.CI === 'true' || process.env.NULL_ROUTE_TEST_PYTHON !== undefined;
 const backend = actual.status === 0 ? JSON.parse(actual.stdout) : null;
@@ -56,6 +56,9 @@ function summary(state) {
     analysisResource: state.analysisResource, privilege: state.privilege, evaluation: state.evaluation ?? null,
     nodes: Object.fromEntries(state.nodes.map((node) => [node.id, node.status])),
     successLogged: state.log.some((entry) => entry.message.includes('目的達成')),
+    securityEvents: state.securityEvents ?? {},
+    penaltyLogs: state.log.filter((entry) => entry.message.includes('IDS')).map((entry) => entry.message),
+    investigationLogs: state.log.filter((entry) => entry.message.startsWith('【調査完了】')).map((entry) => entry.message),
     mechanicsLogs: state.log.filter((entry) => ['監視解除:', 'ゲート解除:', '条件付き監視:'].some((prefix) => entry.message.startsWith(prefix))).map((entry) => entry.message),
   }));
 }
@@ -69,7 +72,11 @@ ${parityFailure}`);
     await client.connect((event) => events.push(event));
     // Test-only seeding mirrors the backend fixture; production clients expose no mutation API.
     const fieldMap = { alert_level: 'alertLevel', analysis_resource: 'analysisResource', current_privilege: 'privilege', game_time: 'elapsedSeconds' };
-    for (const [field, value] of Object.entries(scenario.seed ?? {})) client.state[fieldMap[field]] = value;
+    for (const [field, value] of Object.entries(scenario.seed ?? {})) {
+      if (field === 'key_fragment_a') client.fragmentA = value;
+      else if (field === 'key_fragment_b') client.fragmentB = value;
+      else client.state[fieldMap[field]] = value;
+    }
     for (const status of ['hacked', 'scanned']) {
       for (const id of scenario[status] ?? []) client.state.nodes.find((node) => node.id === id).status = status;
     }
@@ -106,34 +113,47 @@ test('node panel disables all E02/E03 operations until E01 is hacked, then permi
   }));
   for (const id of ['E02', 'E03']) assert.equal((markup(id).match(/disabled=""/g) ?? []).length, 4);
   await client.sendAction({ type: 'scan', nodeId: 'E01' });
-  await client.sendAction({ type: 'breach', nodeId: 'E01' });
+  await client.sendAction({ type: 'confirmInfo', nodeId: 'E01' });
+  await client.sendAction({ type: 'completeAnalysis', nodeId: 'E01' });
+  await client.sendAction({ type: 'breach', nodeId: 'E01', exploitId: 'ssh_bf', questionId: 'E01:ssh-q1' });
   for (const id of ['E02', 'E03']) assert.equal((markup(id).match(/disabled=""/g) ?? []).length, 2);
   await client.sendAction({ type: 'scan', nodeId: 'E02' });
   assert.equal((markup('E02').match(/disabled=""/g) ?? []).length, 3);
 });
 
-test('all 45 stage nodes have every correct exploit choice accepted by CORRECT_EXPLOITS and accurate penalties', () => {
-  const { STAGES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
+test('tutorial supply grants five resources and reduces alert ten only on first breach', { skip: paritySkip }, () => {
+  assert.ok(backend, parityFailure);
+  const steps = backend.find(result => result.name === 'tutorial_supply_once').steps;
+  assert.equal(steps[2].state.analysisResource, 27);
+  assert.equal(steps[2].state.alertLevel, 25.5);
+  assert.equal(steps[2].state.elapsedSeconds, 30);
+  assert.equal(steps[3].accepted, false);
+  assert.deepEqual(steps[3].state, steps[2].state);
+});
+
+test('all 45 stage nodes have every correct exploit choice accepted by generated question rules and accurate penalties', () => {
+  const { STAGES, SECURITY_RULES } = load(new URL('../src/game/data/stageData.ts', import.meta.url));
   const { getSecurityChallenge, getNodeSecurityMeta } = load(new URL('../src/game/data/securityLearningData.ts', import.meta.url));
-  const { CORRECT_EXPLOITS, SECURITY_PENALTIES } = load(new URL('../src/game/client/mockGameClient.ts', import.meta.url));
+
 
   for (const stage of Object.values(STAGES)) {
     for (const node of stage.nodes) {
       const vuln = stage.vulnerabilities[node.id] ?? node.vulnerability;
       const challenge = getSecurityChallenge(node.id, vuln, node.info);
-      const allowed = CORRECT_EXPLOITS[node.id];
-      assert.ok(Array.isArray(allowed) && allowed.length >= 3, `Expected at least 3 CORRECT_EXPLOITS for ${node.id}`);
-      assert.equal(challenge.questions.length, 3, `Expected 3 questions (TYPE A/B/C) for ${node.id}`);
+      const rule = SECURITY_RULES[node.id];
+      const allowed = rule.correct_exploits;
+      assert.ok(Array.isArray(allowed) && allowed.length >= 3, `Missing CORRECT_EXPLOITS for ${node.id}`);
+      assert.equal(challenge.questions.length, 3);
       for (const q of challenge.questions) {
         const correctChoices = q.choices.filter((c) => c.isCorrect);
         assert.equal(correctChoices.length, 1, `Expected exactly 1 correct choice in ${node.id} ${q.id}`);
         assert.ok(
-          allowed.includes(correctChoices[0].id),
+          rule.question_answers[q.id]?.includes(correctChoices[0].id),
           `Node ${node.id} question ${q.id} correct choice ${correctChoices[0].id} is not in CORRECT_EXPLOITS (${allowed.join(',')})`,
         );
       }
       const meta = getNodeSecurityMeta(node.id);
-      const penalty = SECURITY_PENALTIES[node.id];
+      const penalty = { alert: rule.exploit_failure_alert ?? 8, resource: rule.failure_resource ?? 0 };
       assert.equal(meta.failureAlert, penalty.alert, `Penalty alert mismatch on ${node.id}`);
       assert.equal(meta.failureResource, penalty.resource, `Penalty resource mismatch on ${node.id}`);
     }

@@ -15,19 +15,19 @@ SCAN_COST = ACTION_COSTS["scan"]
 BREACH_COST = ACTION_COSTS["breach"]
 
 
-def clear_stage(act, game, set_player):
+def clear_stage(ready_act, game, set_player):
     """入口から最短経路でCoreを攻略する（最後のdataExtractは含まない）。経路を返す。"""
     set_player(game, analysis_resource=1000)   # 資源の量ではなくルールのほうを試したいので十分に与える
     path = shortest_path_to_core()
 
     for node in path:
-        assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+        assert ready_act(game, "scan", node)["accepted"] is True, ("scan", node)
 
         if node == "E01":
-            assert act(game, "confirmInfo", node)["accepted"] is True
-            assert act(game, "completeAnalysis", node)["accepted"] is True
+            assert ready_act(game, "confirmInfo", node)["accepted"] is True
+            assert ready_act(game, "completeAnalysis", node)["accepted"] is True
 
-        assert act(game, "breach", node)["accepted"] is True, ("breach", node)
+        assert ready_act(game, "breach", node)["accepted"] is True, ("breach", node)
 
     return path
 
@@ -54,11 +54,11 @@ def test_unscanned_node_hides_info_and_vulnerability(game, client):
         assert node["data"]["info"] == HIDDEN_INFO
 
 
-def test_each_game_is_independent(client, act):
+def test_each_game_is_independent(client, ready_act):
     a = client.post("/api/games").json()["gameId"]
     b = client.post("/api/games").json()["gameId"]
     assert a != b
-    act(a, "scan", ENTRY)
+    ready_act(a, "scan", ENTRY)
     state_b = client.get(f"/api/games/{b}").json()
     assert node_of(state_b, ENTRY)["status"] == "unscanned"
     assert state_b["analysisResource"] == INITIAL_ANALYSIS_RESOURCE
@@ -68,9 +68,9 @@ def test_get_unknown_game_returns_404(client):
     assert client.get("/api/games/999999").status_code == 404
 
 
-def test_reset_restores_initial_state(game, client, act):
-    act(game, "scan", ENTRY)
-    act(game, "breach", ENTRY)
+def test_reset_restores_initial_state(game, client, ready_act):
+    ready_act(game, "scan", ENTRY)
+    ready_act(game, "breach", ENTRY)
     state = client.post(f"/api/games/{game}/reset").json()
     assert state["gameId"] == game
     assert state["status"] == "playing"
@@ -82,11 +82,11 @@ def test_reset_restores_initial_state(game, client, act):
     assert len(state["log"]) == 1
 
 
-def test_reset_after_game_over_makes_game_playable_again(game, client, act, set_player):
+def test_reset_after_game_over_makes_game_playable_again(game, client, ready_act, set_player):
     set_player(game, alert_level=99.0)
-    assert act(game, "scan", ENTRY)["state"]["status"] == "lost"
+    assert ready_act(game, "scan", ENTRY)["state"]["status"] == "lost"
     client.post(f"/api/games/{game}/reset")
-    assert act(game, "scan", ENTRY)["accepted"] is True
+    assert ready_act(game, "scan", ENTRY)["accepted"] is True
 
 
 def test_reset_unknown_game_returns_404(client):
@@ -95,8 +95,8 @@ def test_reset_unknown_game_returns_404(client):
 
 # ---------- scan ----------
 
-def test_scan_reveals_node_and_spends_resource_and_time(game, act):
-    result = act(game, "scan", ENTRY)
+def test_scan_reveals_node_and_spends_resource_and_time(game, ready_act):
+    result = ready_act(game, "scan", ENTRY)
     assert result["accepted"] is True
     state = result["state"]
     data = node_of(state, ENTRY)
@@ -109,100 +109,100 @@ def test_scan_reveals_node_and_spends_resource_and_time(game, act):
     assert any("スキャン" in entry["message"] for entry in state["log"])
 
 
-def test_scan_same_node_twice_is_rejected(game, act):
-    act(game, "scan", ENTRY)
-    result = act(game, "scan", ENTRY)
+def test_scan_same_node_twice_is_rejected(game, ready_act):
+    ready_act(game, "scan", ENTRY)
+    result = ready_act(game, "scan", ENTRY)
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
     # 却下されたら資源は減らない
     assert result["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"]
 
 
-def test_scan_unknown_node_is_rejected(game, act):
-    result = act(game, "scan", "no-such-node")
+def test_scan_unknown_node_is_rejected(game, ready_act):
+    result = ready_act(game, "scan", "no-such-node")
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
 
 
-def test_scan_without_node_is_rejected(game, act):
-    result = act(game, "scan")
+def test_scan_without_node_is_rejected(game, ready_act):
+    result = ready_act(game, "scan")
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
 
 
-def test_scan_with_insufficient_resource_is_rejected(game, act, set_player):
+def test_scan_with_insufficient_resource_is_rejected(game, ready_act, set_player):
     set_player(game, analysis_resource=0)
-    result = act(game, "scan", ENTRY)
+    result = ready_act(game, "scan", ENTRY)
     assert result["accepted"] is False
     assert result["reason"] == "insufficient_resource"
 
 
 # ---------- breach ----------
 
-def test_breach_requires_scan(game, act):
-    result = act(game, "breach", ENTRY)
+def test_breach_requires_scan(game, ready_act):
+    result = ready_act(game, "breach", ENTRY)
     assert result["accepted"] is False
     assert result["reason"] == "node_not_scanned"
 
 
-def test_breach_promotes_privilege(game, act):
-    act(game, "scan", ENTRY)
+def test_breach_promotes_privilege(game, ready_act):
+    ready_act(game, "scan", ENTRY)
 
     # E01の攻略条件
-    act(game, "confirmInfo", ENTRY)
-    act(game, "completeAnalysis", ENTRY)
+    ready_act(game, "confirmInfo", ENTRY)
+    ready_act(game, "completeAnalysis", ENTRY)
 
-    result = act(game, "breach", ENTRY)
+    result = ready_act(game, "breach", ENTRY)
     assert result["accepted"] is True
     assert node_of(result["state"], ENTRY)["status"] == "hacked"
     assert result["state"]["privilege"] == "USER"
     assert result["state"]["analysisResource"] == (
-        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"]
+        INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] + 3
     )
 
 
-def test_breach_hacked_node_again_is_rejected(game, act):
-    act(game, "scan", ENTRY)
+def test_breach_hacked_node_again_is_rejected(game, ready_act):
+    ready_act(game, "scan", ENTRY)
 
     if ENTRY == "E01":
-        act(game, "confirmInfo", ENTRY)
-        act(game, "completeAnalysis", ENTRY)
+        ready_act(game, "confirmInfo", ENTRY)
+        ready_act(game, "completeAnalysis", ENTRY)
 
-    act(game, "breach", ENTRY)
-    result = act(game, "breach", ENTRY)
+    ready_act(game, "breach", ENTRY)
+    result = ready_act(game, "breach", ENTRY)
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
 
 
-def test_breach_unreachable_node_is_rejected(game, act, set_player):
+def test_breach_unreachable_node_is_rejected(game, ready_act, set_player):
     # 入口以外のノードは、スキャンしただけでは侵入できない（隣接ノードを侵入済みにする必要がある）
     set_player(game, analysis_resource=1000)
     core = nodes_in_layer("Core")[0]
-    act(game, "scan", core)
-    result = act(game, "breach", core)
+    ready_act(game, "scan", core)
+    result = ready_act(game, "breach", core)
     assert result["accepted"] is False
     assert result["reason"] == "node_unreachable"
 
 
-def test_breach_without_required_privilege_is_rejected(game, act, set_player):
+def test_breach_without_required_privilege_is_rejected(game, ready_act, set_player):
     dmz_neighbors = [n for n in neighbors(ENTRY) if n in nodes_in_layer("DMZ")]
     assert dmz_neighbors, "入口に隣接するDMZノードがありません（このテストの前提）"
     target = dmz_neighbors[0]
 
-    act(game, "scan", ENTRY)
+    ready_act(game, "scan", ENTRY)
 
     # E01の攻略条件
-    act(game, "confirmInfo", ENTRY)
-    act(game, "completeAnalysis", ENTRY)
+    ready_act(game, "confirmInfo", ENTRY)
+    ready_act(game, "completeAnalysis", ENTRY)
 
-    act(game, "breach", ENTRY)                   # USER に昇格
-    act(game, "scan", target)
+    ready_act(game, "breach", ENTRY)                   # USER に昇格
+    ready_act(game, "scan", target)
     set_player(game, current_privilege="GUEST")  # DMZ は USER 以上が必要
-    result = act(game, "breach", target)
+    result = ready_act(game, "breach", target)
     assert result["accepted"] is False
     assert result["reason"] == "insufficient_privilege"
 
-def test_privilege_never_goes_down(game, act, set_player):
+def test_privilege_never_goes_down(game, ready_act, set_player):
     dmz_neighbors = [n for n in neighbors(ENTRY) if n in nodes_in_layer("DMZ")]
     if len(dmz_neighbors) < 2:
         pytest.skip("入口に隣接するDMZノードが2つ未満")
@@ -210,35 +210,35 @@ def test_privilege_never_goes_down(game, act, set_player):
     privileges = []
 
     for node in [ENTRY, *dmz_neighbors[:2]]:
-        act(game, "scan", node)
+        ready_act(game, "scan", node)
 
         if node == ENTRY:
-            act(game, "confirmInfo", ENTRY)
-            act(game, "completeAnalysis", ENTRY)
+            ready_act(game, "confirmInfo", ENTRY)
+            ready_act(game, "completeAnalysis", ENTRY)
 
-        privileges.append(act(game, "breach", node)["state"]["privilege"])
+        privileges.append(ready_act(game, "breach", node)["state"]["privilege"])
 
     # 入口 → USER、1つ目のDMZ → ADMIN、2つ目のDMZ でも ADMIN のまま
     assert privileges == ["USER", "ADMIN", "ADMIN"]
 
 # ---------- dataExtract ----------
 
-def test_data_extract_requires_hacked_core(game, act, set_player):
+def test_data_extract_requires_hacked_core(game, ready_act, set_player):
     set_player(game, analysis_resource=1000)
     core = nodes_in_layer("Core")[0]
 
-    result = act(game, "dataExtract", core)          # まだ侵入していない
+    result = ready_act(game, "dataExtract", core)          # まだ侵入していない
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
 
-    result = act(game, "dataExtract", ENTRY)         # Core 以外は不可
+    result = ready_act(game, "dataExtract", ENTRY)         # Core 以外は不可
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
 
 
-def test_full_playthrough_wins(game, act, set_player):
-    path = clear_stage(act, game, set_player)
-    result = act(game, "dataExtract", path[-1])
+def test_full_playthrough_wins(game, ready_act, set_player):
+    path = clear_stage(ready_act, game, set_player)
+    result = ready_act(game, "dataExtract", path[-1])
     assert result["accepted"] is True
     state = result["state"]
     assert state["status"] == "won"
@@ -246,37 +246,37 @@ def test_full_playthrough_wins(game, act, set_player):
     assert state["alertLevel"] < 100
 
 
-def test_default_resource_is_enough_to_clear_the_stage(game, act):
+def test_default_resource_is_enough_to_clear_the_stage(game, ready_act):
     """初期の解析資源だけで、最短経路ならクリアできること（バランスの最低ライン）。"""
     path = shortest_path_to_core()
 
     for node in path:
-        assert act(game, "scan", node)["accepted"] is True, ("scan", node)
+        assert ready_act(game, "scan", node)["accepted"] is True, ("scan", node)
 
         if node == "E01":
-            assert act(game, "confirmInfo", node)["accepted"] is True
-            assert act(game, "completeAnalysis", node)["accepted"] is True
+            assert ready_act(game, "confirmInfo", node)["accepted"] is True
+            assert ready_act(game, "completeAnalysis", node)["accepted"] is True
 
-        assert act(game, "breach", node)["accepted"] is True, ("breach", node)
-    result = act(game, "dataExtract", path[-1])
+        assert ready_act(game, "breach", node)["accepted"] is True, ("breach", node)
+    result = ready_act(game, "dataExtract", path[-1])
     assert result["accepted"] is True, result.get("reason")
     assert result["state"]["status"] == "won"
 
 
-def test_actions_are_rejected_after_winning(game, act, set_player):
-    path = clear_stage(act, game, set_player)
-    act(game, "dataExtract", path[-1])
+def test_actions_are_rejected_after_winning(game, ready_act, set_player):
+    path = clear_stage(ready_act, game, set_player)
+    ready_act(game, "dataExtract", path[-1])
     other = next(n["id"] for n in NODES if n["id"] not in path)
-    result = act(game, "scan", other)
+    result = ready_act(game, "scan", other)
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
 
 
 # ---------- 警戒度・ゲームオーバー ----------
 
-def test_alert_reaching_100_loses_the_game(game, act, set_player):
+def test_alert_reaching_100_loses_the_game(game, ready_act, set_player):
     set_player(game, alert_level=99.0)
-    result = act(game, "scan", ENTRY)
+    result = ready_act(game, "scan", ENTRY)
     assert result["accepted"] is True            # この操作自体は受理され、その結果で敗北する
     state = result["state"]
     assert state["status"] == "lost"
@@ -284,42 +284,42 @@ def test_alert_reaching_100_loses_the_game(game, act, set_player):
     assert any("警戒度が限界" in entry["message"] for entry in state["log"])
 
 
-def test_actions_are_rejected_after_losing(game, act, set_player):
+def test_actions_are_rejected_after_losing(game, ready_act, set_player):
     set_player(game, alert_level=99.0)
-    act(game, "scan", ENTRY)
-    result = act(game, "breach", ENTRY)
+    ready_act(game, "scan", ENTRY)
+    result = ready_act(game, "breach", ENTRY)
     assert result["accepted"] is False
     assert result["reason"] == "invalid_state"
 
 
-def test_alert_warning_is_logged_when_high(game, act, set_player):
+def test_alert_warning_is_logged_when_high(game, ready_act, set_player):
     set_player(game, alert_level=75.0)
-    state = act(game, "scan", ENTRY)["state"]
+    state = ready_act(game, "scan", ENTRY)["state"]
     assert state["status"] == "playing"
     assert any("警戒度が" in entry["message"] and "上昇" in entry["message"] for entry in state["log"])
 
 
 # ---------- pause / resume ----------
 
-def test_pause_and_resume(game, act):
-    paused = act(game, "pause")
+def test_pause_and_resume(game, ready_act):
+    paused = ready_act(game, "pause")
     assert paused["accepted"] is True
     assert paused["state"]["status"] == "paused"
 
     # 一時停止中は他のアクションができない
-    blocked = act(game, "scan", ENTRY)
+    blocked = ready_act(game, "scan", ENTRY)
     assert blocked["accepted"] is False
     assert blocked["reason"] == "invalid_state"
 
-    resumed = act(game, "resume")
+    resumed = ready_act(game, "resume")
     assert resumed["accepted"] is True
     assert resumed["state"]["status"] == "playing"
 
 
-def test_pause_and_resume_in_wrong_state_are_rejected(game, act):
-    assert act(game, "resume")["accepted"] is False   # playing 中の resume
-    act(game, "pause")
-    assert act(game, "pause")["accepted"] is False    # paused 中の pause
+def test_pause_and_resume_in_wrong_state_are_rejected(game, ready_act):
+    assert ready_act(game, "resume")["accepted"] is False   # playing 中の resume
+    ready_act(game, "pause")
+    assert ready_act(game, "pause")["accepted"] is False    # paused 中の pause
 
 
 # ---------- リクエストの検証・旧API ----------
@@ -346,70 +346,70 @@ def test_legacy_scan_endpoint_rejects_unknown_node(client):
 
 # ---------- 特殊ノード効果・目標ノード・暗号鍵ギミック ----------
 
-def test_resource_supply_node_grants_bonus_resource(game, act):
+def test_resource_supply_node_grants_bonus_resource(game, ready_act):
     # E03（公開情報アーカイブ）は E01 の隣にあり、侵入すると資源ボーナス(+5)が得られる
-    act(game, "scan", "E01")
-    act(game, "breach", "E01")
-    before = act(game, "scan", "E03")["state"]["analysisResource"]
-    after_state = act(game, "breach", "E03")["state"]
+    ready_act(game, "scan", "E01")
+    ready_act(game, "breach", "E01")
+    before = ready_act(game, "scan", "E03")["state"]["analysisResource"]
+    after_state = ready_act(game, "breach", "E03")["state"]
     # 侵入コスト(2)を払ったあと +5 補給されるので、差し引き +3 増える
     assert after_state["analysisResource"] == before - BREACH_COST["resource"] + 5
     assert any("補給" in entry["message"] for entry in after_state["log"])
 
 
-def test_trace_reduction_node_lowers_alert(game, act, set_player):
+def test_trace_reduction_node_lowers_alert(game, ready_act, set_player):
     # D06（プロキシサーバー）に侵入すると警戒度が下がる
     for nid in ("E01", "E03"):
-        act(game, "scan", nid)
-        act(game, "breach", nid)
-    act(game, "scan", "D06")
+        ready_act(game, "scan", nid)
+        ready_act(game, "breach", nid)
+    ready_act(game, "scan", "D06")
     set_player(game, alert_level=50.0)
-    state = act(game, "breach", "D06")["state"]
+    state = ready_act(game, "breach", "D06")["state"]
     # 通常なら +5 - 減衰1.0 = +4.0 で 54.0 になるところ、特殊効果(-8.0)で 50 未満に下がる
     assert state["alertLevel"] < 50.0
 
 
-def test_non_target_core_node_cannot_extract_data(game, act, set_player):
+def test_non_target_core_node_cannot_extract_data(game, ready_act, set_player):
     # C01（Coreファイアウォール）は Core 層だが最終目標(C03)ではないため dataExtract できない
     set_player(game, analysis_resource=1000)
     for nid in ("E01", "D01", "D04", "I02", "I08", "C01"):
-        assert act(game, "scan", nid)["accepted"] is True
-        assert act(game, "breach", nid)["accepted"] is True
-    res = act(game, "dataExtract", "C01")
+        assert ready_act(game, "scan", nid)["accepted"] is True
+        assert ready_act(game, "breach", nid)["accepted"] is True
+    res = ready_act(game, "dataExtract", "C01")
     assert res["accepted"] is False
     assert res["reason"] == "invalid_state"
 
 
-def test_collecting_key_fragments_enables_stealth_data_extract(game, act, set_player):
+def test_collecting_key_fragments_enables_stealth_data_extract(game, ready_act, set_player):
     set_player(game, analysis_resource=1000)
     # 暗号鍵の断片 I06, I07 を回収しつつ C03 まで攻略する
     route = ["E01", "D02", "D05", "I06", "I07", "I09", "C04", "C03"]
     state = None
     for nid in route:
-        assert act(game, "scan", nid)["accepted"] is True
-        state = act(game, "breach", nid)["state"]
+        assert ready_act(game, "scan", nid)["accepted"] is True
+        state = ready_act(game, "breach", nid)["state"]
 
     assert any("すべての暗号鍵断片が揃いました" in entry["message"] for entry in state["log"])
 
     set_player(game, alert_level=40.0)
-    final_state = act(game, "dataExtract", "C03")["state"]
+    final_state = ready_act(game, "dataExtract", "C03")["state"]
     assert final_state["status"] == "won"
     # 鍵が揃っているので dataExtract の alert_delta(+10) が 0 になり、自然減衰ぶんだけ下がる
     assert final_state["alertLevel"] <= 40.0
     assert any("暗号鍵を使用" in entry["message"] for entry in final_state["log"])
 
 
-def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passcode(game, act, set_player):
+def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passcode(game, ready_act, set_player):
     set_player(game, analysis_resource=1000)
     # 最初は断片A・Bとも未入手なので None
-    initial = act(game, "scan", "E01")["state"]
+    initial = ready_act(game, "scan", "E01")["state"]
     assert initial["keyFragments"] == {"a": None, "b": None, "unlocked": False}
 
     # I06(断片A)とI07(断片B)を回収しつつ C04 まで進める
-    act(game, "breach", "E01")
+    ready_act(game, "breach", "E01")
     for nid in ("D02", "D05", "I06", "I07", "I09", "C04"):
-        assert act(game, "scan", nid)["accepted"] is True
-        state = act(game, "breach", nid)["state"]
+        assert ready_act(game, "scan", nid)["accepted"] is True
+        state = ready_act(game, "breach", nid)["state"]
 
     frag_a = state["keyFragments"]["a"]
     frag_b = state["keyFragments"]["b"]
@@ -417,16 +417,16 @@ def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passc
     assert isinstance(frag_b, str) and len(frag_b) == 4
 
     # C03 をスキャン後、誤った暗号を入力すると invalid_passcode で却下され、資源や警戒度は消費されない
-    assert act(game, "scan", "C03")["accepted"] is True
+    assert ready_act(game, "scan", "C03")["accepted"] is True
     set_player(game, alert_level=40.0, analysis_resource=10)
-    wrong = act(game, "breach", "C03", passcode="WRONGCODE")
+    wrong = ready_act(game, "breach", "C03", passcode="WRONGCODE")
     assert wrong["accepted"] is False
     assert wrong["reason"] == "invalid_passcode"
     assert wrong["state"]["analysisResource"] == 10
     assert wrong["state"]["alertLevel"] == 40.0
 
     # 正しい暗号 (断片A + 断片B) を入力して侵入すると、breach の警戒度上昇(+5)が 0 になる
-    correct = act(game, "breach", "C03", passcode=f"{frag_a}{frag_b}")
+    correct = ready_act(game, "breach", "C03", passcode=f"{frag_a}{frag_b}")
     assert correct["accepted"] is True
     assert correct["state"]["alertLevel"] <= 40.0
     assert correct["state"]["keyFragments"]["unlocked"] is True
@@ -434,7 +434,7 @@ def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passc
 
     # 暗号認証に成功した状態（または暗号鍵が揃っている状態）なら、残資源1でも消費資源0でデータ回収できる
     set_player(game, analysis_resource=1)
-    extracted = act(game, "dataExtract", "C03")
+    extracted = ready_act(game, "dataExtract", "C03")
     assert extracted["accepted"] is True
     assert extracted["state"]["status"] == "won"
     assert extracted["state"]["analysisResource"] == 1
@@ -442,10 +442,10 @@ def test_passcode_stealth_breach_on_c03_suppresses_alert_and_rejects_wrong_passc
 
 # ---------- クリア時のスコア・ランク判定 & 複数ステージ ----------
 
-def test_winning_game_includes_evaluation_and_rank_log(game, act, set_player):
-    path = clear_stage(act, game, set_player)
+def test_winning_game_includes_evaluation_and_rank_log(game, ready_act, set_player):
+    path = clear_stage(ready_act, game, set_player)
     set_player(game, alert_level=10.0, analysis_resource=15, game_time=120)
-    state = act(game, "dataExtract", path[-1])["state"]
+    state = ready_act(game, "dataExtract", path[-1])["state"]
     assert state["status"] == "won"
     assert state["evaluation"] is not None
     assert state["evaluation"]["rank"] == "S"
@@ -453,10 +453,10 @@ def test_winning_game_includes_evaluation_and_rank_log(game, act, set_player):
     assert any("作戦評価: RANK S" in entry["message"] for entry in state["log"])
 
 
-def test_high_alert_clear_gets_lower_rank(game, act, set_player):
-    path = clear_stage(act, game, set_player)
+def test_high_alert_clear_gets_lower_rank(game, ready_act, set_player):
+    path = clear_stage(ready_act, game, set_player)
     set_player(game, alert_level=80.0, analysis_resource=3, game_time=450)
-    state = act(game, "dataExtract", path[-1])["state"]
+    state = ready_act(game, "dataExtract", path[-1])["state"]
     assert state["status"] == "won"
     assert state["evaluation"]["rank"] in ("B", "C")
 
@@ -469,19 +469,19 @@ def test_list_stages_returns_available_stages(client):
     assert {0, 1}.issubset(stage_ids)
 
 
-def test_create_and_clear_tutorial_stage_0(client, act):
+def test_create_and_clear_tutorial_stage_0(client, ready_act):
     state = client.post("/api/games", json={"stageId": 0}).json()
     gid = state["gameId"]
     assert state["stageId"] == 0
     assert [n["id"] for n in state["nodes"]] == ["external-1", "dmz-1", "dmz-2", "internal-1", "core-1"]
 
     # チュートリアルステージに存在しない本編のノード(E01)は操作できない
-    assert act(gid, "scan", "E01")["accepted"] is False
+    assert ready_act(gid, "scan", "E01")["accepted"] is False
 
     for nid in ("external-1", "dmz-1", "internal-1", "core-1"):
-        assert act(gid, "scan", nid)["accepted"] is True
-        assert act(gid, "breach", nid)["accepted"] is True
-    final_state = act(gid, "dataExtract", "core-1")["state"]
+        assert ready_act(gid, "scan", nid)["accepted"] is True
+        assert ready_act(gid, "breach", nid)["accepted"] is True
+    final_state = ready_act(gid, "dataExtract", "core-1")["state"]
     assert final_state["status"] == "won"
     assert final_state["evaluation"] is not None
 
@@ -495,9 +495,9 @@ def test_reset_can_switch_stage(game, client):
 
 # ---------- 解析資源枯渇によるゲームオーバー ----------
 
-def test_depleting_resource_to_zero_loses_the_game(game, act, set_player):
+def test_depleting_resource_to_zero_loses_the_game(game, ready_act, set_player):
     set_player(game, analysis_resource=SCAN_COST["resource"])
-    result = act(game, "scan", ENTRY)
+    result = ready_act(game, "scan", ENTRY)
     assert result["accepted"] is True
     state = result["state"]
     assert state["analysisResource"] == 0
@@ -505,27 +505,27 @@ def test_depleting_resource_to_zero_loses_the_game(game, act, set_player):
     assert any("解析資源が枯渇" in entry["message"] for entry in state["log"])
 
 
-def test_spending_last_resource_on_data_extract_still_wins(game, act, set_player):
-    path = clear_stage(act, game, set_player)
+def test_spending_last_resource_on_data_extract_still_wins(game, ready_act, set_player):
+    path = clear_stage(ready_act, game, set_player)
     set_player(game, analysis_resource=ACTION_COSTS["dataExtract"]["resource"])
-    result = act(game, "dataExtract", path[-1])
+    result = ready_act(game, "dataExtract", path[-1])
     assert result["accepted"] is True
     assert result["state"]["analysisResource"] == 0
     assert result["state"]["status"] == "won"
 
 
-def test_spending_last_resource_on_supply_node_survives(game, act, set_player):
-    act(game, "scan", "E01")
-    act(game, "breach", "E01")
-    act(game, "scan", "E03")
+def test_spending_last_resource_on_supply_node_survives(game, ready_act, set_player):
+    ready_act(game, "scan", "E01")
+    ready_act(game, "breach", "E01")
+    ready_act(game, "scan", "E03")
     # 残り資源2（breachコストちょうど）で E03 に侵入すると、一度0になるが +5 補給されて生き残る
     set_player(game, analysis_resource=BREACH_COST["resource"])
-    state = act(game, "breach", "E03")["state"]
+    state = ready_act(game, "breach", "E03")["state"]
     assert state["analysisResource"] == 5
     assert state["status"] == "playing"
 
 
-def test_all_nodes_scanned_with_only_1_resource_left_loses_the_game(client, act, set_player):
+def test_all_nodes_scanned_with_only_1_resource_left_loses_the_game(client, ready_act, set_player):
     import main
     import models
 
@@ -542,19 +542,20 @@ def test_all_nodes_scanned_with_only_1_resource_left_loses_the_game(client, act,
     finally:
         db.close()
     set_player(gid, analysis_resource=SCAN_COST["resource"] + 1)
-    final_res = act(gid, "scan", "external-1")
+    final_res = ready_act(gid, "scan", "external-1")
     assert final_res["accepted"] is True
     assert final_res["state"]["analysisResource"] == 1
     assert final_res["state"]["status"] == "lost"
 
 
-def test_recovery_prevents_false_resource_game_over(game, act, set_player):
-    assert act(game, "scan", ENTRY)["accepted"]
+def test_recovery_prevents_false_resource_game_over(game, ready_act, set_player):
+    assert ready_act(game, "scan", ENTRY)["accepted"]
     set_player(game, analysis_resource=BREACH_COST["resource"])
-    state = act(game, "breach", ENTRY)["state"]
-    assert state["analysisResource"] == 0
+    state = ready_act(game, "breach", ENTRY)["state"]
+    assert state["analysisResource"] == 3  # E01の承認済み攻略報酬
+    set_player(game, analysis_resource=0)  # 回復判定は資源枯渇状態で確認する
     assert state["status"] == "playing"
-    recovered = act(game, "recover")
+    recovered = ready_act(game, "recover")
     assert recovered["accepted"]
     assert recovered["state"]["analysisResource"] == 5
     assert recovered["state"]["elapsedSeconds"] == (
@@ -562,26 +563,26 @@ def test_recovery_prevents_false_resource_game_over(game, act, set_player):
     )
 
 
-def test_remote_scan_reaches_disconnected_core(game, act):
+def test_remote_scan_reaches_disconnected_core(game, ready_act):
     core = nodes_in_layer("Core")[0]
-    blocked = act(game, "scan", core)
+    blocked = ready_act(game, "scan", core)
     assert blocked["accepted"] is False
     assert blocked["reason"] == "node_unreachable"
-    remote = act(game, "remoteScan", core)
+    remote = ready_act(game, "remoteScan", core)
     assert remote["accepted"] is False
     assert remote["reason"] == "node_unreachable"
-    assert act(game, "scan", ENTRY)["accepted"] is True
-    assert act(game, "breach", ENTRY)["accepted"] is True
-    remote = act(game, "remoteScan", core)
+    assert ready_act(game, "scan", ENTRY)["accepted"] is True
+    assert ready_act(game, "breach", ENTRY)["accepted"] is True
+    remote = ready_act(game, "remoteScan", core)
     assert remote["accepted"] is True
     assert node_of(remote["state"], core)["status"] == "scanned"
-    assert remote["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] - ACTION_COSTS["remoteScan"]["resource"]
+    assert remote["state"]["analysisResource"] == INITIAL_ANALYSIS_RESOURCE - SCAN_COST["resource"] - BREACH_COST["resource"] + 3 - ACTION_COSTS["remoteScan"]["resource"]
 
 
-def test_recovery_requires_hacked_node_and_respects_cap(game, act, set_player):
-    assert act(game, "recover")["reason"] == "node_unreachable"
-    act(game, "scan", ENTRY)
-    act(game, "breach", ENTRY)
+def test_recovery_requires_hacked_node_and_respects_cap(game, ready_act, set_player):
+    assert ready_act(game, "recover")["reason"] == "node_unreachable"
+    ready_act(game, "scan", ENTRY)
+    ready_act(game, "breach", ENTRY)
     set_player(game, analysis_resource=29)
-    assert act(game, "recover")["state"]["analysisResource"] == 30
-    assert act(game, "recover")["reason"] == "invalid_state"
+    assert ready_act(game, "recover")["state"]["analysisResource"] == 30
+    assert ready_act(game, "recover")["reason"] == "invalid_state"

@@ -123,28 +123,42 @@
 
 .mission-result__actions {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 24px;
 }
 
 .mission-result__actions button {
-  flex: 1;
-  padding: 14px;
+  flex: 1 1 130px;
+  padding: 14px 12px;
   border: 1px solid #00ff64;
   border-radius: 4px;
   background: #00e65c;
   color: #020a05;
   font: inherit;
   font-weight: 700;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   cursor: pointer;
   transition: background 0.18s, box-shadow 0.18s;
 }
 
-.mission-result__actions button:last-child {
+.mission-result__actions button.btn-secondary {
   background: rgba(6, 24, 14, 0.85);
   color: #b7e4c7;
   border-color: rgba(0, 255, 100, 0.38);
+}
+
+.mission-result__actions button.btn-mission {
+  background: rgba(25, 240, 200, 0.16);
+  color: #6df2db;
+  border-color: #19f0c8;
+}
+
+.mission-result__actions button.btn-inspect {
+  background: rgba(4, 18, 10, 0.88);
+  color: #d8efe2;
+  border-color: rgba(0, 255, 100, 0.35);
+  letter-spacing: 1px;
 }
 
 .mission-result__actions button:hover:not(:disabled) {
@@ -159,6 +173,64 @@
 .mission-result__actions button:disabled {
   opacity: 0.5;
   cursor: wait;
+}
+
+.mission-result-minimized {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  background: rgba(3, 14, 7, 0.96);
+  border: 1px solid #00ff64;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.75), 0 0 24px rgba(0, 255, 100, 0.25);
+  color: #e6f7ed;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.mission-result-minimized__badge {
+  color: #00ff64;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.mission-result-minimized__hint {
+  color: #88ab95;
+  font-size: 11px;
+}
+
+.mission-result-minimized__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mission-result-minimized__actions button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 255, 100, 0.38);
+  background: rgba(6, 22, 13, 0.9);
+  color: #b7e4c7;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mission-result-minimized__actions button.btn-restore {
+  background: #00e65c;
+  border-color: #00ff64;
+  color: #020a05;
+}
+
+.mission-result-minimized__actions button:hover:not(:disabled) {
+  filter: brightness(1.15);
 }
 
 @keyframes mission-result-enter {

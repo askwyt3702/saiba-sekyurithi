@@ -126,6 +126,11 @@ export const ALERT_DECAY_PER_SECOND = {ts_num(balance_config.ALERT_DECAY_PER_SEC
 export const EVALUATION_CONFIG = {json.dumps(balance_config.EVALUATION_CONFIG, ensure_ascii=False, indent=2)} as const;
 
 export const INITIAL_ANALYSIS_RESOURCE = {ts_num(balance_config.INITIAL_ANALYSIS_RESOURCE)};
+export const INITIAL_PRIVILEGE = {ts_str(balance_config.INITIAL_PRIVILEGE)};
+export const PRIVILEGE_LADDER = {json.dumps(balance_config.PRIVILEGE_LADDER)};
+export const LAYER_ORDER = {json.dumps(balance_config.LAYER_ORDER)};
+export const ALERT_GAME_OVER_THRESHOLD = {ts_num(balance_config.ALERT_GAME_OVER_THRESHOLD)};
+export const SECURITY_RULES = {json.dumps(balance_config.SECURITY_RULES, ensure_ascii=False)};
 export const MAX_ANALYSIS_RESOURCE = {ts_num(balance_config.MAX_ANALYSIS_RESOURCE)};
 export const RESOURCE_RECOVERY_AMOUNT = {ts_num(balance_config.RESOURCE_RECOVERY_AMOUNT)};
 export const RECOVERY_COST = {{ time: {ts_num(balance_config.ACTION_COSTS["recover"]["time"])}, alertDelta: {ts_num(balance_config.ACTION_COSTS["recover"]["alert_delta"])} }};
