@@ -1,4 +1,4 @@
-// このファイルは scripts/gen_stage_data.py で backend/game_data.py・balance_config.py から生成している。
+// このファイルは scripts/gen_stage_data.py で game_data.py・balance_config.py・map_generation_config.py から生成している。
 // 手で編集せず、バックエンド側を変えたらスクリプトを実行し直すこと。
 import type { ActionCost, ApiNetworkEdge, NetworkNode } from '../model/types';
 
@@ -47,6 +47,13 @@ export const EVALUATION_CONFIG = {
     }
   ]
 } as const;
+
+// Python生成器の正本から同期。独立したTS側の既定値を持たない。
+export const MAP_GENERATOR_VERSION = 'stage1-sha256-v1';
+export const MAP_VALIDATOR_VERSION = 'stage1-witness-v1';
+export const MAP_GENERATION_CONFIG = {"max_attempts": 16, "min_edges": 34, "max_edges": 40, "min_degree": 2, "max_degree": 5, "max_paths": 1024, "max_search_states": 10000, "max_route_nodes": 10, "fast_min_seconds": 225, "fast_max_seconds": 255, "fast_min_alert": 40.0, "fast_max_alert": 65.0, "fast_max_resource": 6, "detour_min_seconds": 30, "detour_max_seconds": 90, "stealth_alert_advantage": 15.0, "resource_advantage": 5};
+export const STAGE1_INTERNAL_KEYS = ["id", "name", "difficulty", "nodes", "edges", "entry_layers", "entry_node_ids", "target_node_ids", "key_fragment_node_ids", "node_effects", "security_rules", "seed", "generator_version", "rules_version", "important_node_ids", "conditional_breach_alert", "breach_requirements", "initial_state", "action_costs", "alert_decay_per_second", "max_analysis_resource", "resource_recovery_amount", "alert_game_over_threshold", "privilege_ladder", "layer_order", "evaluation_config", "resource_rewards"];
+export const STAGE1_EFFECT_KEYS = {"E03": ["resource_bonus", "alert_delta", "log"], "D06": ["resource_bonus", "alert_delta", "log"], "I03": ["resource_bonus", "alert_delta", "log"], "I04": ["resource_bonus", "alert_delta", "log"], "I05": ["resource_bonus", "alert_delta", "log"], "I06": ["resource_bonus", "alert_delta", "log"], "I07": ["resource_bonus", "alert_delta", "log"], "I09": ["resource_bonus", "alert_delta", "log"], "C04": ["resource_bonus", "alert_delta", "log"]};
 
 export const INITIAL_ANALYSIS_RESOURCE = 25;
 export const INITIAL_PRIVILEGE = 'GUEST';

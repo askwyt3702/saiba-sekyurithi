@@ -1,5 +1,8 @@
 # Stage1動的マップ生成・検証器（Backend試作）
 
+後続のTypeScript移植とPython/TS一致検証は[TypeScript移植報告](stage1-map-generator-typescript.md)を参照。
+以下の「Mock生成器未実装」はBackend試作時点の記録。通常開始への接続は現在も未実装。
+
 2026-11-14。基点はSnapshot基盤`69358c02`、作業ブランチは
 `feature/stage1-map-generator-20261114`。
 今回はオフラインの純粋関数のみ。新規ゲーム・API・UI・Mockの通常開始処理には接続しない。

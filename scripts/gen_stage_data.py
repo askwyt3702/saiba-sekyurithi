@@ -1,4 +1,4 @@
-"""backend/game_data.py・balance_config.py からフロント用の frontend/src/game/data/stageData.ts を生成する。
+"""backend/game_data.py・balance_config.py・map_generation_config.pyからstageData.tsを生成する。
 
 ステージやギミックを変えたら、リポジトリのルートで次を実行して stageData.ts も更新すること:
     python scripts/gen_stage_data.py
@@ -13,6 +13,8 @@ sys.path.insert(0, str(REPO / "backend"))
 
 import balance_config  # noqa: E402
 import game_data as g  # noqa: E402
+from map_generation_config import DEFAULT_CONFIG, GENERATOR_VERSION, VALIDATOR_VERSION
+from map_definition import map_from_stage
 
 OUTPUT = REPO / "frontend" / "src" / "game" / "data" / "stageData.ts"
 NL = "\n"
@@ -113,7 +115,7 @@ action_costs = format_action_costs(balance_config.ACTION_COSTS)
 stages_ts = NL.join(format_stage_entry(sid, s) for sid, s in sorted(g.STAGES.items()))
 all_target_ids = sorted({tid for s in g.STAGES.values() for tid in s.get("target_node_ids", set())})
 
-generated = f"""// このファイルは scripts/gen_stage_data.py で backend/game_data.py・balance_config.py から生成している。
+generated = f"""// このファイルは scripts/gen_stage_data.py で game_data.py・balance_config.py・map_generation_config.py から生成している。
 // 手で編集せず、バックエンド側を変えたらスクリプトを実行し直すこと。
 import type {{ ActionCost, ApiNetworkEdge, NetworkNode }} from '../model/types';
 
@@ -124,6 +126,13 @@ export const ACTION_COSTS = {{
 export const ALERT_DECAY_PER_SECOND = {ts_num(balance_config.ALERT_DECAY_PER_SECOND)};
 
 export const EVALUATION_CONFIG = {json.dumps(balance_config.EVALUATION_CONFIG, ensure_ascii=False, indent=2)} as const;
+
+// Python生成器の正本から同期。独立したTS側の既定値を持たない。
+export const MAP_GENERATOR_VERSION = {ts_str(GENERATOR_VERSION)};
+export const MAP_VALIDATOR_VERSION = {ts_str(VALIDATOR_VERSION)};
+export const MAP_GENERATION_CONFIG = {json.dumps(DEFAULT_CONFIG.as_dict(), ensure_ascii=False)};
+export const STAGE1_INTERNAL_KEYS = {json.dumps(list(map_from_stage(g.get_stage(1))), ensure_ascii=False)};
+export const STAGE1_EFFECT_KEYS = {json.dumps({nid: list(effect) for nid, effect in g.NODE_EFFECTS.items()}, ensure_ascii=False)};
 
 export const INITIAL_ANALYSIS_RESOURCE = {ts_num(balance_config.INITIAL_ANALYSIS_RESOURCE)};
 export const INITIAL_PRIVILEGE = {ts_str(balance_config.INITIAL_PRIVILEGE)};
