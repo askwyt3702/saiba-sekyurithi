@@ -144,7 +144,6 @@ export function NodeDetailPanel({
   const canBreach =
     node.status === 'scanned' &&
     !locked &&
-    !(securityRule?.failure_mode === 'reject' && !securityReady) &&
     playing && reachable && privileges.indexOf(privilege) >= layers.indexOf(node.layer) &&
     analysisResource >= balanceConfig.breach.resource;
 
