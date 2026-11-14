@@ -197,9 +197,17 @@ export function NodeDetailPanel({
     setIsExploitOpen(true);
   };
 
+  const ensureSecurityReady = async () => {
+    if (securityRule?.required_info && !confirmed) {
+      await onAction('confirmInfo');
+    }
+    if (securityRule?.required_analysis && !analyzed) {
+      await onAction('completeAnalysis');
+    }
+  };
+
   const handleSelectExploitChoice = async (choiceId: string, isCorrect: boolean) => {
     if (!canBreach || answerPending.current) return;
-    if (!isCorrect && securityRule?.correct_exploits?.length && !securityReady) return;
     const flash = () => {
       if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
       setModalAlert(true);
@@ -212,8 +220,11 @@ export function NodeDetailPanel({
     }
     answerPending.current = true;
     try {
+      if (!securityReady) {
+        await ensureSecurityReady();
+      }
       const result = await onAction('breach', undefined, true, choiceId, currentQuestion.id);
-      if (result && result.accepted) {
+      if (!result || result.accepted) {
         flash();
         setPenalizedChoiceIds((prev) => [...prev, choiceId]);
         setSelectedExploitId(choiceId);
@@ -447,7 +458,7 @@ export function NodeDetailPanel({
                 <div className="exploit-terminal-box__log">
                   {challenge.scanTerminalLog}
                 </div>
-                {isInvestigated ? (
+                {isInvestigated && (!securityRule?.required_analysis || analyzed) ? (
                   <div className="exploit-recon-box exploit-recon-box--done">
                     <div className="exploit-recon-box__head">
                       <span className="exploit-recon-box__badge">RECON INTEL ✓</span>
@@ -463,7 +474,9 @@ export function NodeDetailPanel({
                     <button
                       type="button"
                       className="exploit-recon-box__btn"
-                      onClick={() => onAction('confirmInfo' as TimedActionType)}
+                      onClick={() => {
+                        void ensureSecurityReady();
+                      }}
                     >
                       🔍 事前調査を実行（無料）
                     </button>
@@ -611,6 +624,9 @@ export function NodeDetailPanel({
                     if (answerPending.current) return;
                     answerPending.current = true;
                     try {
+                      if (!securityReady) {
+                        await ensureSecurityReady();
+                      }
                       const result = await onAction(
                         'breach',
                         showPasscodeInput ? passcode : undefined,
@@ -618,8 +634,8 @@ export function NodeDetailPanel({
                         selectedExploitId ?? undefined,
                         currentQuestion.id,
                       );
-                      if (result && result.accepted) {
-                        if (securityReady) setSolvedQuestionIds((prev) => prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id]);
+                      if (!result || result.accepted) {
+                        setSolvedQuestionIds((prev) => prev.includes(currentQuestion.id) ? prev : [...prev, currentQuestion.id]);
                         setIsExploitOpen(false);
                       }
                     } finally { answerPending.current = false; }

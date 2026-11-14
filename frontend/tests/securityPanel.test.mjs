@@ -216,3 +216,40 @@ test('all 45 nodes reject missing, unknown and foreign questions without consump
     }
   }
 });
+
+test('E01 and E02 allow clicking wrong choices in the exploit modal without spoiling the correct answer', async () => {
+  for (const id of ['E01', 'E02']) {
+    hookValues = [];
+    hookCursor = 0;
+    const client = new MockGameClient(`wrong-choice-${id}`, 1);
+    await client.connect(() => {});
+    if (id !== 'E01') client.state.nodes.find((n) => n.id === 'E01').status = 'hacked';
+    await client.sendAction({ type: 'scan', nodeId: id });
+    const panel = () => {
+      hookCursor = 0;
+      return NodeDetailPanel({
+        node: client.state.nodes.find((n) => n.id === id),
+        nodes: client.state.nodes,
+        edges: client.state.edges,
+        stageId: 1,
+        gameStatus: client.state.status,
+        analysisResource: client.state.analysisResource,
+        privilege: client.state.privilege,
+        alertLevel: client.state.alertLevel,
+        securityEvents: client.state.securityEvents,
+        notice: null,
+        onAction(type, passcode, exploitMismatch, exploitId, questionId) {
+          return client.sendAction({ type, nodeId: id, passcode, exploitMismatch, exploitId, questionId });
+        },
+      });
+    };
+    // Open exploit modal directly
+    elements(panel(), 'button')[2].props.onClick();
+    const challenge = getSecurityChallenge(id, STAGES[1].vulnerabilities[id]);
+    const wrongIdx = challenge.questions[0].choices.findIndex((c) => !c.isCorrect);
+    const choices = () => elements(panel(), 'button').filter((b) => b.props.className?.startsWith('exploit-choice '));
+    await choices()[wrongIdx].props.onClick();
+    assert.ok(choices()[wrongIdx].props.className.includes('exploit-choice--wrong'));
+    assert.ok(elements(panel(), 'div').some((el) => el.props.className?.includes('exploit-modal--ids-alert')));
+  }
+});
