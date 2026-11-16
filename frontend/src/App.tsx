@@ -16,6 +16,7 @@ import { MissionFailure } from './components/MissionFailure/MissionFailure';
 import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
 import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
+import { BgmController } from './components/Bgm/BgmController';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import { playSound } from './game/sound/soundEffects';
 import './App.css';
@@ -237,6 +238,7 @@ function App() {
         isHighAlert ? 'app-shell--high-alert' : ''
       }`.trim()}
     >
+      <BgmController active={state.status === 'playing'} alertLevel={state.alertLevel} />
       {idsAlertActive && (
         <div className="ids-alert-banner" role="alert">
           ⚠ [CRITICAL IDS ALERT] 侵入検知センサー作動 // 不正エクスプロイト遮断

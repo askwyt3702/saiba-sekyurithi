@@ -215,6 +215,7 @@ function mountApp(gameState, reset, sendAction = async () => ({ accepted: true }
     './components/MissionResult/MissionResult': { MissionResult },
     './components/MissionFailure/MissionFailure': { MissionFailure },
     './components/StageMechanics/StageMechanicsStatus': { StageMechanicsStatus: 'StageMechanicsStatus' },
+    './components/Bgm/BgmController': { BgmController: 'BgmController' },
   };
   for (const name of ['MapView', 'StatusBar', 'NodeDetailPanel', 'EventLog', 'TitleScreen', 'MissionScreen', 'ToolPanel', 'TutorialBanner']) {
     dependencies[`./components/${name}/${name}`] = { [name]: name };

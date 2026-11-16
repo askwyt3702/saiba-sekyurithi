@@ -1,4 +1,5 @@
 
+import { useState } from 'react';
 import {
   Handle,
   Position,
@@ -33,6 +34,9 @@ export function NetworkNodeView({
   data,
 }: NodeProps<NetworkFlowNode>) {
   const { node, selected, isEntry, isMonitored, monitoringExtra = 0, gateState, effect, isKeyFragment } = data;
+  // 画面を開いた時点の状態。ここから変わったときだけ演出を出す(読み込み直しで全ノードが光らないように)
+  const [initialStatus] = useState(node.status);
+  const statusChanged = node.status !== initialStatus;
 
   const displayName =
     node.status === 'unscanned'
@@ -93,6 +97,11 @@ export function NetworkNodeView({
       )}
       {isMonitored && <div className="network-node__mechanic">{monitoringExtra > 0 ? `監視 +${monitoringExtra}%` : '監視解除済み'}</div>}
       {gateState && <div className="network-node__mechanic">ゲート：{gateState === 'locked' ? 'ロック中' : gateState === 'hacked' ? '攻略済み' : '解除済み'}</div>}
+
+      {/* スキャン・侵入の演出。key に状態を入れて、状態が変わるたびに要素を作り直し、アニメーションを1回だけ再生する */}
+      {statusChanged && node.status !== 'unscanned' && (
+        <span key={node.status} className={`network-node__fx network-node__fx--${node.status}`} aria-hidden="true" />
+      )}
 
       <Handle type="source" position={Position.Bottom} />
     </div>
