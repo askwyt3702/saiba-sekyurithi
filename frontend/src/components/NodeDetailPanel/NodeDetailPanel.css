@@ -1017,3 +1017,64 @@
   font-family: monospace;
   font-size: 11.5px;
 }
+
+/* ========================================
+   攻撃チェーン（Kill Chain / 踏台インテル連携）
+======================================== */
+.node-detail__killchain {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  color: #cbd5e1;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.node-detail__killchain--active {
+  background: rgba(6, 78, 59, 0.35);
+  border: 1px solid #10b981;
+  color: #a7f3d0;
+}
+
+.exploit-killchain-banner {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.exploit-killchain-banner--active {
+  background: rgba(6, 95, 70, 0.35);
+  border: 1px solid #10b981;
+  border-left: 4px solid #10b981;
+  color: #d1fae5;
+}
+
+.exploit-killchain-banner--inactive {
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px dashed #64748b;
+  color: #cbd5e1;
+}
+
+.exploit-killchain-banner__badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: #10b981;
+  color: #022c22;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.exploit-killchain-banner__badge--off {
+  background: #475569;
+  color: #f1f5f9;
+}

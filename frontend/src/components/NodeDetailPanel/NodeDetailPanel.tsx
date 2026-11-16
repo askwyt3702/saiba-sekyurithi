@@ -192,12 +192,24 @@ export function NodeDetailPanel({
   const wrongAlert = securityRule?.exploit_failure_alert ?? 8;
   const wrongResource = securityRule?.failure_resource ?? 0;
 
-  // 浅い層（Stage 0 / External / DMZ）のみ事前調査でダミー1択を自動除外。Internal / Core は3択ガチ勝負
+  // 攻撃チェーン（Kill Chain / 踏台インテル連携）判定
+  const killChain = securityMeta.killChain;
+  const activeKillChainSources = killChain
+    ? killChain.sourceNodeIds.filter(
+        (srcId) => nodes.find((n) => n.id === srcId)?.status === 'hacked',
+      )
+    : [];
+  const isKillChainActive = activeKillChainSources.length > 0;
+
+  // 浅い層（Stage 0 / External / DMZ）、または深層（Internal / Core）でも攻撃チェーンが成立していれば事前調査でダミー1択を自動除外
   const canFilterDummyChoice =
-    stageId === 0 || node.layer === 'External' || node.layer === 'DMZ';
-  // Core層（Stage 1/2）は事前調査を行うまで選択肢の解説文が暗号化される
+    stageId === 0 ||
+    node.layer === 'External' ||
+    node.layer === 'DMZ' ||
+    isKillChainActive;
+  // Core層（Stage 1/2）は事前調査を行うまで選択肢の解説文が暗号化される（攻撃チェーン成立時は最初から復号済）
   const isDescriptionEncrypted =
-    stageId !== 0 && node.layer === 'Core' && !isInvestigated;
+    stageId !== 0 && node.layer === 'Core' && !isInvestigated && !isKillChainActive;
 
   const filteredOutChoiceId =
     isInvestigated && canFilterDummyChoice
@@ -270,6 +282,13 @@ export function NodeDetailPanel({
             ? `条件未達で侵入を実行すると、資源${balanceConfig.breach.resource}・${balanceConfig.breach.time}秒・警戒度実増${securityRule.failure_alert - balanceConfig.alertDecayPerSecond * balanceConfig.breach.time}%を消費し、侵入は未完了になります。`
             : '情報未確認の侵入は無消費で拒否されます。情報確認を完了してください。'}</p>}
           <p>情報確認ボタンから説明を読み、確認操作を完了してください。</p>
+          {killChain && (
+            <p className={`node-detail__killchain ${isKillChainActive ? 'node-detail__killchain--active' : ''}`}>
+              {isKillChainActive
+                ? `🔗 攻撃チェーン成立（${activeKillChainSources.join('・')} 攻略済）：${killChain.chainLabel}（事前調査でダミー1択除外${node.layer === 'Core' ? '＆暗号化解除' : ''}が有効！）`
+                : `🔗 攻撃チェーン条件：${killChain.sourceNodeIds.join(' または ')} を先に攻略すると踏台連携が成立し、深層でもダミー1択除外${node.layer === 'Core' ? '＆暗号化解除' : ''}が解放されます。`}
+            </p>
+          )}
         </section>
       )}
       {monitored && monitor && (
@@ -491,16 +510,53 @@ export function NodeDetailPanel({
                 <div className="exploit-terminal-box__log">
                   {challenge.scanTerminalLog}
                 </div>
+                {killChain && (
+                  <div
+                    className={`exploit-killchain-banner ${
+                      isKillChainActive
+                        ? 'exploit-killchain-banner--active'
+                        : 'exploit-killchain-banner--inactive'
+                    }`}
+                  >
+                    {isKillChainActive ? (
+                      <>
+                        <span className="exploit-killchain-banner__badge">🔗 KILL CHAIN ACTIVE</span>
+                        <span>
+                          踏台連携（<strong>{activeKillChainSources.join('・')}</strong> 攻略済）：{killChain.chainLabel}
+                          {' '}➔{' '}
+                          <strong>
+                            {node.layer === 'Core'
+                              ? '暗号化ペイロード自動復号＆事前調査でダミー1択除外が解放されました！'
+                              : '深層Internalですが事前調査でダミー1択除外（2択絞込）が解放されました！'}
+                          </strong>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="exploit-killchain-banner__badge exploit-killchain-banner__badge--off">
+                          🔗 KILL CHAIN 未成立
+                        </span>
+                        <span>
+                          踏台情報源（<strong>{killChain.sourceNodeIds.join(' または ')}</strong>）が未攻略のため、深層3択ガチ勝負になります（先に攻略するとダミー1択除外{node.layer === 'Core' ? '＆自動復号' : ''}が解放）
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
                 {isInvestigated && (!securityRule?.required_analysis || analyzed) ? (
                   <div className="exploit-recon-box exploit-recon-box--done">
                     <div className="exploit-recon-box__head">
-                      <span className="exploit-recon-box__badge">RECON INTEL ✓</span>
+                      <span className="exploit-recon-box__badge">
+                        {isKillChainActive ? 'RECON + KILL CHAIN ✓' : 'RECON INTEL ✓'}
+                      </span>
                       <strong>
-                        {canFilterDummyChoice
-                          ? '事前調査（情報確認）完了 — 無関係なダミー攻撃手法を1つ除外しました'
-                          : node.layer === 'Core'
-                            ? '事前調査（情報確認）完了 — 暗号化されていたペイロード解説を復号しました（深層Coreのため3択維持）'
-                            : '事前調査（情報確認）完了 — 深層Internalのためダミー自動除外なし（調査ヒントを基に3択から見極めてください）'}
+                        {isKillChainActive
+                          ? `事前調査＋攻撃チェーン連携（${activeKillChainSources.join('・')}）完了 — 深層セキュリティを突破しダミー攻撃手法を1つ除外しました！`
+                          : canFilterDummyChoice
+                            ? '事前調査（情報確認）完了 — 無関係なダミー攻撃手法を1つ除外しました'
+                            : node.layer === 'Core'
+                              ? '事前調査（情報確認）完了 — 暗号化されていたペイロード解説を復号しました（深層Coreのため3択維持）'
+                              : '事前調査（情報確認）完了 — 深層Internalのためダミー自動除外なし（調査ヒントを基に3択から見極めてください）'}
                       </strong>
                     </div>
                     <p className="exploit-recon-box__text">{securityMeta.infoHint}</p>
@@ -508,11 +564,13 @@ export function NodeDetailPanel({
                 ) : (
                   <div className="exploit-recon-box">
                     <span className="exploit-recon-box__prompt">
-                      {canFilterDummyChoice
-                        ? '💡 攻撃手法に迷ったら、無料の「事前調査（情報確認）」でヒント取得＆ダミー選択肢を1つ除外できます'
-                        : node.layer === 'Core'
-                          ? '🔒 Core層セキュリティ保護：無料の「事前調査（情報確認）」を実行すると、暗号化された選択肢の解説文を復号＆ヒントを取得できます'
-                          : '💡 深層Internal（3択ガチ勝負）：ダミー自動除外はありませんが、無料の「事前調査（情報確認）」で突破ヒントを取得できます'}
+                      {isKillChainActive
+                        ? `🔗 攻撃チェーン成立中！無料の「事前調査（情報確認）」を実行すると、ヒント取得＆深層ダミー選択肢を1つ除外できます`
+                        : canFilterDummyChoice
+                          ? '💡 攻撃手法に迷ったら、無料の「事前調査（情報確認）」でヒント取得＆ダミー選択肢を1つ除外できます'
+                          : node.layer === 'Core'
+                            ? '🔒 Core層セキュリティ保護：無料の「事前調査（情報確認）」を実行すると、暗号化された選択肢の解説文を復号＆ヒントを取得できます'
+                            : '💡 深層Internal（3択ガチ勝負）：ダミー自動除外はありませんが、無料の「事前調査（情報確認）」で突破ヒントを取得できます'}
                     </span>
                     <button
                       type="button"
@@ -598,7 +656,7 @@ export function NodeDetailPanel({
                         </p>
                       ) : (
                         <p className="exploit-choice__desc">
-                          {stageId !== 0 && node.layer === 'Core' && isInvestigated
+                          {stageId !== 0 && node.layer === 'Core' && (isInvestigated || isKillChainActive)
                             ? `🔓 [復号済] ${choice.description}`
                             : choice.description}
                         </p>
@@ -847,13 +905,15 @@ export function NodeDetailPanel({
                   <button
                     type="button"
                     className="node-info-modal__close-btn"
-                    disabled={!playing || confirmed}
+                    disabled={!playing || (confirmed && !isSilentOnly)}
                     onClick={() => {
                       setSilentConfirmedNodes((prev) => prev.filter((id) => id !== node.id));
-                      onAction('confirmInfo');
+                      if (!confirmed) {
+                        onAction('confirmInfo');
+                      }
                     }}
                   >
-                    {confirmed ? '情報確認済み' : '情報を確認した'}
+                    {confirmed && !isSilentOnly ? '情報確認済み' : '情報を確認した'}
                   </button>
                   {securityRule.required_analysis && <button type="button" className="node-info-modal__close-btn" disabled={!playing || !confirmed || analyzed} onClick={() => onAction('completeAnalysis')}>
                     {analyzed ? '解析完了済み' : '解析を完了する'}

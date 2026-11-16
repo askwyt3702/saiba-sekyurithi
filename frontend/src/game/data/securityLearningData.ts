@@ -1350,14 +1350,22 @@ const CHALLENGE_GROUPS: ChallengeGroupDef[] = [
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
+export interface KillChainIntel {
+  /** このノードのセキュリティを弱体化させる踏台（情報源）ノードID一覧（いずれか1つ攻略済みで発動） */
+  sourceNodeIds: string[];
+  /** 攻撃チェーンの仕組み解説 */
+  chainLabel: string;
+}
+
 export interface NodeSecurityMeta {
   riskLevel: RiskLevel;
   failureAlert: number;
   failureResource: number;
   infoHint: string;
+  killChain?: KillChainIntel;
 }
 
-const NODE_SECURITY_META: Record<string, Pick<NodeSecurityMeta, 'riskLevel' | 'infoHint'>> = {
+const NODE_SECURITY_META: Record<string, Pick<NodeSecurityMeta, 'riskLevel' | 'infoHint' | 'killChain'>> = {
   E01: { riskLevel: 'MEDIUM', infoHint: 'Port 22にてパスワード認証（PasswordAuthentication yes）が許可されており、試行制限が未導入です。辞書攻撃（hydra）またはsshd_configの設定不備特定が有効です。' },
   E02: { riskLevel: 'MEDIUM', infoHint: 'DNSサーバーのゾーン転送設定（allow-transfer { any; };）の不備を確認。AXFRクエリにより内部ドメインのレコード一覧を取得可能です。' },
   E03: { riskLevel: 'LOW', infoHint: '共有アーカイブの匿名アクセス（guest ok = yes）が有効です。Null Session接続により資源（RESOURCE +5）を回収可能です。' },
@@ -1368,36 +1376,136 @@ const NODE_SECURITY_META: Record<string, Pick<NodeSecurityMeta, 'riskLevel' | 'i
   D05: { riskLevel: 'MEDIUM', infoHint: '設定ファイルおよびメモリキャッシュに認証シークレットが平文（ハードコード）で残存しています。' },
   D06: { riskLevel: 'LOW', infoHint: 'プロキシ・監査ログの書き込み権限が開放されており、ログ改ざんにより警戒度を削減可能です。' },
   D07: { riskLevel: 'HIGH', infoHint: '監視装置の制御APIが無認証で露出しており、アラート抑制およびログ改ざんが可能です。' },
-  I01: { riskLevel: 'HIGH', infoHint: '社内Active Directory/IAMで過剰なロール権限またはsudoersのNOPASSWD設定ミスがあり、特権昇格が可能です。' },
-  I02: { riskLevel: 'MEDIUM', infoHint: '開発環境の `/etc/sudoers` でパスワードなし実行（NOPASSWD: ALL）が許可されており、ADMIN権限への昇格が可能です。' },
-  I03: { riskLevel: 'MEDIUM', infoHint: '監査ログサーバーが追記専用（WORM）になっておらず、侵入証跡の消去により警戒度を-15%削減可能です。' },
-  I04: { riskLevel: 'HIGH', infoHint: 'ARGUS監視AIの制御APIが無認証で露出しており、ポリシー書き換えにより警戒度を-20%引き下げ可能です。' },
-  I05: { riskLevel: 'LOW', infoHint: 'バックアップ共有（smb.conf）でゲスト接続が許可されており、解析資源を最大+10補給可能です。' },
-  I06: { riskLevel: 'MEDIUM', infoHint: '社内ファイル共有のACL設定不備により、無認証で「暗号鍵の断片A」を回収可能です。' },
-  I07: { riskLevel: 'MEDIUM', infoHint: '管理スクリプト内に秘密鍵・資格情報がハードコード（平文保存）されており、「暗号鍵の断片B」を抽出可能です。' },
-  I08: { riskLevel: 'HIGH', infoHint: '内部ルーターの管理プレーンが分離されておらず、ACL・ルーティング書き換えが可能です。' },
-  I09: { riskLevel: 'HIGH', infoHint: 'ファイアウォール最上位にテスト用の全許可ルール（ALLOW ANY）が残っており、資源+3と警戒度-10%を獲得可能です。' },
-  I10: { riskLevel: 'MEDIUM', infoHint: '研究開発用REST APIの認可チェック漏れを突き、最深部Coreノードへの最短侵入ルートを開けます。' },
-  C01: { riskLevel: 'CRITICAL', infoHint: 'CoreファイアウォールのACL設定不備（最上位のALLOW ANYルール）を突いて最深部へ到達可能です。' },
-  C02: { riskLevel: 'HIGH', infoHint: '古いTLS 1.0/1.1プロトコルが有効なままであり、ダウングレード攻撃が通用します。' },
-  C03: { riskLevel: 'CRITICAL', infoHint: 'SQL文の文字列連結（プレースホルダ未使用）によるSQLインジェクション脆弱性で極秘データを抽出可能です！' },
-  C04: { riskLevel: 'HIGH', infoHint: 'ARGUS緊急防衛システムの未認証APIを操作し、警戒度を-15%大幅低下させます。' },
+  I01: {
+    riskLevel: 'HIGH',
+    infoHint: '社内Active Directory/IAMで過剰なロール権限またはsudoersのNOPASSWD設定ミスがあり、特権昇格が可能です。',
+    killChain: { sourceNodeIds: ['E02', 'I03'], chainLabel: 'E02(DNS情報)またはI03(ログ管理)の内部構成データからAD特権ロール設定を特定' },
+  },
+  I02: {
+    riskLevel: 'MEDIUM',
+    infoHint: '開発環境の `/etc/sudoers` でパスワードなし実行（NOPASSWD: ALL）が許可されており、ADMIN権限への昇格が可能です。',
+    killChain: { sourceNodeIds: ['D05', 'E02'], chainLabel: 'D05(認証キャッシュ)またはE02(DNS情報)から開発環境の権限構成を特定' },
+  },
+  I03: {
+    riskLevel: 'MEDIUM',
+    infoHint: '監査ログサーバーが追記専用（WORM）になっておらず、侵入証跡の消去により警戒度を-15%削減可能です。',
+    killChain: { sourceNodeIds: ['D06', 'D07'], chainLabel: 'D06(プロキシ)またはD07(DMZ監視)の通信設定から監査ログの書き込みパスを特定' },
+  },
+  I04: {
+    riskLevel: 'HIGH',
+    infoHint: 'ARGUS監視AIの制御APIが無認証で露出しており、ポリシー書き換えにより警戒度を-20%引き下げ可能です。',
+    killChain: { sourceNodeIds: ['D07', 'I05'], chainLabel: 'D07(DMZ監視)またはI05(バックアップ)からARGUS監視APIの制御仕様を特定' },
+  },
+  I05: {
+    riskLevel: 'LOW',
+    infoHint: 'バックアップ共有（smb.conf）でゲスト接続が許可されており、解析資源を最大+10補給可能です。',
+    killChain: { sourceNodeIds: ['E03'], chainLabel: 'E03(公開アーカイブ)の移行用構成情報からバックアップ共有のACL不備を特定' },
+  },
+  I06: {
+    riskLevel: 'MEDIUM',
+    infoHint: '社内ファイル共有のACL設定不備により、無認証で「暗号鍵の断片A」を回収可能です。',
+    killChain: { sourceNodeIds: ['I01', 'I05'], chainLabel: 'I01(社内認証)またはI05(バックアップ)から共有ファイルサーバーの非公開パスを特定' },
+  },
+  I07: {
+    riskLevel: 'MEDIUM',
+    infoHint: '管理スクリプト内に秘密鍵・資格情報がハードコード（平文保存）されており、「暗号鍵の断片B」を抽出可能です。',
+    killChain: { sourceNodeIds: ['I06'], chainLabel: 'I06(社内ファイルサーバー)の構成ファイルから管理端末の資格情報保存先を特定' },
+  },
+  I08: {
+    riskLevel: 'HIGH',
+    infoHint: '内部ルーターの管理プレーンが分離されておらず、ACL・ルーティング書き換えが可能です。',
+    killChain: { sourceNodeIds: ['I01', 'I04'], chainLabel: 'I01(社内認証)またはI04(監視制御)から内部ルーターの管理プレーン設定を特定' },
+  },
+  I09: {
+    riskLevel: 'HIGH',
+    infoHint: 'ファイアウォール最上位にテスト用の全許可ルール（ALLOW ANY）が残っており、資源+3と警戒度-10%を獲得可能です。',
+    killChain: { sourceNodeIds: ['I04', 'I07'], chainLabel: 'I04(ARGUS監視制御)またはI07(管理端末)の特権情報から防衛管理ルールを特定' },
+  },
+  I10: {
+    riskLevel: 'MEDIUM',
+    infoHint: '研究開発用REST APIの認可チェック漏れを突き、最深部Coreノードへの最短侵入ルートを開けます。',
+    killChain: { sourceNodeIds: ['I06', 'I09'], chainLabel: 'I06(ファイル共有)またはI09(セキュリティ管理)から研究用APIの認可バイパス経路を特定' },
+  },
+  C01: {
+    riskLevel: 'CRITICAL',
+    infoHint: 'CoreファイアウォールのACL設定不備（最上位のALLOW ANYルール）を突いて最深部へ到達可能です。',
+    killChain: { sourceNodeIds: ['I09'], chainLabel: 'I09(セキュリティ管理サーバー)の掌握により、Coreファイアウォールの防御ルールを無力化' },
+  },
+  C02: {
+    riskLevel: 'HIGH',
+    infoHint: '古いTLS 1.0/1.1プロトコルが有効なままであり、ダウングレード攻撃が通用します。',
+    killChain: { sourceNodeIds: ['I06', 'I07', 'I09'], chainLabel: '暗号鍵断片(I06/I07)またはI09(セキュリティ管理)の掌握により、暗号認証仕様を解析' },
+  },
+  C03: {
+    riskLevel: 'CRITICAL',
+    infoHint: 'SQL文の文字列連結（プレースホルダ未使用）によるSQLインジェクション脆弱性で極秘データを抽出可能です！',
+    killChain: { sourceNodeIds: ['C04', 'I09', 'I07'], chainLabel: 'C04(緊急防衛)・I09(セキュリティ管理)・またはI07(管理端末)の掌握により、研究DBの防御を弱体化' },
+  },
+  C04: {
+    riskLevel: 'HIGH',
+    infoHint: 'ARGUS緊急防衛システムの未認証APIを操作し、警戒度を-15%大幅低下させます。',
+    killChain: { sourceNodeIds: ['I04', 'I09'], chainLabel: 'I04(ARGUS監視制御)またはI09(セキュリティ管理)の掌握により、緊急防衛プロトコルを解析' },
+  },
   'S2-E01': { riskLevel: 'MEDIUM', infoHint: '調査用アカウントのSSHパスワード認証が有効で試行制限がなく、辞書攻撃が有効です。' },
   'S2-D01': { riskLevel: 'MEDIUM', infoHint: 'DNSゾーン転送（allow-transfer { any; };）の露出により、内部通信ルートを取得可能です。' },
   'S2-D02': { riskLevel: 'MEDIUM', infoHint: 'Web認証窓口のパストラバーサルおよびアクセス制御不備を突いて経路バイパスが可能です。' },
   'S2-D03': { riskLevel: 'HIGH', infoHint: 'トラフィック集約装置のDNS/中継設定不備を確認。S2-I07攻略による監視解除を推奨します。' },
   'S2-D04': { riskLevel: 'MEDIUM', infoHint: '社内管理プロキシのアクセス制御不備により、内部サーバーへの通信中継が許可されます。' },
-  'S2-I01': { riskLevel: 'HIGH', infoHint: '保守用アカウントの過剰権限（IAMロール／sudoers NOPASSWD）からADMIN権限への昇格が可能です。' },
-  'S2-I02': { riskLevel: 'HIGH', infoHint: '内部ルーターのACL/ファイアウォール設定不備を突いて転送ゲートへの経路を開放できます。' },
-  'S2-I03': { riskLevel: 'MEDIUM', infoHint: '予備解析基盤の特権設定ミス（NOPASSWD / 過剰ACL）を突き、解析資源を最大+7補給可能です。' },
-  'S2-I04': { riskLevel: 'HIGH', infoHint: '証明書管理APIのレガシーTLS設定・認可不備を突き、S2-C02のゲートロックを解除できます！' },
-  'S2-I05': { riskLevel: 'MEDIUM', infoHint: '監査ログ中継サーバーのログ改ざん（WORM未設定）により、警戒度を-8%削減可能です。' },
-  'S2-I06': { riskLevel: 'LOW', infoHint: '証跡バックアップ共有のゲスト権限開放（guest ok = yes）から解析資源を最大+5回収可能です。' },
-  'S2-I07': { riskLevel: 'CRITICAL', infoHint: '常時監視センサーの未認証制御APIを停止することで、追加警戒度+12%を無効化しS2-C04を解放します！' },
-  'S2-C01': { riskLevel: 'HIGH', infoHint: 'Core直接転送ゲートのファイアウォールルール不備を突いて原本DBへ接続可能です。' },
-  'S2-C02': { riskLevel: 'CRITICAL', infoHint: '相互TLSゲートの旧プロトコル許容・証明書不備を突き、安全に原本DBへ到達できます。' },
-  'S2-C03': { riskLevel: 'CRITICAL', infoHint: '原本通信証跡DBのSQLインジェクション（文字列連結）を突いて原本ログを回収します！' },
-  'S2-C04': { riskLevel: 'HIGH', infoHint: '監視網の迂回ゲートで未保護の監査ログを消去し、警戒度を-10%削減できます。' },
+  'S2-I01': {
+    riskLevel: 'HIGH',
+    infoHint: '保守用アカウントの過剰権限（IAMロール／sudoers NOPASSWD）からADMIN権限への昇格が可能です。',
+    killChain: { sourceNodeIds: ['S2-I04', 'S2-I07'], chainLabel: 'S2-I04(証明書管理)またはS2-I07(監視制御)から通信交換ハブの保守権限を特定' },
+  },
+  'S2-I02': {
+    riskLevel: 'HIGH',
+    infoHint: '内部ルーターのACL/ファイアウォール設定不備を突いて転送ゲートへの経路を開放できます。',
+    killChain: { sourceNodeIds: ['S2-I07', 'S2-I05'], chainLabel: 'S2-I07(監視制御端末)またはS2-I05(監査ログ中継)から内部ルーターの転送設定を特定' },
+  },
+  'S2-I03': {
+    riskLevel: 'MEDIUM',
+    infoHint: '予備解析基盤の特権設定ミス（NOPASSWD / 過剰ACL）を突き、解析資源を最大+7補給可能です。',
+    killChain: { sourceNodeIds: ['S2-I06', 'S2-I07'], chainLabel: 'S2-I06(証跡バックアップ)またはS2-I07(監視制御)から予備解析基盤のクラスタ構成を特定' },
+  },
+  'S2-I04': {
+    riskLevel: 'HIGH',
+    infoHint: '証明書管理APIのレガシーTLS設定・認可不備を突き、S2-C02のゲートロックを解除できます！',
+    killChain: { sourceNodeIds: ['S2-I05'], chainLabel: 'S2-I05(監査ログ中継)の通信記録から証明書管理APIのエンドポイント仕様を特定' },
+  },
+  'S2-I05': {
+    riskLevel: 'MEDIUM',
+    infoHint: '監査ログ中継サーバーのログ改ざん（WORM未設定）により、警戒度を-8%削減可能です。',
+    killChain: { sourceNodeIds: ['S2-I04', 'S2-D03'], chainLabel: 'S2-I04(証明書管理)またはS2-D03(集約装置)から監査ログ中継の書き換え権限を特定' },
+  },
+  'S2-I06': {
+    riskLevel: 'LOW',
+    infoHint: '証跡バックアップ共有のゲスト権限開放（guest ok = yes）から解析資源を最大+5回収可能です。',
+    killChain: { sourceNodeIds: ['S2-I05', 'S2-I07'], chainLabel: 'S2-I05(監査ログ)またはS2-I07(監視制御)から証跡バックアップの未保護領域を特定' },
+  },
+  'S2-I07': {
+    riskLevel: 'CRITICAL',
+    infoHint: '常時監視センサーの未認証制御APIを停止することで、追加警戒度+12%を無効化しS2-C04を解放します！',
+    killChain: { sourceNodeIds: ['S2-I04', 'S2-I06'], chainLabel: 'S2-I04(証明書管理)またはS2-I06(証跡バックアップ)から監視制御APIの認証不備を特定' },
+  },
+  'S2-C01': {
+    riskLevel: 'HIGH',
+    infoHint: 'Core直接転送ゲートのファイアウォールルール不備を突いて原本DBへ接続可能です。',
+    killChain: { sourceNodeIds: ['S2-I07'], chainLabel: 'S2-I07(監視制御端末)の制圧により、直接転送ゲートの防御を弱体化' },
+  },
+  'S2-C02': {
+    riskLevel: 'CRITICAL',
+    infoHint: '相互TLSゲートの旧プロトコル許容・証明書不備を突き、安全に原本DBへ到達できます。',
+    killChain: { sourceNodeIds: ['S2-I06', 'S2-I07'], chainLabel: 'S2-I06(証跡バックアップ)またはS2-I07(監視制御)の掌握により、証明書認証ゲートの防御を弱体化' },
+  },
+  'S2-C03': {
+    riskLevel: 'CRITICAL',
+    infoHint: '原本通信証跡DBのSQLインジェクション（文字列連結）を突いて原本ログを回収します！',
+    killChain: { sourceNodeIds: ['S2-C02', 'S2-C04'], chainLabel: 'S2-C02(証明書認証ゲート)またはS2-C04(監視迂回ゲート)の突破により、原本DBの防御を弱体化' },
+  },
+  'S2-C04': {
+    riskLevel: 'HIGH',
+    infoHint: '監視網の迂回ゲートで未保護の監査ログを消去し、警戒度を-10%削減できます。',
+    killChain: { sourceNodeIds: ['S2-I04', 'S2-I03'], chainLabel: 'S2-I04(証明書管理)またはS2-I03(予備解析基盤)の情報から監視迂回ゲートの設定を解析' },
+  },
   'external-1': { riskLevel: 'MEDIUM', infoHint: '公開SSHサーバー(22/tcp)でパスワード認証とrootログインが許可されており、辞書攻撃が有効です。' },
   'dmz-1': { riskLevel: 'MEDIUM', infoHint: '古いApache Webサーバーのパストラバーサルおよび管理URLのアクセス制御不備を突けます。' },
   'dmz-2': { riskLevel: 'MEDIUM', infoHint: 'メールサーバーのSPF設定ミス（+all）により、送信元ドメイン詐称が可能です。' },

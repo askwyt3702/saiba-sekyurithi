@@ -294,11 +294,11 @@ test('proceeding from info modal to exploit modal auto-confirms and disables the
 });
 
 test('4-layer step-up security difficulty scales question type, dummy filtering, and Core payload encryption', async () => {
-  for (const [nodeId, expectedLayerPrefix, expectFilter, expectEncrypted] of [
-    ['E01', 'TYPE A', true, false],
-    ['D01', 'TYPE B', true, false],
-    ['I01', 'TYPE ', false, false],
-    ['C03', 'TYPE C', false, true],
+  for (const [nodeId, parentId, expectedLayerPrefix, expectFilter, expectEncrypted] of [
+    ['E01', null, 'TYPE A', true, false],
+    ['D01', 'E01', 'TYPE B', true, false],
+    ['I01', 'D05', 'TYPE ', false, false],
+    ['C03', 'C02', 'TYPE C', false, true],
   ]) {
     hookValues = [];
     hookCursor = 0;
@@ -306,7 +306,7 @@ test('4-layer step-up security difficulty scales question type, dummy filtering,
     await client.connect(() => {});
     client.state.privilege = 'ROOT';
     for (const item of client.state.nodes) {
-      item.status = item.id === nodeId ? 'scanned' : 'hacked';
+      item.status = item.id === nodeId ? 'scanned' : item.id === parentId ? 'hacked' : 'unscanned';
       item.vulnerability = STAGES[1].vulnerabilities[item.id] ?? null;
     }
     const panel = () => {
@@ -350,6 +350,66 @@ test('4-layer step-up security difficulty scales question type, dummy filtering,
     const choices = elements(panel(), 'button').filter((b) => b.props.className?.startsWith('exploit-choice '));
     const filteredCount = choices.filter((b) => b.props.className.includes('exploit-choice--filtered')).length;
     assert.equal(filteredCount, expectFilter ? 1 : 0, `${nodeId} filtered dummy count after recon`);
+  }
+});
+
+test('Kill Chain intel from hacked pivot nodes unlocks dummy filtering in Internal and Core layers and auto-decrypts Core payloads', async () => {
+  for (const [nodeId, parentId, pivotId, isCore] of [
+    ['I01', 'D05', 'E02', false],
+    ['C03', 'C02', 'I09', true],
+  ]) {
+    hookValues = [];
+    hookCursor = 0;
+    const client = new MockGameClient(`killchain-${nodeId}`, 1);
+    await client.connect(() => {});
+    client.state.privilege = 'ROOT';
+    for (const item of client.state.nodes) {
+      item.status =
+        item.id === nodeId
+          ? 'scanned'
+          : item.id === parentId || item.id === pivotId
+            ? 'hacked'
+            : 'unscanned';
+      item.vulnerability = STAGES[1].vulnerabilities[item.id] ?? null;
+    }
+    const panel = () => {
+      hookCursor = 0;
+      return NodeDetailPanel({
+        node: client.state.nodes.find((n) => n.id === nodeId),
+        nodes: client.state.nodes,
+        edges: client.state.edges,
+        stageId: 1,
+        gameStatus: client.state.status,
+        analysisResource: client.state.analysisResource,
+        privilege: client.state.privilege,
+        alertLevel: client.state.alertLevel,
+        securityEvents: client.state.securityEvents,
+        notice: null,
+        onAction(type, passcode, exploitMismatch, exploitId, questionId) {
+          return client.sendAction({ type, nodeId, passcode, exploitMismatch, exploitId, questionId });
+        },
+      });
+    };
+    assert.ok(textOf(panel()).includes('攻撃チェーン成立'), `${nodeId} panel should show active Kill Chain`);
+    elements(panel(), 'button')[2].props.onClick();
+    const modalTextBefore = textOf(panel());
+    assert.ok(modalTextBefore.includes('KILL CHAIN ACTIVE'), `${nodeId} modal should show KILL CHAIN ACTIVE`);
+    if (isCore) {
+      assert.equal(
+        modalTextBefore.includes('ENCRYPTED PAYLOAD'),
+        false,
+        'Core payload should be auto-decrypted when Kill Chain is active',
+      );
+      assert.ok(modalTextBefore.includes('[復号済]'));
+    }
+
+    const reconBtn = elements(panel(), 'button').find((b) => textOf(b).includes('事前調査を実行'));
+    await reconBtn.props.onClick();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const choices = elements(panel(), 'button').filter((b) => b.props.className?.startsWith('exploit-choice '));
+    const filteredCount = choices.filter((b) => b.props.className.includes('exploit-choice--filtered')).length;
+    assert.equal(filteredCount, 1, `${nodeId} should filter 1 dummy choice after recon when Kill Chain is active`);
   }
 });
 
