@@ -122,11 +122,16 @@ class ActionRequest(BaseModel):
 
 
 
-def _get_game_or_404(db: Session, game_id: int) -> models.PlayerStatus:
-    player = game_logic.get_game(db, game_id)
+def _get_game_or_404(db: Session, game_id: int, lock: bool = False) -> models.PlayerStatus:
+    """ゲームを取り出す。lock=True なら、状態を変える処理が終わる(commit)まで行をロックしたままにする。"""
+    player = game_logic.get_game(db, game_id, for_update=lock)
     if player is None:
         raise HTTPException(status_code=404, detail="指定されたゲームが存在しません")
-    game_logic.touch_game(db, player)  # 使われたことを記録（古いゲームの掃除用）
+    if lock:
+        # ここで commit するとロックが外れるので、使われた記録は操作と一緒に commit する
+        player.last_accessed_at = models.utcnow()
+    else:
+        game_logic.touch_game(db, player)  # 使われたことを記録（古いゲームの掃除用）
     return player
 
 
@@ -159,7 +164,7 @@ def get_game_state(game_id: int, db: Session = Depends(get_db)):
 @app.post("/api/games/{game_id}/reset")
 def reset_game(game_id: int, req: Optional[ResetGameRequest] = None, db: Session = Depends(get_db)):
     """指定されたゲームを初期状態にリセットし、初期 GameState を返す。"""
-    player = _get_game_or_404(db, game_id)
+    player = _get_game_or_404(db, game_id, lock=True)
     stage_id = req.stageId if req is not None else None
     game_logic.reset_game(db, player, stage_id=stage_id)
     return game_logic.build_game_state(db, player)
@@ -173,7 +178,8 @@ def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_d
     受理可否(accepted, reason)に加えて、操作後の GameState を state として返す。
     """
 
-    player = _get_game_or_404(db, game_id)
+    # 同じゲームへの操作は1つずつ処理する(apply_action の commit でロックが外れる)
+    player = _get_game_or_404(db, game_id, lock=True)
     try:
         game_logic.apply_action(
             db,
@@ -186,7 +192,8 @@ def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_d
             question_id=action.questionId,
         )
     except game_logic.ActionRejected as e:
-        db.rollback()
+        db.rollback()  # ロックもここで外れる
+        game_logic.touch_game(db, player)  # 拒否された操作でも、使われた記録は残す
         return {
             "accepted": False,
             "reason": e.reason,

@@ -224,13 +224,24 @@ def reset_game(
     return player
 
 
+def game_query(db: Session, game_id: int, for_update: bool = False):
+    """ゲーム(player_status の行)を取り出すクエリ。
+
+    for_update=True のときは行をロックする(PostgreSQL の SELECT ... FOR UPDATE)。
+    同じゲームへの操作が同時に届いても、ロックが外れる(commit/rollback)まで次の操作を待たせ、
+    「両方が同じ状態を読んでコストを1回分しか引かない」「同じ侵入が2回成功する」のを防ぐ。
+    SQLite(テスト用)では FOR UPDATE は付かない。
+    """
+    query = db.query(models.PlayerStatus).filter(models.PlayerStatus.id == game_id)
+    return query.with_for_update() if for_update else query
+
+
 def get_game(
     db: Session,
     game_id: int,
+    for_update: bool = False,
 ) -> Optional[models.PlayerStatus]:
-    return db.query(models.PlayerStatus).filter(
-        models.PlayerStatus.id == game_id
-    ).first()
+    return game_query(db, game_id, for_update=for_update).first()
 
 
 def touch_game(db: Session, player: models.PlayerStatus) -> None:
