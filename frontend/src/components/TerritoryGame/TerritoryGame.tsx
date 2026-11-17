@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Background,
   Controls,
@@ -18,8 +18,9 @@ import {
   playTerritoryCard,
   skipRewardCard,
 } from '../../game/territory/territoryEngine';
-import type { TerritoryGameState } from '../../game/territory/territoryTypes';
-import { TerritoryNodeView, type TerritoryFlowNode } from './TerritoryNodeView';
+import type { EnemyActionEvent, TerritoryGameState } from '../../game/territory/territoryTypes';
+import { TerritoryNodeView, type TerritoryFlowNode, type TerritoryNodeFx } from './TerritoryNodeView';
+import { TerritoryThreatEdge, type ThreatFlowEdge } from './TerritoryThreatEdge';
 import './TerritoryGame.css';
 
 interface TerritoryGameProps {
@@ -30,19 +31,104 @@ const nodeTypes = {
   territoryNode: TerritoryNodeView,
 };
 
+const edgeTypes = {
+  threat: TerritoryThreatEdge,
+};
+
+// ARGUS のターンの演出で、行動1つにかける時間(ミリ秒)。演出専用で、ゲームの時間やルールには関係しない
+const ENEMY_STEP_MS = 1100;
+
+interface EnemyPlayback {
+  events: EnemyActionEvent[];
+  index: number;
+  /** 演出が終わったら表示する、ARGUS のターンが終わった後の状態 */
+  next: TerritoryGameState;
+}
+
+function nodeName(state: TerritoryGameState, id: string): string {
+  return state.nodes.find((n) => n.id === id)?.name ?? id;
+}
+
+/** 演出中のバナーに出す説明 */
+function describeEnemyAction(event: EnemyActionEvent, state: TerritoryGameState): string {
+  switch (event.kind) {
+    case 'attack':
+      return event.captured
+        ? `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} を攻撃し、奪還した！`
+        : `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} に ${event.damage} ダメージ`;
+    case 'fortify':
+      return `${nodeName(state, event.nodeId)} がシールドを +${event.value} 強化`;
+    case 'alert':
+      return `監視網が強化され、警戒度 +${event.value}%`;
+    case 'fizzle':
+      return `${event.sourceNodeId} は制圧済みのため、行動できなかった`;
+  }
+}
+
+/** 演出中、各ノードに出す効果 */
+function fxForEvent(event: EnemyActionEvent, key: string): Map<string, TerritoryNodeFx> {
+  const fx = new Map<string, TerritoryNodeFx>();
+  switch (event.kind) {
+    case 'attack':
+      fx.set(event.sourceNodeId, { kind: 'attacker', key });
+      fx.set(event.targetNodeId, event.captured
+        ? { kind: 'captured', text: '奪還された!', key }
+        : { kind: 'hit', text: `-${event.damage}`, key });
+      break;
+    case 'fortify':
+      fx.set(event.nodeId, { kind: 'fortify', text: `🛡+${event.value}`, key });
+      break;
+    case 'alert':
+      fx.set(event.nodeId, { kind: 'alert', text: `警戒度 +${event.value}%`, key });
+      break;
+    case 'fizzle':
+      fx.set(event.sourceNodeId, { kind: 'fizzle', text: '不発', key });
+      break;
+  }
+  return fx;
+}
+
+function samePair(edge: { source: string; target: string }, a: string, b: string): boolean {
+  return (edge.source === a && edge.target === b) || (edge.source === b && edge.target === a);
+}
+
 function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
   const [game, setGame] = useState<TerritoryGameState>(() => createInitialTerritoryState());
   const [notice, setNotice] = useState<string | null>(null);
+  const [playback, setPlayback] = useState<EnemyPlayback | null>(null);
+  const busy = playback !== null;
+  const currentEvent = playback ? playback.events[playback.index] : null;
+  const playKey = playback ? `${playback.next.turn}-${playback.index}` : '';
+
+  // ARGUS の行動を1つずつ見せ、全部見せ終わったら、ターン終了後の状態に切り替える
+  useEffect(() => {
+    if (!playback) return;
+    const timer = setTimeout(() => {
+      if (playback.index + 1 < playback.events.length) {
+        setPlayback({ ...playback, index: playback.index + 1 });
+      } else {
+        setGame(playback.next);
+        setPlayback(null);
+      }
+    }, ENEMY_STEP_MS);
+    return () => clearTimeout(timer);
+  }, [playback]);
 
   const selectedCardInstance = game.hand.find((c) => c.uid === game.selectedCardUid) ?? null;
   const selectedCardDef = selectedCardInstance ? CARD_CATALOG[selectedCardInstance.defId] : null;
 
   const attackableIds = useMemo(() => getAttackableNodeIds(game), [game]);
 
+  const fxMap = useMemo(
+    () => (currentEvent ? fxForEvent(currentEvent, playKey) : new Map<string, TerritoryNodeFx>()),
+    [currentEvent, playKey],
+  );
+
   const flowNodes: TerritoryFlowNode[] = useMemo(
     () =>
       game.nodes.map((node) => {
         const intent = game.intents.find((i) => i.sourceNodeId === node.id);
+        const fx = fxMap.get(node.id);
         let targetable = false;
         let isWeakness = false;
         if (selectedCardDef) {
@@ -58,13 +144,13 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
           type: 'territoryNode',
           position: node.position,
           draggable: false,
-          data: { node, targetable, isWeakness, intent },
+          data: { node, targetable, isWeakness, intent, fx },
         };
       }),
-    [game.nodes, game.intents, selectedCardDef, attackableIds],
+    [game.nodes, game.intents, selectedCardDef, attackableIds, fxMap],
   );
 
-  const flowEdges: Edge[] = useMemo(() => {
+  const flowEdges: (Edge | ThreatFlowEdge)[] = useMemo(() => {
     const ownerMap = new Map(game.nodes.map((n) => [n.id, n.owner]));
     return game.edges.map((edge) => {
       const s = ownerMap.get(edge.source);
@@ -72,6 +158,36 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
       const bothPlayer = s === 'player' && t === 'player';
       const bothArgus = s === 'argus' && t === 'argus';
       const frontier = (s === 'player' && t !== 'player') || (t === 'player' && s !== 'player');
+
+      // 演出中:今まさに攻撃している線には、パケットを飛ばす
+      if (currentEvent?.kind === 'attack' && samePair(edge, currentEvent.sourceNodeId, currentEvent.targetNodeId)) {
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          type: 'threat' as const,
+          data: { mode: 'attack' as const, reverse: edge.source !== currentEvent.sourceNodeId, playKey },
+          markerEnd: { type: 'arrowclosed' as const, color: '#ff4d6d', width: 18, height: 18 },
+          zIndex: 5,
+        };
+      }
+      // 自分のターン:次の ARGUS の攻撃先を、赤い点線の矢印で予告する
+      const threat = busy ? undefined : game.intents.find(
+        (i) => i.action === 'attack' && samePair(edge, i.sourceNodeId, i.targetNodeId),
+      );
+      if (threat) {
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          type: 'threat' as const,
+          animated: true,
+          data: { mode: 'intent' as const, reverse: edge.source !== threat.sourceNodeId },
+          markerEnd: { type: 'arrowclosed' as const, color: '#f43f5e', width: 16, height: 16 },
+          zIndex: 4,
+        };
+      }
+
       return {
         id: edge.id,
         source: edge.source,
@@ -84,14 +200,14 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
               ? '#fbbf24'
               : bothArgus
                 ? '#f43f5e'
-                : '#3b6472',
+                : '#3a4148',
           strokeWidth: bothPlayer ? 2.8 : frontier ? 2.2 : 1.7,
           strokeDasharray: frontier ? '6 4' : undefined,
           opacity: bothPlayer || frontier ? 0.92 : 0.65,
         },
       };
     });
-  }, [game.nodes, game.edges]);
+  }, [game.nodes, game.edges, game.intents, currentEvent, busy, playKey]);
 
   const playerCount = game.nodes.filter((n) => n.owner === 'player').length;
   const argusCount = game.nodes.filter((n) => n.owner === 'argus').length;
@@ -100,7 +216,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
   const argusPct = Math.round((argusCount / totalCount) * 100);
 
   const handleSelectCard = (uid: string, defId: string) => {
-    if (game.status !== 'playing' || game.rewardChoices) return;
+    if (busy || game.status !== 'playing' || game.rewardChoices) return;
     const def = CARD_CATALOG[defId];
     if (!def) return;
     setNotice(null);
@@ -121,7 +237,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
   };
 
   const handleNodeClick = (nodeId: string) => {
-    if (game.status !== 'playing' || game.rewardChoices || !game.selectedCardUid) return;
+    if (busy || game.status !== 'playing' || game.rewardChoices || !game.selectedCardUid) return;
     const res = playTerritoryCard(game, game.selectedCardUid, nodeId);
     if (res.accepted) {
       setNotice(null);
@@ -158,7 +274,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
             <span>BANDWIDTH</span>
             <strong>{game.bandwidth} / {game.maxBandwidth}</strong>
           </div>
-          <div className="tw-stat tw-stat--alert">
+          <div key={currentEvent?.kind === 'alert' ? playKey : 'alert'} className={`tw-stat tw-stat--alert ${currentEvent?.kind === 'alert' ? 'tw-stat--flash' : ''}`}>
             <span>ALERT</span>
             <strong>{game.alertLevel}%</strong>
           </div>
@@ -170,6 +286,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
             className="tw-btn"
             onClick={() => {
               setNotice(null);
+              setPlayback(null);
               setGame(createInitialTerritoryState());
             }}
           >
@@ -184,7 +301,19 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
       {/* メイン盤面 + 戦術ログ */}
       <div className="tw-main">
         <div className="tw-map-area">
-          {selectedCardDef && (
+          <div className="tw-legend" aria-label="色の意味">
+            <span className="tw-legend__item tw-legend__item--player">自陣</span>
+            <span className="tw-legend__item tw-legend__item--argus">ARGUS</span>
+            <span className="tw-legend__item tw-legend__item--neutral">中立(誰のものでもない)</span>
+            <span className="tw-legend__item tw-legend__item--threat">次の攻撃</span>
+          </div>
+          {playback && currentEvent && (
+            <div className="tw-enemy-banner" role="status">
+              <span className="tw-enemy-banner__tag">ARGUS TURN {playback.index + 1}/{playback.events.length}</span>
+              {describeEnemyAction(currentEvent, game)}
+            </div>
+          )}
+          {selectedCardDef && !busy && (
             <div className="tw-target-banner" role="status">
               🎯 <strong>[{selectedCardDef.name}]</strong> 選択中 —{' '}
               {selectedCardDef.targetType === 'hostile'
@@ -208,6 +337,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
             nodes={flowNodes}
             edges={flowEdges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onNodeClick={(_, node) => handleNodeClick(node.id)}
             fitView
             fitViewOptions={{ padding: 0.16 }}
@@ -266,7 +396,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
               <button
                 key={item.uid}
                 type="button"
-                disabled={!affordable || game.status !== 'playing' || Boolean(game.rewardChoices)}
+                disabled={busy || !affordable || game.status !== 'playing' || Boolean(game.rewardChoices)}
                 className={[
                   'tw-card',
                   `tw-card--${def.kind}`,
@@ -293,13 +423,20 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
         <button
           type="button"
           className="tw-end-turn-btn"
-          disabled={game.status !== 'playing' || Boolean(game.rewardChoices)}
+          disabled={busy || game.status !== 'playing' || Boolean(game.rewardChoices)}
           onClick={() => {
             setNotice(null);
-            setGame((prev) => endTerritoryTurn(prev));
+            const next = endTerritoryTurn(game);
+            // ARGUS が何かしたなら、結果に切り替える前に1つずつ見せる
+            if (next.lastEnemyActions.length > 0) {
+              setGame((prev) => ({ ...prev, selectedCardUid: null }));
+              setPlayback({ events: next.lastEnemyActions, index: 0, next });
+            } else {
+              setGame(next);
+            }
           }}
         >
-          TURN END ▶
+          {busy ? 'ARGUS 行動中…' : 'TURN END ▶'}
         </button>
       </footer>
 
@@ -338,7 +475,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
       )}
 
       {/* 勝敗リザルトモーダル */}
-      {game.status !== 'playing' && (
+      {game.status !== 'playing' && !busy && (
         <div className="tw-modal-backdrop" role="dialog" aria-modal="true">
           <div className="tw-modal">
             <h2>
@@ -355,6 +492,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
                 className="tw-end-turn-btn"
                 onClick={() => {
                   setNotice(null);
+                  setPlayback(null);
                   setGame(createInitialTerritoryState());
                 }}
               >

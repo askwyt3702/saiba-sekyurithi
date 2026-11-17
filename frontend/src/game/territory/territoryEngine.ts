@@ -203,6 +203,7 @@ export function createInitialTerritoryState(rng: () => number = Math.random): Te
     discard: [],
     rewardChoices: null,
     intents: [],
+    lastEnemyActions: [],
     selectedCardUid: null,
     logs: [],
     nextUid: uid,
@@ -422,15 +423,23 @@ export function endTerritoryTurn(
     }
   }
 
-  // ARGUS ターン：予告していた行動を実行
+  // ARGUS ターン：予告していた行動を実行(画面で演出するため、起きたことを記録する)
+  state.lastEnemyActions = [];
   for (const intent of state.intents) {
     const src = state.nodes.find((n) => n.id === intent.sourceNodeId);
-    if (!src || src.owner !== 'argus') continue; // すでに制圧されていたら不発！
+    if (!src || src.owner !== 'argus') {
+      // すでに制圧されていたら不発！
+      state.lastEnemyActions.push({ kind: 'fizzle', sourceNodeId: intent.sourceNodeId });
+      continue;
+    }
 
     if (intent.action === 'attack') {
       const target = state.nodes.find((n) => n.id === intent.targetNodeId);
       if (target && target.owner === 'player') {
         const res = applyDamageToNode(target, intent.value, false);
+        state.lastEnemyActions.push({
+          kind: 'attack', sourceNodeId: src.id, targetNodeId: target.id, damage: res.dealt, captured: res.captured,
+        });
         if (res.captured) {
           target.owner = 'argus';
           target.hp = Math.max(8, Math.ceil(target.maxHp * 0.6));
@@ -444,10 +453,12 @@ export function endTerritoryTurn(
       const target = state.nodes.find((n) => n.id === intent.targetNodeId);
       if (target && target.owner === 'argus') {
         target.shield += intent.value;
+        state.lastEnemyActions.push({ kind: 'fortify', nodeId: target.id, value: intent.value });
         addLog(state, 'warning', `🛡 ARGUS (${src.id}) が防御シールドを +${intent.value} 強化しました。`);
       }
     } else if (intent.action === 'alert') {
       state.alertLevel = Math.min(100, state.alertLevel + intent.value);
+      state.lastEnemyActions.push({ kind: 'alert', nodeId: src.id, value: intent.value });
       addLog(state, 'warning', `👁 ARGUS監視網により警戒度が +${intent.value}% 上昇しました。`);
     }
   }

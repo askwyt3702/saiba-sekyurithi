@@ -124,3 +124,30 @@ test('MissionScreen includes Sector 05 Card x Territory War card', () => {
   cards[5].props.onClick();
   assert.equal(picked, 5);
 });
+
+test('enemy turn records what ARGUS actually did so the screen can replay it', () => {
+  const { createInitialTerritoryState, endTerritoryTurn } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+
+  const state = createInitialTerritoryState(() => 0.1);
+  assert.equal(state.lastEnemyActions.length, 0);
+  const attack = state.intents.find((i) => i.action === 'attack');
+  assert.ok(attack, 'D03 is next to the player base, so ARGUS should announce an attack');
+
+  const next = endTerritoryTurn(state, () => 0.1);
+  const event = next.lastEnemyActions.find((e) => e.kind === 'attack');
+  assert.equal(event.sourceNodeId, attack.sourceNodeId);
+  assert.equal(event.targetNodeId, attack.targetNodeId);
+  assert.ok(event.damage > 0);
+  assert.equal(event.captured, false);
+  // 記録と実際の結果が一致している(画面の演出とログ・HPがずれない)
+  const before = state.nodes.find((n) => n.id === attack.targetNodeId);
+  const after = next.nodes.find((n) => n.id === attack.targetNodeId);
+  assert.equal(before.hp + before.shield - (after.hp + after.shield), event.damage);
+
+  // 攻撃予告していたノードを先に制圧すると、ARGUS の行動は「不発」として記録される
+  const captured = JSON.parse(JSON.stringify(state));
+  captured.nodes.find((n) => n.id === attack.sourceNodeId).owner = 'player';
+  const fizzled = endTerritoryTurn(captured, () => 0.1);
+  assert.ok(fizzled.lastEnemyActions.some((e) => e.kind === 'fizzle' && e.sourceNodeId === attack.sourceNodeId));
+  assert.ok(!fizzled.lastEnemyActions.some((e) => e.kind === 'attack' && e.sourceNodeId === attack.sourceNodeId));
+});

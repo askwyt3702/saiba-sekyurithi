@@ -59,6 +59,17 @@ export interface TerritoryLog {
   message: string;
 }
 
+/**
+ * ARGUS がターン終了時に実際に行ったこと。画面で1つずつ演出して見せるために記録する
+ * (ログを読まなくても、何が起きたか分かるように)。
+ */
+export type EnemyActionEvent =
+  | { kind: 'attack'; sourceNodeId: string; targetNodeId: string; damage: number; captured: boolean }
+  | { kind: 'fortify'; nodeId: string; value: number }
+  | { kind: 'alert'; nodeId: string; value: number }
+  /** 予告していたノードを先に制圧されたため、行動できなかった */
+  | { kind: 'fizzle'; sourceNodeId: string };
+
 export interface TerritoryGameState {
   status: 'playing' | 'won' | 'lost';
   turn: number;
@@ -72,6 +83,8 @@ export interface TerritoryGameState {
   discard: CardInstance[];
   rewardChoices: CardDef[] | null;
   intents: EnemyIntent[];
+  /** 直前の ARGUS ターンで実際に起きたこと(古い順) */
+  lastEnemyActions: EnemyActionEvent[];
   selectedCardUid: string | null;
   logs: TerritoryLog[];
   nextUid: number;

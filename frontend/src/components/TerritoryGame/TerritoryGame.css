@@ -558,7 +558,7 @@
 }
 
 .tw-modal {
-  width: min(620px, 92vw);
+  width: min(620px, calc(var(--app-w) * 0.92));
   padding: 22px;
   border-radius: 12px;
   background: #07131d;
@@ -598,4 +598,251 @@
 .tw-modal__actions {
   display: flex;
   gap: 12px;
+}
+
+/* ========================================
+   陣地の色を分かりやすく(中立は「誰のものでもない」と一目で分かる灰色に)
+======================================== */
+.tw-node--neutral .tw-node__plate {
+  border-style: dashed;
+  border-color: #4b5563;
+  background: rgba(12, 14, 16, 0.88);
+}
+
+.tw-node--neutral .tw-node__symbol {
+  filter: grayscale(1) brightness(0.8);
+  opacity: 0.75;
+}
+
+.tw-node--neutral .tw-node__owner {
+  color: #9ca3af;
+}
+
+.tw-node--neutral .tw-node__hp-fill {
+  background: #6b7280;
+}
+
+/* 自陣は緑に光らせて「自分のもの」だと分かるようにする */
+.tw-node--player .tw-node__plate {
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35), 0 0 16px rgba(16, 185, 129, 0.4);
+}
+
+/* 色の説明 */
+.tw-legend {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  background: rgba(3, 7, 10, 0.82);
+  font-size: 11px;
+  color: #cbd5e1;
+  pointer-events: none;
+}
+
+.tw-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tw-legend__item::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tw-legend__item--player::before { background: rgba(4, 28, 16, 0.92); border: 2px solid #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6); }
+.tw-legend__item--argus::before { background: rgba(34, 6, 14, 0.92); border: 2px solid #f43f5e; }
+.tw-legend__item--neutral::before { background: rgba(12, 14, 16, 0.88); border: 2px dashed #6b7280; }
+.tw-legend__item--threat::before { height: 0; border-top: 2px dashed #f43f5e; border-radius: 0; width: 16px; }
+
+/* ========================================
+   ARGUS のターンの演出
+======================================== */
+.tw-enemy-banner {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border: 1px solid #f43f5e;
+  border-radius: 999px;
+  background: rgba(40, 4, 12, 0.95);
+  color: #fecdd3;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 0 22px rgba(244, 63, 94, 0.45);
+}
+
+.tw-enemy-banner__tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f43f5e;
+  color: #1a0207;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.tw-node__body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+/* 攻撃する側:赤く脈打つ */
+.tw-node__body--attacker .tw-node__plate {
+  animation: tw-attacker-pulse 0.6s ease-out 2;
+}
+
+/* 攻撃された側:パケットが届いた頃に揺れて赤く光る */
+.tw-node__body--hit .tw-node__plate,
+.tw-node__body--captured .tw-node__plate {
+  animation: tw-hit-shake 0.45s ease-out 0.6s both;
+}
+
+.tw-node__body--captured .tw-node__plate {
+  animation: tw-hit-shake 0.45s ease-out 0.6s both, tw-captured-flip 0.4s ease-in 1s forwards;
+}
+
+.tw-node__body--fortify .tw-node__plate {
+  animation: tw-fortify-glow 0.9s ease-out both;
+}
+
+.tw-node__body--alert .tw-node__symbol {
+  animation: tw-alert-eye 0.9s ease-out both;
+}
+
+.tw-node__body--fizzle .tw-node__plate {
+  animation: tw-fizzle 0.8s ease-out both;
+}
+
+.tw-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* 浮かぶ文字(-6、奪還された! など) */
+.tw-fx__float {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  font-weight: 900;
+  white-space: nowrap;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  animation: tw-float-up 0.9s ease-out forwards;
+}
+
+.tw-fx--hit .tw-fx__float,
+.tw-fx--captured .tw-fx__float {
+  color: #ff4d6d;
+  animation-delay: 0.6s;
+}
+
+.tw-fx--fortify .tw-fx__float { color: #fda4af; }
+.tw-fx--alert .tw-fx__float { color: #fbbf24; }
+.tw-fx--fizzle .tw-fx__float { color: #9ca3af; font-size: 16px; }
+
+/* 攻撃の線と予告の矢印 */
+.tw-threat-edge {
+  stroke-linecap: round;
+}
+
+.tw-threat-edge--intent {
+  stroke: #f43f5e !important;
+  stroke-width: 2.4 !important;
+  stroke-dasharray: 7 5;
+  opacity: 0.85;
+}
+
+.tw-threat-edge--attack {
+  stroke: #ff4d6d !important;
+  stroke-width: 3.2 !important;
+  filter: drop-shadow(0 0 6px rgba(255, 77, 109, 0.85));
+}
+
+.tw-packet {
+  fill: #ff4d6d;
+  filter: drop-shadow(0 0 6px #ff4d6d);
+}
+
+.tw-packet--lead {
+  fill: #ffe4e6;
+}
+
+/* 警戒度が上がったときに数字を点滅させる */
+.tw-stat--flash {
+  animation: tw-stat-flash 0.9s ease-out both;
+}
+
+@keyframes tw-attacker-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.9); }
+  100% { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0); }
+}
+
+@keyframes tw-hit-shake {
+  0% { transform: translateX(0); box-shadow: 0 0 0 0 rgba(255, 77, 109, 0); }
+  15% { transform: translateX(-7px); box-shadow: 0 0 22px 4px rgba(255, 77, 109, 0.85); background: rgba(80, 8, 20, 0.95); }
+  35% { transform: translateX(6px); }
+  55% { transform: translateX(-4px); }
+  75% { transform: translateX(2px); }
+  100% { transform: translateX(0); box-shadow: 0 0 0 0 rgba(255, 77, 109, 0); }
+}
+
+@keyframes tw-captured-flip {
+  to { border-color: #f43f5e; background: rgba(34, 6, 14, 0.92); }
+}
+
+@keyframes tw-fortify-glow {
+  0% { box-shadow: 0 0 0 0 rgba(253, 164, 175, 0.9); }
+  100% { box-shadow: 0 0 0 16px rgba(253, 164, 175, 0); }
+}
+
+@keyframes tw-alert-eye {
+  0%, 100% { filter: none; }
+  30% { filter: drop-shadow(0 0 14px #fbbf24) brightness(1.6); }
+}
+
+@keyframes tw-fizzle {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.45; }
+}
+
+@keyframes tw-float-up {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, -4px) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(1); }
+}
+
+@keyframes tw-stat-flash {
+  0%, 100% { box-shadow: none; }
+  25%, 60% { box-shadow: 0 0 16px rgba(251, 191, 36, 0.8); border-color: #fbbf24; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-node__body *,
+  .tw-fx__float,
+  .tw-stat--flash {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+  }
 }
