@@ -37,6 +37,24 @@ class RuleRunner {
         if (action.type === 'confirmInfo' && hint) this.log('info', `【調査完了】${hint}`);
         return { accepted: true };
       }
+      case 'flagTrap': {
+        const nodeId = action.nodeId!;
+        const node = this.state.nodes.find((n) => n.id === nodeId)!;
+        if (this.state.dynamicMap) {
+          this.state.dynamicMap.flaggedTraps = [...this.state.dynamicMap.flaggedTraps, nodeId];
+        }
+        const isHoneypot = (this.map.honeypotNodeIds ?? []).includes(nodeId);
+        if (isHoneypot) {
+          this.state.alertLevel = clampAlert(this.state.alertLevel - 5);
+          this.log('success', `[TRAP_FLAGGED:${nodeId}] 矛盾を看破！${node.name} をハニーポット（囮）として隔離しました（警戒度 -5%）。`);
+        } else {
+          this.state.alertLevel = clampAlert(this.state.alertLevel + 4);
+          this.log('warning', `[TRAP_FLAGGED:${nodeId}] 誤判定：正規ノード ${node.name} を誤って隔離しました（警戒度 +4%）。`);
+        }
+        this.checkGameOver();
+        this.emit({ type: 'state_snapshot', state: this.cloneState() });
+        return { accepted: true };
+      }
       case 'pause':
         if (this.state.status !== 'playing') return { accepted: false, reason: 'invalid_state' };
         this.state.status = 'paused';
@@ -96,13 +114,35 @@ class RuleRunner {
       this.checkGameOver();
       return { accepted: true };
     }
+    if (type === 'breach' && (this.map.honeypotNodeIds ?? []).includes(node.id)) {
+      if (this.state.dynamicMap) {
+        this.state.dynamicMap.triggeredTraps = [...this.state.dynamicMap.triggeredTraps, node.id];
+      }
+      this.state.analysisResource = Math.max(0, this.state.analysisResource - 4);
+      this.state.alertLevel = clampAlert(this.state.alertLevel + 25);
+      this.log(
+        'danger',
+        `[TRAP_TRIGGERED:${node.id}] 【HONEYPOT TRAP】${node.name} は防衛AIの囮サーバーでした！警戒度 +25%、解析資源 -4、ノードは緊急封鎖されました。`,
+      );
+      this.checkGameOver();
+      this.emit({ type: 'state_snapshot', state: this.cloneState() });
+      return { accepted: true };
+    }
     const silentExtract = type === 'dataExtract' && this.hasAllKeyFragments();
     const freeExtract =
       silentExtract &&
       (Boolean(this.state.keyFragments?.unlocked) || this.state.analysisResource < cost.resource);
     this.state.analysisResource -= freeExtract ? 0 : cost.resource;
     // 暗号鍵の断片がすべて揃っていればデータ回収時、または正しい暗号を入力した侵入時の警戒度上昇を0に抑える
-    const extra = type === 'breach' ? monitoringExtra(node.id, this.state.nodes, stage) : 0;
+    const argusDisabled = Boolean(
+      stage.conditionalBreachAlert &&
+      this.state.nodes.some((n) => n.id === stage.conditionalBreachAlert!.disabledByNodeId && n.status === 'hacked'),
+    );
+    const argusExtra =
+      type === 'breach' && !argusDisabled && (this.state.dynamicMap?.argusReinforced ?? []).includes(node.id)
+        ? (this.map.hardcore ? 12 : 10)
+        : 0;
+    const extra = type === 'breach' ? monitoringExtra(node.id, this.state.nodes, stage) + argusExtra : 0;
     this.advanceTime(cost.time, (silentExtract || silentBreach ? 0 : cost.alertDelta) + extra);
     if (extra) this.log('warning', `条件付き監視: ${node.id} 侵入の追加警戒度 +${extra}%。`);
     if (this.state.alertLevel < this.map.rules.alertGameOverThreshold) {
@@ -111,6 +151,7 @@ class RuleRunner {
       }
       this.resolveAction(type, node, silentExtract, silentBreach);
     }
+    this.applyArgusCounterattack(type);
     this.checkGameOver();
 
     this.emit({ type: 'state_snapshot', state: this.cloneState() });
@@ -132,7 +173,11 @@ class RuleRunner {
       if (node.status !== 'unscanned') return 'invalid_state';
       if (type === 'scan' && !canReachNode(node.id, this.state.nodes, this.map.edges, stage)) return 'node_unreachable';
     } else if (type === 'breach') {
-      if (node.status === 'hacked') return 'invalid_state';
+      const flagged = this.state.dynamicMap?.flaggedTraps ?? [];
+      const triggered = this.state.dynamicMap?.triggeredTraps ?? [];
+      if (node.status === 'hacked' || flagged.includes(node.id) || triggered.includes(node.id)) {
+        return 'invalid_state';
+      }
 
       // 入口(External)以外は、隣接ノードのどれかを侵入済みにしていないと届かない
       if (!canReachNode(node.id, this.state.nodes, this.map.edges, stage)) return 'node_unreachable';
@@ -179,6 +224,9 @@ class RuleRunner {
       }
       this.applyNodeEffect(node);
       for (const message of mechanicsUnlockMessages(node.id, this.state.nodes, stage)) this.log('success', message);
+      if (this.state.dynamicMap && stage.conditionalBreachAlert?.disabledByNodeId === node.id) {
+        this.state.dynamicMap.argusDisabled = true;
+      }
       const reward = this.map.securityRules[node.id]?.success_resource ?? 0;
       if (reward) {
         this.state.analysisResource = Math.min(this.map.rules.maxAnalysisResource, this.state.analysisResource + reward);
@@ -260,6 +308,57 @@ class RuleRunner {
     return false;
   }
 
+  private applyArgusCounterattack(type: TimedActionType): void {
+    if (!this.map.enableArgusCounterattack || this.state.status !== 'playing') return;
+    if (this.state.alertLevel >= this.map.rules.alertGameOverThreshold) return;
+    const monitor = this.map.conditionalBreachAlert;
+    if (monitor && this.state.nodes.some((n) => n.id === monitor.disabledByNodeId && n.status === 'hacked')) {
+      return;
+    }
+    const protectedIds = new Set([
+      ...this.map.entryNodeIds,
+      ...this.map.targetNodeIds,
+      ...(monitor ? [monitor.disabledByNodeId] : []),
+    ]);
+    const honeypots = new Set(this.map.honeypotNodeIds ?? []);
+    const reinforced = this.state.dynamicMap?.argusReinforced ?? [];
+    const maxReinforced = this.state.alertLevel >= 70 ? 2 : 1;
+
+    if (this.state.alertLevel >= 40 && reinforced.length < maxReinforced) {
+      const target = this.state.nodes.find(
+        (n) =>
+          !protectedIds.has(n.id) &&
+          !honeypots.has(n.id) &&
+          !reinforced.includes(n.id) &&
+          n.status !== 'hacked',
+      );
+      if (target) {
+        if (this.state.dynamicMap) {
+          this.state.dynamicMap.argusReinforced = [...reinforced, target.id];
+        }
+        const extraPct = this.map.hardcore ? 12 : 10;
+        this.log(
+          'warning',
+          `[ARGUS_REINFORCE:${target.id}] 【ARGUS警戒網】防衛AIが ${target.name} に強化監視を展開しました（侵入時追加警戒度 +${extraPct}%）。`,
+        );
+      }
+    }
+
+    if (type === 'breach' && this.state.alertLevel >= 70) {
+      const hackedCandidates = this.state.nodes.filter(
+        (n) => !protectedIds.has(n.id) && n.status === 'hacked',
+      );
+      const severed = hackedCandidates[hackedCandidates.length - 1];
+      if (severed) {
+        severed.status = 'scanned';
+        this.log(
+          'danger',
+          `[ARGUS_SEVER:${severed.id}] 【ARGUS反撃】高警戒を検知した防衛AIが ${severed.name} のセッションを強制遮断しました（再侵入が必要）。`,
+        );
+      }
+    }
+  }
+
   private checkGameOver(): void {
     if (this.state.status !== 'playing') return;
     if (this.state.alertLevel >= this.map.rules.alertGameOverThreshold) {
@@ -293,6 +392,15 @@ class RuleRunner {
     if (type === 'pause') return this.state.status === 'playing' ? undefined : 'invalid_state';
     if (type === 'resume') return this.state.status === 'paused' ? undefined : 'invalid_state';
     if (this.state.status !== 'playing') return 'invalid_state';
+    if (type === 'flagTrap') {
+      const node = this.state.nodes.find((n) => n.id === action.nodeId);
+      if (!node) return 'invalid_state';
+      if (node.status !== 'scanned') return 'node_not_scanned';
+      const flagged = this.state.dynamicMap?.flaggedTraps ?? [];
+      const triggered = this.state.dynamicMap?.triggeredTraps ?? [];
+      if (flagged.includes(node.id) || triggered.includes(node.id)) return 'invalid_state';
+      return undefined;
+    }
     if (type === 'confirmInfo' || type === 'completeAnalysis') {
       const node = this.state.nodes.find((n) => n.id === action.nodeId);
       if (!node || !this.map.securityRules[node.id]) return 'invalid_state';

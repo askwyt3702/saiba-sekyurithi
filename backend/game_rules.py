@@ -33,6 +33,9 @@ class RuleState:
     fragment_b: str = ""
     cipher_authenticated: bool = False
     security_events: dict[str, list[str]] = field(default_factory=dict)
+    flagged_traps: list[str] = field(default_factory=list)
+    triggered_traps: list[str] = field(default_factory=list)
+    argus_reinforced: list[str] = field(default_factory=list)
     events: list[RuleEvent] = field(default_factory=list, repr=False)
 
 @dataclass(eq=True)
@@ -162,7 +165,7 @@ def _validate_timed_action(
 
 
     elif action_type == "breach":
-        if status == "hacked":
+        if status == "hacked" or node.id in player.flagged_traps or node.id in player.triggered_traps:
             raise ActionRejected("invalid_state")
 
         # 入口以外は、侵入済みの隣接ノードが必要
@@ -291,11 +294,64 @@ def _apply_node_effect(player: RuleState, stage: GameMapDefinition, node: Simple
                 f"すべての暗号鍵断片が揃いました！断片A「{frag_a}」と断片B「{frag_b}」を繋げた暗号を最終目標の侵入時に入力すると、警戒度上昇を0に抑えられます。",
             )
 
-def _monitoring_extra(stage: dict, statuses: dict[str, str], node_id: str) -> float:
+def _monitoring_extra(stage: dict, statuses: dict[str, str], node_id: str, argus_reinforced: list[str] | None = None) -> float:
     monitor = stage.get("conditional_breach_alert")
-    if monitor and node_id in monitor["target_node_ids"] and statuses.get(monitor["disabled_by_node_id"]) != "hacked":
-        return monitor["alert_delta"]
-    return 0
+    if monitor and statuses.get(monitor["disabled_by_node_id"]) == "hacked":
+        return 0
+    extra = 0.0
+    if monitor and node_id in monitor["target_node_ids"]:
+        extra += monitor["alert_delta"]
+    if argus_reinforced and node_id in argus_reinforced:
+        extra += 12.0 if stage.get("hardcore") else 10.0
+    return extra
+
+
+def _apply_argus_counterattack(player: RuleState, stage: GameMapDefinition, action_type: str) -> None:
+    """ARGUS防衛AIによるアクティブ反撃（40%+: 追加監視展開 / 70%+: 侵入済みノードの強制遮断）。"""
+    if not stage.get("enable_argus_counterattack") or player.game_status != "playing":
+        return
+    if player.alert_level >= stage["alert_game_over_threshold"]:
+        return
+    monitor = stage.get("conditional_breach_alert")
+    if monitor and player.node_statuses.get(monitor["disabled_by_node_id"]) == "hacked":
+        return
+    disabled_by = monitor["disabled_by_node_id"] if monitor else None
+    protected = set(stage["entry_node_ids"]) | set(stage["target_node_ids"]) | ({disabled_by} if disabled_by else set())
+    honeypots = set(stage.get("honeypot_node_ids", set()))
+
+    max_reinforced = 2 if player.alert_level >= 70 else 1
+    if player.alert_level >= 40 and len(player.argus_reinforced) < max_reinforced:
+        candidates = [
+            n for n in stage["nodes"]
+            if n["id"] not in protected
+            and n["id"] not in honeypots
+            and n["id"] not in player.argus_reinforced
+            and player.node_statuses.get(n["id"], "unscanned") != "hacked"
+        ]
+        if candidates:
+            target = candidates[0]
+            player.argus_reinforced.append(target["id"])
+            extra_pct = 12 if stage.get("hardcore") else 10
+            _log(
+                player,
+                "warning",
+                f"[ARGUS_REINFORCE:{target['id']}] 【ARGUS警戒網】防衛AIが {target['name']} に強化監視を展開しました（侵入時追加警戒度 +{extra_pct}%）。",
+            )
+
+    if action_type == "breach" and player.alert_level >= 70:
+        hacked_candidates = [
+            n for n in stage["nodes"]
+            if n["id"] not in protected
+            and player.node_statuses.get(n["id"]) == "hacked"
+        ]
+        if hacked_candidates:
+            severed = hacked_candidates[-1]
+            player.node_statuses[severed["id"]] = "scanned"
+            _log(
+                player,
+                "danger",
+                f"[ARGUS_SEVER:{severed['id']}] 【ARGUS反撃】高警戒を検知した防衛AIが {severed['name']} のセッションを強制遮断しました（再侵入が必要）。",
+            )
 
 def _log_mechanics_unlocked(player: RuleState, stage: GameMapDefinition, node_id: str) -> None:
     statuses = player.node_statuses
@@ -324,6 +380,27 @@ def _apply_validated_action(
         hint = stage.get("security_rules", {}).get(node_id, {}).get("info_hint")
         if action_type == "confirmInfo" and hint:
             _log(player, "info", f"【調査完了】{hint}")
+        return
+
+    if action_type == "flagTrap":
+        data = next((n for n in stage["nodes"] if n["id"] == node_id), None)
+        node_name = data["name"] if data else str(node_id)
+        player.flagged_traps.append(node_id)
+        if node_id in stage.get("honeypot_node_ids", set()):
+            player.alert_level = _clamp_alert(player.alert_level - 5.0)
+            _log(
+                player,
+                "success",
+                f"[TRAP_FLAGGED:{node_id}] 矛盾を看破！{node_name} をハニーポット（囮）として隔離しました（警戒度 -5%）。",
+            )
+        else:
+            player.alert_level = _clamp_alert(player.alert_level + 4.0)
+            _log(
+                player,
+                "warning",
+                f"[TRAP_FLAGGED:{node_id}] 誤判定：正規ノード {node_name} を誤って隔離しました（警戒度 +4%）。",
+            )
+        _check_game_over(player, stage)
         return
 
     if action_type == "pause":
@@ -387,6 +464,18 @@ def _apply_validated_action(
         _check_game_over(player, stage)
         return
 
+    if action_type == "breach" and node.id in stage.get("honeypot_node_ids", set()):
+        player.triggered_traps.append(node.id)
+        player.analysis_resource = max(0, player.analysis_resource - 4)
+        player.alert_level = _clamp_alert(player.alert_level + 25.0)
+        _log(
+            player,
+            "danger",
+            f"[TRAP_TRIGGERED:{node.id}] 【HONEYPOT TRAP】{node.name} は防衛AIの囮サーバーでした！警戒度 +25%、解析資源 -4、ノードは緊急封鎖されました。",
+        )
+        _check_game_over(player, stage)
+        return
+
     key_ids = stage["key_fragment_node_ids"]
     cost = stage["action_costs"][action_type]
     # 鍵が揃っていればデータ回収時、または最終目標への暗号付き侵入時の警戒度増加を打ち消す。
@@ -408,7 +497,7 @@ def _apply_validated_action(
     else:
         resource_cost = cost["resource"]
 
-    monitoring_extra = _monitoring_extra(stage, player.node_statuses, node.id) if action_type == "breach" else 0
+    monitoring_extra = _monitoring_extra(stage, player.node_statuses, node.id, player.argus_reinforced) if action_type == "breach" else 0
     alert_delta += monitoring_extra
 
     player.analysis_resource -= resource_cost
@@ -493,12 +582,21 @@ def _apply_validated_action(
             f"警戒度が {player.alert_level:.0f}% に上昇しています。",
         )
 
+    _apply_argus_counterattack(player, stage, action_type)
     _check_game_over(player, stage)
 
 def validate_action(stage: GameMapDefinition, state: RuleState, action: RuleAction) -> str | None:
     """行動前の確認。入力の変更・消費・ログ追加を行わない。"""
     if action.type in ("pause", "resume"):
         return None if state.game_status == ("playing" if action.type == "pause" else "paused") else "invalid_state"
+    if action.type == "flagTrap":
+        if state.game_status != "playing" or not action.node_id:
+            return "invalid_state"
+        if state.node_statuses.get(action.node_id) != "scanned":
+            return "node_not_scanned"
+        if action.node_id in state.flagged_traps or action.node_id in state.triggered_traps:
+            return "invalid_state"
+        return None
     if action.type in ("confirmInfo", "completeAnalysis"):
         if state.game_status != "playing" or action.node_id not in stage.get("security_rules", {}):
             return "invalid_state"

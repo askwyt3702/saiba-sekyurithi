@@ -18,6 +18,7 @@ import { DEFAULT_STAGE_ID } from '../data/stageData';
 // バックエンドが返す GameState（nodes が ApiNetworkNode[] の形）
 interface ApiGameState {
   securityEvents?: GameState['securityEvents'];
+  dynamicMap?: GameState['dynamicMap'];
   gameId: string;
   stageId?: number;
   evaluation: MissionEvaluation | null;
@@ -67,14 +68,22 @@ function storeGameId(gameId: string, stageId: number, onlyIfEmpty = false): void
 // 進行中の作成リクエストを共有して、ゲームが2つ作られないようにする。
 const pendingCreates = new Map<string, Promise<ApiGameState>>();
 
-function createGameOnce(apiBase: string, stageId: number): Promise<ApiGameState> {
-  const key = `${apiBase}:${stageId}`;
+function createGameOnce(
+  apiBase: string,
+  stageId: number,
+  options?: { hardcore?: boolean; seed?: string },
+): Promise<ApiGameState> {
+  const key = `${apiBase}:${stageId}:${Boolean(options?.hardcore)}:${options?.seed ?? ''}`;
   let pendingCreate = pendingCreates.get(key);
   if (!pendingCreate) {
     pendingCreate = fetch(`${apiBase}/api/games`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stageId }),
+      body: JSON.stringify({
+        stageId,
+        ...(options?.hardcore ? { hardcore: true } : {}),
+        ...(options?.seed ? { seed: options.seed } : {}),
+      }),
     })
       .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to create game: ${res.status}`);
@@ -92,12 +101,20 @@ function createGameOnce(apiBase: string, stageId: number): Promise<ApiGameState>
 export class HttpGameClient implements GameClient {
   private readonly apiBase: string;
   private readonly stageId: number;
+  private readonly hardcore: boolean;
+  private readonly seed?: string;
   private gameId: string | null = null;
   private onEvent: ((event: ServerEvent) => void) | null = null;
 
-  constructor(apiBase = 'http://localhost:8000', stageId = DEFAULT_STAGE_ID) {
+  constructor(
+    apiBase = 'http://localhost:8000',
+    stageId = DEFAULT_STAGE_ID,
+    options?: { hardcore?: boolean; seed?: string },
+  ) {
     this.apiBase = apiBase.replace(/\/$/, '');
     this.stageId = stageId;
+    this.hardcore = Boolean(options?.hardcore);
+    this.seed = options?.seed;
   }
 
   async connect(onEvent: (event: ServerEvent) => void): Promise<GameState> {
@@ -136,7 +153,11 @@ export class HttpGameClient implements GameClient {
     const res = await fetch(`${this.apiBase}/api/games/${this.gameId}/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stageId: this.stageId }),
+      body: JSON.stringify({
+        stageId: this.stageId,
+        ...(this.hardcore ? { hardcore: true } : {}),
+        ...(this.seed ? { seed: this.seed } : {}),
+      }),
     });
     if (!res.ok) throw new Error(`Failed to reset game: ${res.status}`);
     const raw = (await res.json()) as ApiGameState;
@@ -149,7 +170,7 @@ export class HttpGameClient implements GameClient {
   }
 
   private async ensureGame(): Promise<GameState> {
-    const storedId = readStoredGameId(this.stageId);
+    const storedId = !this.hardcore && !this.seed ? readStoredGameId(this.stageId) : null;
     if (storedId) {
       const res = await fetch(`${this.apiBase}/api/games/${storedId}`);
       if (res.ok) {
@@ -164,9 +185,12 @@ export class HttpGameClient implements GameClient {
       // 404 はDBが作り直された等で保存済みのゲームが無いだけなので、新規作成に進む
       if (!res.ok && res.status !== 404) throw new Error(`Failed to load game: ${res.status}`);
     }
-    const raw = await createGameOnce(this.apiBase, this.stageId);
+    const raw = await createGameOnce(this.apiBase, this.stageId, {
+      hardcore: this.hardcore,
+      seed: this.seed,
+    });
     if (raw.stageId !== this.stageId) throw new Error('指定ステージを開始できません。バックエンドの更新を確認してください。');
-    storeGameId(raw.gameId, this.stageId);
+    if (!this.hardcore && !this.seed) storeGameId(raw.gameId, this.stageId);
     return toGameState(raw);
   }
 }

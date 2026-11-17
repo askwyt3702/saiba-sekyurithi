@@ -69,6 +69,7 @@ class SecurityRule(TypedDict, total=False):
 class GameMapDefinition(TypedDict):
     id: int
     seed: str | None
+    hardcore: bool
     generator_version: str
     rules_version: str
     nodes: list[MapNode]
@@ -77,6 +78,8 @@ class GameMapDefinition(TypedDict):
     target_node_ids: set[str]
     key_fragment_node_ids: set[str]
     important_node_ids: set[str]
+    honeypot_node_ids: set[str]
+    enable_argus_counterattack: bool
     node_effects: dict[str, NodeEffect]
     conditional_breach_alert: Monitoring | None
     breach_requirements: dict[str, list[str]]
@@ -101,8 +104,10 @@ def map_from_stage(stage: dict) -> GameMapDefinition:
     result.update(
         security_rules={nid: deepcopy(rule) for nid, rule in balance.SECURITY_RULES.items()
                         if nid in {n["id"] for n in stage["nodes"]}},
-        seed=None, generator_version="fixed-v1", rules_version="turn-v1",
+        seed=None, hardcore=False, generator_version="fixed-v1", rules_version="turn-v1",
         important_node_ids=set(stage.get("important_node_ids", [])),
+        honeypot_node_ids=set(stage.get("honeypot_node_ids", [])),
+        enable_argus_counterattack=bool(stage.get("enable_argus_counterattack", False)),
         conditional_breach_alert=deepcopy(stage.get("conditional_breach_alert")),
         breach_requirements=deepcopy(stage.get("breach_requirements", {})),
         initial_state={"game_time": 0, "alert_level": 0.0,

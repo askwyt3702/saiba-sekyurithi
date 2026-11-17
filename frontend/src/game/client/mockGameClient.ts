@@ -8,6 +8,7 @@ import type {
 import { createMockGameState } from '../data/mockGameState';
 import { DEFAULT_STAGE_ID, getStageData } from '../data/stageData';
 import { mapFromStage, type GameMapDefinition } from '../model/mapDefinition';
+import { generateRandomStage } from '../model/randomMap';
 import { transition } from '../model/gameRules';
 
 function nextId(): string {
@@ -29,14 +30,29 @@ function generateKeyFragment(): string {
 export class MockGameClient implements GameClient {
   private state: GameState;
   private readonly stageId: number;
-  private readonly map: GameMapDefinition;
+  private readonly hardcore: boolean;
+  private readonly customDefinition: boolean;
+  private readonly fixedSeed?: string;
+  private map: GameMapDefinition;
   private fragmentA: string;
   private fragmentB: string;
   private onEvent: ((event: ServerEvent) => void) | null = null;
 
-  constructor(gameId: string, stageId = DEFAULT_STAGE_ID, definition?: GameMapDefinition) {
+  constructor(
+    gameId: string,
+    stageId = DEFAULT_STAGE_ID,
+    definition?: GameMapDefinition,
+    options?: { hardcore?: boolean; seed?: string },
+  ) {
     this.stageId = stageId;
-    this.map = definition ? JSON.parse(JSON.stringify(definition)) : mapFromStage(getStageData(stageId));
+    this.hardcore = Boolean(options?.hardcore);
+    this.fixedSeed = options?.seed;
+    this.customDefinition = Boolean(definition);
+    this.map = definition
+      ? JSON.parse(JSON.stringify(definition))
+      : stageId === 4
+        ? generateRandomStage(options?.seed, this.hardcore)
+        : mapFromStage(getStageData(stageId));
     this.fragmentA = generateKeyFragment();
     this.fragmentB = generateKeyFragment();
     this.state = createMockGameState(gameId, stageId, this.map);
@@ -52,6 +68,9 @@ export class MockGameClient implements GameClient {
   reset(): Promise<void> {
     this.fragmentA = generateKeyFragment();
     this.fragmentB = generateKeyFragment();
+    if (!this.customDefinition && this.stageId === 4) {
+      this.map = generateRandomStage(this.fixedSeed, this.hardcore);
+    }
     this.state = createMockGameState(this.state.gameId, this.stageId, this.map);
     this.state.keyFragments = { a: null, b: null };
     this.emit({ type: 'state_snapshot', state: this.cloneState() });

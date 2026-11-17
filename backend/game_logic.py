@@ -4,6 +4,7 @@ API層(main.py)からは「状態の取得」と「アクションの適用」�
 バランス数値は balance_config.py、ステージ構造は game_data.py に分離してある。
 """
 from datetime import datetime, timedelta
+import json
 import secrets
 from typing import Optional
 
@@ -74,7 +75,34 @@ def ensure_key_fragments(db: Session) -> None:
         db.commit()
 
 
+_SET_FIELDS = (
+    "entry_node_ids",
+    "target_node_ids",
+    "key_fragment_node_ids",
+    "important_node_ids",
+    "honeypot_node_ids",
+)
+
+
+def _serialize_map(stage: dict) -> str:
+    payload = dict(stage)
+    for key in _SET_FIELDS:
+        if key in payload:
+            payload[key] = sorted(payload[key])
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def _deserialize_map(raw: str) -> dict:
+    payload = json.loads(raw)
+    for key in _SET_FIELDS:
+        if key in payload:
+            payload[key] = set(payload[key])
+    return payload
+
+
 def _player_stage(player: models.PlayerStatus) -> dict:
+    if getattr(player, "map_snapshot", None):
+        return _deserialize_map(player.map_snapshot)
     stage_id = player.stage_id if player.stage_id is not None else DEFAULT_STAGE_ID
     return get_stage(stage_id)
 
@@ -82,6 +110,9 @@ def _player_stage(player: models.PlayerStatus) -> dict:
 def _start_message(stage: dict) -> str:
     if stage.get("start_message"):
         return stage["start_message"]
+    if stage["id"] == 4:
+        mode = "HARDCORE" if stage.get("hardcore") else "STANDARD"
+        return f"動的ネットワーク作戦（SEED: {stage.get('seed')} / {mode}）を開始。ハニーポットの矛盾を見破り、ARGUSの反撃に注意してCoreを制圧せよ！"
     if stage["id"] == 1:
         return "侵入作戦を開始しました。唯一の初期侵入口E01をスキャンして侵入してください。ターン制のため操作時だけ時間が進みます。"
     return "基礎侵入訓練を開始しました。公開サーバーが入口です。ステージ1の初期侵入口はE01のみです。"
@@ -149,6 +180,19 @@ def _security_events(logs) -> dict[str, list[str]]:
     return result
 
 
+def _extract_tag_ids(logs, prefix: str) -> list[str]:
+    ids: list[str] = []
+    marker = f"[{prefix}:"
+    for log in logs:
+        if log.message.startswith(marker):
+            end = log.message.find("]")
+            if end > len(marker):
+                nid = log.message[len(marker):end]
+                if nid not in ids:
+                    ids.append(nid)
+    return ids
+
+
 # ---------- ゲームの生成・取得 ----------
 
 def list_stages() -> list[dict]:
@@ -164,15 +208,30 @@ def list_stages() -> list[dict]:
     ]
 
 
-def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID) -> models.PlayerStatus:
-    stage = get_stage(stage_id)
+def _build_stage_for_new_game(stage_id: int, hardcore: bool = False, seed: Optional[str] = None) -> tuple[dict, Optional[str]]:
+    if stage_id == 4:
+        from random_map import generate_random_stage
+        stage = generate_random_stage(seed=seed, hardcore=hardcore)
+        return stage, _serialize_map(stage)
+    return get_stage(stage_id), None
+
+
+def create_game(
+    db: Session,
+    stage_id: int = DEFAULT_STAGE_ID,
+    hardcore: bool = False,
+    seed: Optional[str] = None,
+) -> models.PlayerStatus:
+    stage, snapshot = _build_stage_for_new_game(stage_id, hardcore=hardcore, seed=seed)
+    init = stage.get("initial_state", {})
     player = models.PlayerStatus(
-        game_time=0,
-        alert_level=0.0,
-        analysis_resource=INITIAL_ANALYSIS_RESOURCE,
-        current_privilege=INITIAL_PRIVILEGE,
+        game_time=init.get("game_time", 0),
+        alert_level=init.get("alert_level", 0.0),
+        analysis_resource=init.get("analysis_resource", INITIAL_ANALYSIS_RESOURCE),
+        current_privilege=init.get("current_privilege", INITIAL_PRIVILEGE),
         game_status="playing",
         stage_id=stage["id"],
+        map_snapshot=snapshot,
         key_fragment_a=_generate_key_fragment(),
         key_fragment_b=_generate_key_fragment(),
     )
@@ -193,21 +252,30 @@ def create_game(db: Session, stage_id: int = DEFAULT_STAGE_ID) -> models.PlayerS
 
 
 def reset_game(
-    db: Session, player: models.PlayerStatus, stage_id: Optional[int] = None
+    db: Session,
+    player: models.PlayerStatus,
+    stage_id: Optional[int] = None,
+    hardcore: Optional[bool] = None,
+    seed: Optional[str] = None,
 ) -> models.PlayerStatus:
     """指定されたゲームを初期状態にリセットする（stage_id を渡せば別ステージに切り替え可能）。"""
     db.query(models.NodeState).filter(models.NodeState.player_id == player.id).delete()
     db.query(models.GameLog).filter(models.GameLog.player_id == player.id).delete()
 
-    if stage_id is not None:
-        player.stage_id = get_stage(stage_id)["id"]
-    elif player.stage_id is None:
-        player.stage_id = DEFAULT_STAGE_ID
+    target_stage_id = stage_id if stage_id is not None else (player.stage_id if player.stage_id is not None else DEFAULT_STAGE_ID)
+    prev_hardcore = False
+    if getattr(player, "map_snapshot", None):
+        prev_hardcore = bool(_deserialize_map(player.map_snapshot).get("hardcore", False))
+    actual_hardcore = prev_hardcore if hardcore is None else hardcore
 
-    player.game_time = 0
-    player.alert_level = 0.0
-    player.analysis_resource = INITIAL_ANALYSIS_RESOURCE
-    player.current_privilege = INITIAL_PRIVILEGE
+    stage, snapshot = _build_stage_for_new_game(target_stage_id, hardcore=actual_hardcore, seed=seed)
+    init = stage.get("initial_state", {})
+    player.stage_id = stage["id"]
+    player.map_snapshot = snapshot
+    player.game_time = init.get("game_time", 0)
+    player.alert_level = init.get("alert_level", 0.0)
+    player.analysis_resource = init.get("analysis_resource", INITIAL_ANALYSIS_RESOURCE)
+    player.current_privilege = init.get("current_privilege", INITIAL_PRIVILEGE)
     player.game_status = "playing"
     player.key_fragment_a = _generate_key_fragment()
     player.key_fragment_b = _generate_key_fragment()
@@ -216,7 +284,7 @@ def reset_game(
         db,
         player,
         "info",
-        _start_message(_player_stage(player)),
+        _start_message(stage),
     )
 
     db.commit()
@@ -313,32 +381,49 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
         frag_by_node_id[ordered_key_ids[1]] = ("断片B", frag_b)
 
     statuses = _node_statuses(db, player)
-    db_nodes = sorted(
-        db.query(models.NodeMaster).filter(models.NodeMaster.id.in_(stage_node_ids)).all(),
-        key=lambda n: order.get(n.id, len(order)),
-    )
+    has_snapshot = bool(getattr(player, "map_snapshot", None))
+    if has_snapshot:
+        source_nodes = stage_nodes
+    else:
+        db_nodes = sorted(
+            db.query(models.NodeMaster).filter(models.NodeMaster.id.in_(stage_node_ids)).all(),
+            key=lambda n: order.get(n.id, len(order)),
+        )
+        source_nodes = [
+            {
+                "id": n.id,
+                "name": n.name,
+                "layer": n.layer,
+                "pos_x": n.pos_x,
+                "pos_y": n.pos_y,
+                "info": n.info,
+                "vulnerability": n.vulnerability,
+            }
+            for n in db_nodes
+        ]
 
     nodes = []
-    for node in db_nodes:
-        status = statuses.get(node.id, "unscanned")
+    for node in source_nodes:
+        nid = node["id"]
+        status = statuses.get(nid, "unscanned")
         revealed = status != "unscanned"
-        info_text = node.info if revealed else "不明（スキャンが必要です）"
-        if status == "hacked" and node.id in frag_by_node_id:
-            label_name, frag_val = frag_by_node_id[node.id]
-            info_text = f"{node.info or ''} 【入手済み{label_name}: {frag_val}】".strip()
+        info_text = node["info"] if revealed else "不明（スキャンが必要です）"
+        if status == "hacked" and nid in frag_by_node_id:
+            label_name, frag_val = frag_by_node_id[nid]
+            info_text = f"{node['info'] or ''} 【入手済み{label_name}: {frag_val}】".strip()
 
         nodes.append({
-            "id": node.id,
+            "id": nid,
             "position": {
-                "x": node.pos_x,
-                "y": node.pos_y,
+                "x": node["pos_x"],
+                "y": node["pos_y"],
             },
             "data": {
-                "label": node.name,
-                "layer": node.layer,
+                "label": node["name"],
+                "layer": node["layer"],
                 "info": info_text,
                 "vulnerability": (
-                    node.vulnerability
+                    node["vulnerability"]
                     if revealed
                     else None
                 ),
@@ -358,7 +443,13 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
         or player.analysis_resource < ACTION_COSTS["dataExtract"]["resource"]
     )
 
-    return {
+    flagged_traps = _extract_tag_ids(logs, "TRAP_FLAGGED")
+    triggered_traps = _extract_tag_ids(logs, "TRAP_TRIGGERED")
+    argus_reinforced = _extract_tag_ids(logs, "ARGUS_REINFORCE")
+    monitor = stage.get("conditional_breach_alert")
+    argus_disabled = bool(monitor and statuses.get(monitor["disabled_by_node_id"]) == "hacked")
+
+    state_payload = {
         "gameId": str(player.id),
         "stageId": stage["id"],
         "status": player.game_status,
@@ -385,23 +476,56 @@ def build_game_state(db: Session, player: models.PlayerStatus) -> dict:
             for l in logs
         ],
     }
+    if has_snapshot:
+        state_payload["dynamicMap"] = {
+            "seed": stage.get("seed"),
+            "hardcore": bool(stage.get("hardcore", False)),
+            "entryNodeIds": sorted(stage.get("entry_node_ids", set())),
+            "targetNodeIds": sorted(stage.get("target_node_ids", set())),
+            "keyFragmentNodeIds": sorted(stage.get("key_fragment_node_ids", set())),
+            "nodeEffects": {
+                nid: {
+                    "resourceBonus": eff.get("resource_bonus", 0),
+                    "alertDelta": eff.get("alert_delta", 0),
+                    "log": eff.get("log"),
+                }
+                for nid, eff in stage.get("node_effects", {}).items()
+            },
+            "breachRequirements": stage.get("breach_requirements", {}),
+            "conditionalBreachAlert": (
+                {
+                    "disabledByNodeId": monitor["disabled_by_node_id"],
+                    "targetNodeIds": monitor["target_node_ids"],
+                    "alertDelta": monitor["alert_delta"],
+                }
+                if monitor
+                else None
+            ),
+            "flaggedTraps": flagged_traps,
+            "triggeredTraps": triggered_traps,
+            "argusReinforced": argus_reinforced,
+            "argusDisabled": argus_disabled,
+            "enableArgusCounterattack": bool(stage.get("enable_argus_counterattack", False)),
+        }
+    return state_payload
 
 
 # ---------- アクション ----------
 
 def _rule_state(db: Session, player: models.PlayerStatus):
     from game_rules import RuleState
-    authenticated = db.query(models.GameLog).filter(
-        models.GameLog.player_id == player.id,
-        models.GameLog.message.like("%暗号キー認証に成功%"),
-    ).first() is not None
+    logs = db.query(models.GameLog).filter_by(player_id=player.id).order_by(models.GameLog.id).all()
+    authenticated = any("暗号キー認証に成功" in l.message for l in logs)
     return RuleState(
         game_time=player.game_time, alert_level=player.alert_level,
         analysis_resource=player.analysis_resource, current_privilege=player.current_privilege,
         game_status=player.game_status, node_statuses=_node_statuses(db, player),
         fragment_a=player.key_fragment_a or "", fragment_b=player.key_fragment_b or "",
         cipher_authenticated=authenticated,
-        security_events=_security_events(db.query(models.GameLog).filter_by(player_id=player.id).order_by(models.GameLog.id).all()),
+        security_events=_security_events(logs),
+        flagged_traps=_extract_tag_ids(logs, "TRAP_FLAGGED"),
+        triggered_traps=_extract_tag_ids(logs, "TRAP_TRIGGERED"),
+        argus_reinforced=_extract_tag_ids(logs, "ARGUS_REINFORCE"),
     )
 
 
@@ -417,7 +541,8 @@ def apply_action(db: Session, player: models.PlayerStatus, action_type: str,
     from game_rules import RuleAction, transition
     from map_definition import map_from_stage
 
-    definition = map_from_stage(_player_stage(player))
+    stage = _player_stage(player)
+    definition = stage if getattr(player, "map_snapshot", None) else map_from_stage(stage)
     before = _rule_state(db, player)
     result = transition(definition, before, RuleAction(action_type, node_id, passcode, exploit_mismatch, exploit_id, question_id))
     if not result.accepted:

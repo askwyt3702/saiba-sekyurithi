@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, SECURITY_RULES, getStageData, isExtractTarget } from '../../game/data/stageData';
+import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, SECURITY_RULES, isExtractTarget } from '../../game/data/stageData';
+import { resolveStageView } from '../../game/model/dynamicStageHelper';
 import type { SecurityRule } from '../../game/model/mapDefinition';
 import { securityRequirementsMet } from '../../game/model/actionRules';
 import { getNodeSecurityMeta, getSecurityChallenge } from '../../game/data/securityLearningData';
@@ -8,6 +9,7 @@ import { canReachNode, canRemoteScanNode, isMonitoringActive, missingGateRequire
 import type {
   ActionType,
   ActionResult,
+  DynamicMapInfo,
   NetworkNode,
   ApiNetworkEdge,
   GameStatus,
@@ -23,6 +25,7 @@ interface NodeDetailPanelProps {
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   stageId?: number;
+  dynamicMap?: DynamicMapInfo;
   gameStatus?: GameStatus;
   privilege?: string;
   keyFragments?: KeyFragments;
@@ -45,6 +48,7 @@ export function NodeDetailPanel({
   nodes,
   edges,
   stageId = DEFAULT_STAGE_ID,
+  dynamicMap,
   gameStatus = 'playing',
   privilege = 'GUEST',
   keyFragments,
@@ -55,7 +59,7 @@ export function NodeDetailPanel({
   logs,
   onAction,
 }: NodeDetailPanelProps) {
-  const stage = getStageData(stageId);
+  const stage = resolveStageView(stageId, dynamicMap);
   const [passcode, setPasscode] = useState('');
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isExploitOpen, setIsExploitOpen] = useState(false);
@@ -121,8 +125,14 @@ export function NodeDetailPanel({
   const locked = node.status !== 'hacked' && missing.length > 0;
   const monitor = stage.conditionalBreachAlert;
   const monitored = monitor?.targetNodeIds.includes(node.id);
-  const extraAlert = monitoringExtra(node.id, nodes, stage);
-  const decay = balanceConfig.alertDecayPerSecond * balanceConfig.breach.time;
+  const isFlaggedTrap = Boolean(dynamicMap?.flaggedTraps.includes(node.id));
+  const isTriggeredTrap = Boolean(dynamicMap?.triggeredTraps.includes(node.id));
+  const argusExtra =
+    dynamicMap && !dynamicMap.argusDisabled && dynamicMap.argusReinforced.includes(node.id)
+      ? (dynamicMap.hardcore ? 12 : 10)
+      : 0;
+  const extraAlert = monitoringExtra(node.id, nodes, stage) + argusExtra;
+  const decay = (dynamicMap?.hardcore ? 0 : balanceConfig.alertDecayPerSecond) * balanceConfig.breach.time;
   const breachAlertChange = balanceConfig.breach.alertDelta + extraAlert - decay;
   const detectionAlert = Math.max(0, Math.min(100, alertLevel + breachAlertChange));
   const layers = ['External', 'DMZ', 'Internal', 'Core'];
@@ -145,8 +155,18 @@ export function NodeDetailPanel({
   const canBreach =
     node.status === 'scanned' &&
     !locked &&
+    !isFlaggedTrap &&
+    !isTriggeredTrap &&
     playing && reachable && privileges.indexOf(privilege) >= layers.indexOf(node.layer) &&
     analysisResource >= balanceConfig.breach.resource;
+
+  const canFlagTrap = Boolean(
+    dynamicMap && playing && node.status === 'scanned' && !isFlaggedTrap && !isTriggeredTrap,
+  );
+
+  const isTargetNode = dynamicMap
+    ? dynamicMap.targetNodeIds.includes(node.id)
+    : isExtractTarget(node, stageId);
 
   const hasAllKeyFragments =
     stage.keyFragmentNodeIds.length > 0 &&
@@ -161,13 +181,13 @@ export function NodeDetailPanel({
       : balanceConfig.dataExtract.resource;
 
   const canExtract =
-    playing && isExtractTarget(node, stageId) &&
+    playing && isTargetNode &&
     node.status === 'hacked' &&
     analysisResource >= extractResourceCost;
 
   const showPasscodeInput =
     stage.keyFragmentNodeIds.length > 0 &&
-    isExtractTarget(node, stageId) &&
+    isTargetNode &&
     node.status !== 'hacked';
 
   const fragA = keyFragments?.a ?? null;
@@ -390,6 +410,21 @@ export function NodeDetailPanel({
           )}
         </div>
       )}
+      {isFlaggedTrap && (
+        <p className="node-detail__warning" role="status">
+          ⚠ このノードはハニーポット（罠）として隔離済みです。侵入は無効化されています。
+        </p>
+      )}
+      {isTriggeredTrap && (
+        <p className="node-detail__warning" role="alert">
+          💥 ハニーポット罠が発動し、このノードは緊急封鎖されました。別ルートから攻略してください。
+        </p>
+      )}
+      {argusExtra > 0 && (
+        <p className="node-detail__warning" role="status">
+          👁 ARGUS強化監視中：このノードへの侵入時は追加警戒度 +{argusExtra}% が発生します（監視制御ノード攻略で解除）。
+        </p>
+      )}
       <p>警戒度100%に到達すると、侵入効果やデータ回収成功より先に敗北します。</p>
 
       <div className="node-detail__actions">
@@ -436,6 +471,17 @@ export function NodeDetailPanel({
         >
           {isInvestigated ? '調査ログ再確認 ✓' : '情報確認'}
         </button>
+
+        {dynamicMap && node.status === 'scanned' && (
+          <button
+            type="button"
+            disabled={!canFlagTrap}
+            onClick={() => onAction('flagTrap')}
+            title="情報・ログに矛盾がある囮サーバー(ハニーポット)を隔離すると警戒度 -5%。正規ノードを誤隔離すると警戒度 +4%。"
+          >
+            {isFlaggedTrap ? '✓ 罠として隔離済み' : '⚠ 罠として隔離'}
+          </button>
+        )}
       </div>
 
       {isExploitOpen && (

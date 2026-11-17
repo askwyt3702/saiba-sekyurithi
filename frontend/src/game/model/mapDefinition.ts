@@ -11,6 +11,9 @@ import {
 export interface GameMapDefinition extends StageDefinition {
   securityRules: Record<string, SecurityRule>;
   seed: string | null;
+  hardcore?: boolean;
+  honeypotNodeIds?: string[];
+  enableArgusCounterattack?: boolean;
   generatorVersion: string;
   rulesVersion: string;
   importantNodeIds: string[];
@@ -53,7 +56,7 @@ export function mapFromStage(stage: StageDefinition): GameMapDefinition {
   return JSON.parse(JSON.stringify({
     ...stage,
     securityRules: Object.fromEntries(Object.entries(SECURITY_RULES).filter(([id]) => stage.nodes.some((node) => node.id === id))),
-    seed: null, generatorVersion: 'fixed-v1', rulesVersion: 'turn-v1', importantNodeIds: [],
+    seed: null, hardcore: false, honeypotNodeIds: [], enableArgusCounterattack: false, generatorVersion: 'fixed-v1', rulesVersion: 'turn-v1', importantNodeIds: [],
     initialState: {
       elapsedSeconds: 0, alertLevel: 0, analysisResource: INITIAL_ANALYSIS_RESOURCE,
       privilege: INITIAL_PRIVILEGE, status: 'playing',

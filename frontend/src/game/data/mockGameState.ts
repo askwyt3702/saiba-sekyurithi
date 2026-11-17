@@ -5,11 +5,32 @@ import type { GameMapDefinition } from '../model/mapDefinition';
 // ステージの中身は stageData.ts(backend/game_data.py から生成)を使う。
 export function createMockGameState(gameId: string, stageId: number = DEFAULT_STAGE_ID, definition?: GameMapDefinition): GameState {
   const stage = definition ?? getStageData(stageId);
+  const dynamicMap =
+    definition && (definition.id === 4 || definition.enableArgusCounterattack)
+      ? {
+          seed: definition.seed,
+          hardcore: Boolean(definition.hardcore),
+          entryNodeIds: [...definition.entryNodeIds],
+          targetNodeIds: [...definition.targetNodeIds],
+          keyFragmentNodeIds: [...definition.keyFragmentNodeIds],
+          nodeEffects: JSON.parse(JSON.stringify(definition.nodeEffects)),
+          breachRequirements: JSON.parse(JSON.stringify(definition.breachRequirements)),
+          conditionalBreachAlert: definition.conditionalBreachAlert
+            ? JSON.parse(JSON.stringify(definition.conditionalBreachAlert))
+            : null,
+          flaggedTraps: [],
+          triggeredTraps: [],
+          argusReinforced: [],
+          argusDisabled: false,
+          enableArgusCounterattack: Boolean(definition.enableArgusCounterattack),
+        }
+      : undefined;
   return {
     gameId,
     stageId: stage.id,
     evaluation: null,
     securityEvents: {},
+    ...(dynamicMap ? { dynamicMap } : {}),
     status: 'playing',
     elapsedSeconds: 0,
     alertLevel: 0,

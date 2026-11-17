@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -22,6 +22,7 @@ class PlayerStatus(Base):
     stage_id = Column(Integer, default=1)               # プレイ中のステージID（既定=1）
     key_fragment_a = Column(String, nullable=True)      # ランダム生成された暗号鍵の断片A
     key_fragment_b = Column(String, nullable=True)      # ランダム生成された暗号鍵の断片B
+    map_snapshot = Column(Text, nullable=True)          # 動的生成ステージ用マップ定義(JSON)
     last_accessed_at = Column(DateTime, default=utcnow) # 最後にAPIで触られた時刻（古いゲームの掃除に使う）
 
 # 2. ノードの基本設計図（マスターデータ）

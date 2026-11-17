@@ -50,9 +50,10 @@ function App() {
   // タイトル画面・ミッション選択画面
   const [screen, setScreen] = useState<Screen>('title');
   const [stageId, setStageId] = useState<number>(DEFAULT_STAGE_ID);
+  const [hardcore, setHardcore] = useState(false);
 
   // ゲーム画面のときだけゲームデータを取得
-  const { state, connectionMode, sendAction, reset } = useGameClient(screen === 'game', stageId);
+  const { state, connectionMode, sendAction, reset } = useGameClient(screen === 'game', stageId, { hardcore });
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -210,9 +211,10 @@ function App() {
   if (screen === 'mission') {
     return (
       <MissionScreen
-        onSelectMission={(id) => {
-          if (id === 0 || id === 1 || id === 2) {
+        onSelectMission={(id, options) => {
+          if (id === 0 || id === 1 || id === 2 || id === 4) {
             setStageId(id);
+            setHardcore(Boolean(options?.hardcore));
             setSelectedNodeId(null);
             setNotice(null);
             setScreen('game');
@@ -248,6 +250,7 @@ function App() {
         analysisResource={state.analysisResource}
         privilege={state.privilege}
         offline={connectionMode === 'mock'}
+        dynamicMap={state.dynamicMap}
         canRecover={canRecover}
         onRecover={handleRecover}
         onReset={handleReset}
@@ -306,6 +309,7 @@ function App() {
 
         <MapView
           stageId={state.stageId ?? stageId}
+          dynamicMap={state.dynamicMap}
           nodes={state.nodes}
           edges={state.edges}
           selectedNodeId={selectedNodeId}
@@ -316,6 +320,7 @@ function App() {
           securityEvents={state.securityEvents}
           alertLevel={state.alertLevel}
           stageId={state.stageId ?? stageId}
+          dynamicMap={state.dynamicMap}
           gameStatus={state.status}
           privilege={state.privilege}
           keyFragments={state.keyFragments}

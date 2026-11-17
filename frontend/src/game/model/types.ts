@@ -97,12 +97,33 @@ export interface KeyFragments {
   unlocked?: boolean;
 }
 
+export interface DynamicMapInfo {
+  seed?: string | null;
+  hardcore?: boolean;
+  entryNodeIds: string[];
+  targetNodeIds: string[];
+  keyFragmentNodeIds: string[];
+  nodeEffects: Record<string, { resourceBonus: number; alertDelta: number; log: string }>;
+  breachRequirements: Record<string, string[]>;
+  conditionalBreachAlert: {
+    disabledByNodeId: string;
+    targetNodeIds: string[];
+    alertDelta: number;
+  } | null;
+  flaggedTraps: string[];
+  triggeredTraps: string[];
+  argusReinforced: string[];
+  argusDisabled: boolean;
+  enableArgusCounterattack: boolean;
+}
+
 export interface GameState {
   securityEvents?: Record<string, ('INFO_CONFIRMED' | 'ANALYSIS_COMPLETED')[]>;
   gameId: string;
   stageId?: number;
   evaluation?: MissionEvaluation | null;
   keyFragments?: KeyFragments;
+  dynamicMap?: DynamicMapInfo;
   status: GameStatus;
   elapsedSeconds: number;    // backend DBでは player_status.game_time
   alertLevel: number;        // backend DBでは player_status.alert_level
@@ -124,6 +145,7 @@ export interface MissionEvaluation {
 export type ActionType =
   | 'confirmInfo'
   | 'completeAnalysis'
+  | 'flagTrap'
   | 'scan'
   | 'remoteScan'
   | 'breach'

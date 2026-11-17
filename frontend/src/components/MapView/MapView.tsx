@@ -11,12 +11,14 @@ import {
 } from '@xyflow/react';
 
 import '@xyflow/react/dist/style.css';
-import { DEFAULT_STAGE_ID, getStageData } from '../../game/data/stageData';
+import { DEFAULT_STAGE_ID } from '../../game/data/stageData';
+import { resolveStageView } from '../../game/model/dynamicStageHelper';
 import { useUiScale } from '../../useUiScale';
 import { missingGateRequirements, monitoringExtra } from '../../game/model/actionRules';
 
 import type {
   ApiNetworkEdge,
+  DynamicMapInfo,
   NetworkNode,
 } from '../../game/model/types';
 
@@ -39,6 +41,7 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
 
 interface MapViewProps {
   stageId?: number;
+  dynamicMap?: DynamicMapInfo;
   nodes: NetworkNode[];
   edges: ApiNetworkEdge[];
   selectedNodeId: string | null;
@@ -47,12 +50,13 @@ interface MapViewProps {
 
 function MapContent({
   stageId = DEFAULT_STAGE_ID,
+  dynamicMap,
   nodes,
   edges,
   selectedNodeId,
   onSelectNode,
 }: MapViewProps) {
-  const stage = getStageData(stageId);
+  const stage = resolveStageView(stageId, dynamicMap);
   const { setViewport, getViewport } = useReactFlow();
   // 画面全体の拡大(#root の zoom)はマップには効かせず(MapView.css)、React Flow 自身のズームで同じ大きさに見せる。
   // 外側の zoom が残っていると、ドラッグでマップがマウスより速く動いてしまうため。
@@ -96,30 +100,42 @@ function MapContent({
   // React Flow用ノード
   const flowNodes: NetworkFlowNode[] = useMemo(
     () =>
-      nodes.map((node) => ({
-        id: node.id,
-        type: 'networkNode',
-        position: node.position,
-        data: {
-          node,
-          selected: node.id === selectedNodeId,
-          isEntry: stage.entryNodeIds.includes(node.id),
-          isMonitored: stage.conditionalBreachAlert?.targetNodeIds.includes(node.id),
-          monitoringExtra: monitoringExtra(node.id, nodes, stage),
-          gateState: stage.breachRequirements[node.id]
-            ? node.status === 'hacked' ? 'hacked' : missingGateRequirements(node.id, nodes, stage).length ? 'locked' : 'unlocked'
-            : undefined,
-          effect: stage.nodeEffects[node.id],
-          isKeyFragment: stage.keyFragmentNodeIds.includes(node.id),
-        },
-        draggable: false,
-        className:
-          node.status !== 'hacked' &&
-          reachableNodeIds.has(node.id)
-            ? 'map-node--reachable'
-            : '',
-      })),
-    [nodes, selectedNodeId, reachableNodeIds, stage],
+      nodes.map((node) => {
+        const isEntry = stage.entryNodeIds.includes(node.id);
+        const trapState = dynamicMap?.triggeredTraps.includes(node.id)
+          ? 'triggered'
+          : dynamicMap?.flaggedTraps.includes(node.id)
+            ? 'flagged'
+            : undefined;
+        const argusReinforced = Boolean(
+          dynamicMap && !dynamicMap.argusDisabled && dynamicMap.argusReinforced.includes(node.id),
+        );
+        const reachable =
+          !trapState && node.status !== 'hacked' && (reachableNodeIds.has(node.id) || isEntry);
+        return {
+          id: node.id,
+          type: 'networkNode',
+          position: node.position,
+          data: {
+            node,
+            selected: node.id === selectedNodeId,
+            isEntry,
+            reachable,
+            trapState,
+            argusReinforced,
+            isMonitored: stage.conditionalBreachAlert?.targetNodeIds.includes(node.id),
+            monitoringExtra: monitoringExtra(node.id, nodes, stage),
+            gateState: stage.breachRequirements[node.id]
+              ? node.status === 'hacked' ? 'hacked' : missingGateRequirements(node.id, nodes, stage).length ? 'locked' : 'unlocked'
+              : undefined,
+            effect: stage.nodeEffects[node.id],
+            isKeyFragment: stage.keyFragmentNodeIds.includes(node.id),
+          },
+          draggable: false,
+          className: reachable ? 'map-node--reachable' : '',
+        };
+      }),
+    [nodes, selectedNodeId, reachableNodeIds, stage, dynamicMap],
   );
 
   // 接続線
@@ -129,26 +145,39 @@ function MapContent({
         const sourceStatus = nodeStatusMap.get(edge.source);
         const targetStatus = nodeStatusMap.get(edge.target);
 
-        const bothHacked =
-          sourceStatus === 'hacked' &&
-          targetStatus === 'hacked';
+        const sourceHacked = sourceStatus === 'hacked';
+        const targetHacked = targetStatus === 'hacked';
+        const bothHacked = sourceHacked && targetHacked;
+        const frontierEdge = sourceHacked !== targetHacked;
 
         const connectedToSelected =
           selectedNodeId !== null &&
           (edge.source === selectedNodeId ||
             edge.target === selectedNodeId);
 
-        let stroke = '#2e6346';
-        let strokeWidth = 1.6;
+        let stroke = '#3c6e63';
+        let strokeWidth = 1.8;
+        let opacity = 0.72;
+        let strokeDasharray: string | undefined;
+
+        if (frontierEdge) {
+          stroke = '#fbbf24';
+          strokeWidth = 2.1;
+          opacity = 0.88;
+          strokeDasharray = '6 4';
+        }
 
         if (bothHacked) {
           stroke = '#00ff64';
-          strokeWidth = 2.2;
+          strokeWidth = 2.5;
+          opacity = 0.92;
+          strokeDasharray = undefined;
         }
 
         if (connectedToSelected) {
           stroke = '#22f2d0';
-          strokeWidth = 2.6;
+          strokeWidth = 2.8;
+          opacity = 1;
         }
 
         return {
@@ -156,17 +185,14 @@ function MapContent({
           source: edge.source,
           target: edge.target,
           type: 'default',
-          animated: false,
+          animated: bothHacked,
           style: {
             stroke,
             strokeWidth,
-            opacity: connectedToSelected
-              ? 1
-              : bothHacked
-                ? 0.9
-                : 0.55,
+            strokeDasharray,
+            opacity,
           },
-          zIndex: connectedToSelected ? 10 : 0,
+          zIndex: connectedToSelected ? 10 : bothHacked ? 5 : 0,
         };
       }),
     [edges, nodeStatusMap, selectedNodeId],
@@ -238,7 +264,7 @@ function MapContent({
         nodesConnectable={false}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#0e3820" gap={28} />
+        <Background color="#164e63" gap={28} />
 
         <Controls
           showInteractive={false}

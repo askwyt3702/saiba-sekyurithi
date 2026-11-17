@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { getStageClearRecords } from '../../game/model/missionRecords';
 import { playSound } from '../../game/sound/soundEffects';
 import './MissionScreen.css';
 
 interface MissionScreenProps {
-  onSelectMission: (id: number) => void;
+  onSelectMission: (id: number, options?: { hardcore?: boolean }) => void;
   onBack: () => void;
 }
 
@@ -85,10 +86,26 @@ const MISSIONS: MissionItem[] = [
     locked: true,
     actionText: 'CONNECTION BLOCKED',
   },
+  {
+    id: 4,
+    code: 'SECTOR 04 // ROGUE PROTOCOL',
+    badge: '14 NODES (RANDOM)',
+    hazardTag: 'HONEYPOT + ARGUS COUNTERATTACK',
+    title: '動的生成・防衛AI迎撃戦',
+    description:
+      '毎回構造が変化するローグライク網。偽装ハニーポットの矛盾を見抜き隔離せよ。警戒度40%/70%以上でARGUSが強化監視やセッション遮断の反撃に出る。',
+    targetNode: 'C03 (CORE)',
+    idsStatus: 'ACTIVE COUNTERATTACK',
+    difficultyLabel: '超上級 / ROGUELIKE',
+    difficultyLevel: 4,
+    theme: 'amber',
+    actionText: 'LAUNCH ROGUE BREACH',
+  },
 ];
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
   const clearRecords = getStageClearRecords();
+  const [hardcore, setHardcore] = useState(false);
 
   return (
     <main className="ms-root" id="missionScreen">
@@ -141,7 +158,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                 onClick={() => {
                   if (!isLocked) {
                     playSound('breach');
-                    onSelectMission(m.id);
+                    onSelectMission(m.id, m.id === 4 ? { hardcore } : undefined);
                   } else {
                     playSound('alert');
                   }
@@ -152,7 +169,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                   if (!isLocked && (e.key === 'Enter' || e.key === ' ')) {
                     e.preventDefault();
                     playSound('breach');
-                    onSelectMission(m.id);
+                    onSelectMission(m.id, m.id === 4 ? { hardcore } : undefined);
                   }
                 }}
               >
@@ -216,6 +233,35 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                       </div>
                     </div>
                   </div>
+                  {m.id === 4 && (
+                    <div
+                      className="ms-meta-row"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <span className="ms-meta-label">MODE</span>
+                      <button
+                        type="button"
+                        aria-pressed={hardcore}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          border: hardcore ? '1px solid #f43f5e' : '1px solid rgba(251, 191, 36, 0.45)',
+                          background: hardcore ? 'rgba(244, 63, 94, 0.25)' : 'rgba(15, 23, 42, 0.7)',
+                          color: hardcore ? '#fda4af' : '#fde68a',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHardcore((prev) => !prev);
+                        }}
+                      >
+                        {hardcore ? '☠ HARDCORE ON (減衰ゼロ)' : 'STANDARD (通常ルール)'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* カード下部：アクションバー */}

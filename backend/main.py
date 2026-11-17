@@ -43,6 +43,8 @@ def migrate_db():
             conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_a VARCHAR"))
         if "key_fragment_b" not in columns:
             conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_b VARCHAR"))
+        if "map_snapshot" not in columns:
+            conn.execute(text("ALTER TABLE player_status ADD COLUMN map_snapshot TEXT"))
         if "last_accessed_at" not in columns:
             conn.execute(text("ALTER TABLE player_status ADD COLUMN last_accessed_at TIMESTAMP"))
         # 既存のゲームには「今触った」扱いで猶予期間を与える（いきなり全部消えないように）
@@ -96,10 +98,14 @@ setup_database()
 # ======= スキーマ =======
 class CreateGameRequest(BaseModel):
     stageId: int = DEFAULT_STAGE_ID
+    hardcore: bool = False
+    seed: Optional[str] = None
 
 
 class ResetGameRequest(BaseModel):
     stageId: Optional[int] = None
+    hardcore: Optional[bool] = None
+    seed: Optional[str] = None
 
 
 class ActionRequest(BaseModel):
@@ -113,6 +119,7 @@ class ActionRequest(BaseModel):
         "resume",
         "confirmInfo",
         "completeAnalysis",
+        "flagTrap",
     ]
     nodeId: Optional[str] = None
     passcode: Optional[str] = None
@@ -150,7 +157,9 @@ def create_game(req: Optional[CreateGameRequest] = None, db: Session = Depends(g
     """
     game_logic.cleanup_stale_games(db)  # 作るついでに、長期間使われていないゲームを掃除する
     stage_id = req.stageId if req is not None else DEFAULT_STAGE_ID
-    player = game_logic.create_game(db, stage_id=stage_id)
+    hardcore = req.hardcore if req is not None else False
+    seed = req.seed if req is not None else None
+    player = game_logic.create_game(db, stage_id=stage_id, hardcore=hardcore, seed=seed)
     return game_logic.build_game_state(db, player)
 
 
@@ -166,7 +175,9 @@ def reset_game(game_id: int, req: Optional[ResetGameRequest] = None, db: Session
     """指定されたゲームを初期状態にリセットし、初期 GameState を返す。"""
     player = _get_game_or_404(db, game_id, lock=True)
     stage_id = req.stageId if req is not None else None
-    game_logic.reset_game(db, player, stage_id=stage_id)
+    hardcore = req.hardcore if req is not None else None
+    seed = req.seed if req is not None else None
+    game_logic.reset_game(db, player, stage_id=stage_id, hardcore=hardcore, seed=seed)
     return game_logic.build_game_state(db, player)
 
 

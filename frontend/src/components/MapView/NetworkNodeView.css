@@ -1,140 +1,288 @@
 /* ========================================
-   CYBER LABYRINTH - ネットワークノードデザイン
+   CYBER LABYRINTH - ホログラム発光シンボルノード
 ======================================== */
+
+@keyframes holoSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes holoEyePulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes targetPulse {
+  0% {
+    transform: scale(0.96) rotate(0deg);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.04) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.96) rotate(360deg);
+    opacity: 0.85;
+  }
+}
 
 .network-node {
   width: 184px;
   min-width: 184px;
-  box-sizing: border-box;
-  padding: 13px 12px;
-  border-radius: 5px;
-  border: 1.5px solid #2d4a3a;
-  border-top: 3px solid #3c634d;
-  background: #05110a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  background: transparent;
+  border: none;
   color: #e6f7ed;
   font-family: ui-monospace, Consolas, monospace;
   text-align: center;
-  cursor: pointer;
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.network-node:hover {
+  transform: translateY(-3px);
+}
+
+/* React Flow 接続ハンドル */
+.network-node .network-node__handle {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid #22d3ee;
+  background: #04131a;
+}
+
+.network-node--hacked .network-node__handle {
+  border-color: #00ff64;
+  background: #032210;
+}
+
+.network-node--unscanned .network-node__handle {
+  border-color: #4b7482;
+}
+
+/* ホログラムシンボル本体 */
+.network-node__symbol-wrap {
   position: relative;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease,
-    background 0.18s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 78px;
+  height: 78px;
+  margin-bottom: 4px;
 }
 
-/* 階層名 */
-.network-node__layer {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: #6b9e80;
-  text-transform: uppercase;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(0, 255, 100, 0.12);
+.network-node--role-db .network-node__symbol-wrap,
+.network-node--core .network-node__symbol-wrap {
+  width: 84px;
+  height: 84px;
 }
 
-/* ノード名 */
-.network-node__name {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.45;
-  margin-top: 7px;
-  color: #f2fff6;
+.network-node__symbol-wrap .holo-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.35));
+  transition: filter 0.2s ease, transform 0.2s ease;
 }
 
-/* 未発見 (UNKNOWN) */
-.network-node--unscanned {
+.network-node:hover .holo-svg {
+  transform: scale(1.06);
+}
+
+.holo-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: holoSpin 16s linear infinite;
+}
+
+.holo-eye-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: holoEyePulse 2.4s ease-in-out infinite;
+}
+
+/* 状態別グロー */
+.network-node--unscanned .holo-svg {
+  filter: drop-shadow(0 0 6px rgba(94, 136, 150, 0.25));
+}
+
+.network-node--reachable:not(.network-node--hacked) .holo-svg {
+  filter: drop-shadow(0 0 11px rgba(251, 191, 36, 0.45));
+}
+
+.network-node--scanned .holo-svg {
+  filter: drop-shadow(0 0 11px rgba(34, 211, 238, 0.45));
+}
+
+.network-node--role-eye.network-node--scanned .holo-svg {
+  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.5));
+}
+
+.network-node--role-db.network-node--scanned .holo-svg,
+.network-node--locked .holo-svg {
+  filter: drop-shadow(0 0 13px rgba(244, 63, 94, 0.52));
+}
+
+.network-node--hacked .holo-svg {
+  filter: drop-shadow(0 0 12px rgba(0, 255, 100, 0.48));
+}
+
+/* 選択中のターゲット照準リング */
+.network-node__target-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px dashed #00ff64;
+  box-shadow: 0 0 16px rgba(0, 255, 100, 0.35);
+  animation: targetPulse 7s linear infinite;
+  pointer-events: none;
+}
+
+/* 侵入済みチェックバッジ */
+.network-node__hacked-check {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #00ff64;
+  color: #03150a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 8px rgba(0, 255, 100, 0.7);
+}
+
+/* 下部カプセルプレート */
+.network-node__capsule {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 10px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(94, 136, 150, 0.45);
+  background: rgba(5, 14, 22, 0.88);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.network-node--unscanned .network-node__capsule {
   border-style: dashed;
-  border-color: #365242;
-  border-top: 2px solid #486e58;
-  background: rgba(5, 14, 9, 0.9);
+  border-color: rgba(94, 136, 150, 0.5);
 }
 
-.network-node--unscanned .network-node__name {
-  color: #93b5a1;
+.network-node--reachable:not(.network-node--hacked) .network-node__capsule {
+  border-style: solid;
+  border-color: rgba(251, 191, 36, 0.75);
+  background: rgba(24, 16, 4, 0.88);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.25);
 }
 
-/* スキャン済み (SCANNED: サイバーシアン) */
-.network-node--scanned {
-  border-color: #19d4f0;
-  border-top: 3px solid #38bdf8;
-  background: linear-gradient(180deg, #061d28 0%, #041118 100%);
-  box-shadow: 0 0 14px rgba(25, 212, 240, 0.25);
+.network-node--scanned .network-node__capsule {
+  border-color: rgba(34, 211, 238, 0.85);
+  background: rgba(5, 22, 34, 0.92);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.22);
+}
+
+.network-node--role-eye.network-node--scanned .network-node__capsule {
+  border-color: rgba(245, 158, 11, 0.85);
+  background: rgba(28, 15, 4, 0.92);
+}
+
+.network-node--role-db.network-node--scanned .network-node__capsule,
+.network-node--locked .network-node__capsule {
+  border-color: rgba(244, 63, 94, 0.88);
+  background: rgba(32, 6, 14, 0.92);
+}
+
+.network-node--hacked .network-node__capsule {
+  border-color: rgba(0, 255, 100, 0.85);
+  background: rgba(4, 28, 15, 0.92);
+  box-shadow: 0 0 14px rgba(0, 255, 100, 0.25);
+}
+
+.network-node--selected .network-node__capsule {
+  outline: 1.5px solid #00ff64;
+  outline-offset: 2px;
+}
+
+/* ID・階層・ステータス行 */
+.network-node__layer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  color: #7ea3b0;
+  text-transform: uppercase;
 }
 
 .network-node--scanned .network-node__layer {
   color: #67e8f9;
-  border-bottom-color: rgba(56, 189, 248, 0.2);
 }
 
-/* 侵入済み (HACKED: ネオングリーン) */
-.network-node--hacked {
-  border-color: #00e660;
-  border-top: 3px solid #00ff64;
-  background: linear-gradient(180deg, #072615 0%, #04140b 100%);
-  box-shadow: 0 0 16px rgba(0, 255, 100, 0.3);
+.network-node--role-eye.network-node--scanned .network-node__layer {
+  color: #fcd34d;
+}
+
+.network-node--role-db.network-node--scanned .network-node__layer,
+.network-node--locked .network-node__layer {
+  color: #fda4af;
 }
 
 .network-node--hacked .network-node__layer {
   color: #65ff9f;
-  border-bottom-color: rgba(0, 255, 100, 0.22);
 }
 
-/* Core階層（最深部ターゲット強調） */
-.network-node--core {
-  border-width: 2px;
-  border-top-width: 4px;
+/* ノード名 */
+.network-node__name {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 2px;
+  color: #eefcf4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* 選択中ターゲットロック */
-.network-node--selected {
-  outline: 2px solid #00ff64;
-  outline-offset: 3px;
-  box-shadow: 0 0 20px rgba(0, 255, 100, 0.45);
-  transform: translateY(-2px);
+.network-node--unscanned .network-node__name {
+  color: #9ebbc4;
 }
 
-/* マウスホバー */
-.network-node:hover {
-  border-color: #a7f3d0;
-  transform: translateY(-2px);
-}
-
-/* 攻略候補（侵入済みノードに隣接：アンバー発光） */
-.map-view .react-flow__node.map-node--reachable
-  .network-node:not(.network-node--hacked) {
-  border-color: #fbbf24;
-  border-top-color: #f59e0b;
-  box-shadow: 0 0 14px rgba(251, 191, 36, 0.32);
-}
-
-/* ノードの状態表示バッジ */
+/* ステータス小ピル */
 .network-node__status {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 2px 8px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.38);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: #7c9e8a;
+  gap: 4px;
+  font-size: 8.5px;
+  letter-spacing: 0.8px;
 }
 
 .network-node__status-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #527561;
-}
-
-.network-node--scanned .network-node__status {
-  color: #67e8f9;
-  background: rgba(6, 55, 75, 0.45);
+  background: #5e8896;
 }
 
 .network-node--scanned .network-node__status-dot {
@@ -142,68 +290,85 @@
   box-shadow: 0 0 6px #38bdf8;
 }
 
-.network-node--hacked .network-node__status {
-  color: #00ff64;
-  background: rgba(0, 65, 30, 0.45);
-}
-
 .network-node--hacked .network-node__status-dot {
   background: #00ff64;
   box-shadow: 0 0 6px #00ff64;
 }
 
-.network-node__mechanic {
-  margin-top: 6px;
-  padding-top: 4px;
-  border-top: 1px dashed rgba(0, 255, 100, 0.22);
-  font-size: 10.5px;
-  line-height: 1.4;
-  color: #8ee8d8;
-}
-
-.network-node--monitored .network-node__mechanic {
-  color: #fbbf24;
-}
-
-.network-node--locked .network-node__mechanic {
-  color: #ff8a96;
-}
-/* 特殊作戦効果バッジ（痕跡消去・資源補給・鍵断片） */
+/* 特殊作戦効果バッジ */
 .network-node__effect {
-  margin-top: 6px;
+  margin-top: 4px;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 3px;
-  align-items: center;
 }
 
 .node-effect-tag {
   display: inline-block;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   white-space: nowrap;
 }
 
 .node-effect-tag--stealth {
-  background: rgba(6, 182, 212, 0.2);
+  background: rgba(6, 182, 212, 0.22);
   border: 1px solid #06b6d4;
   color: #67e8f9;
-  text-shadow: 0 0 6px rgba(6, 182, 212, 0.6);
 }
 
 .node-effect-tag--supply {
-  background: rgba(0, 255, 100, 0.16);
+  background: rgba(0, 255, 100, 0.18);
   border: 1px solid #00ff64;
   color: #86efac;
-  text-shadow: 0 0 6px rgba(0, 255, 100, 0.5);
 }
 
 .node-effect-tag--key {
-  background: rgba(234, 179, 8, 0.2);
+  background: rgba(234, 179, 8, 0.24);
   border: 1px solid #eab308;
   color: #fef08a;
-  text-shadow: 0 0 6px rgba(234, 179, 8, 0.6);
+}
+
+/* 監視・ゲート表示 */
+.network-node__mechanics {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+}
+
+.network-node__mechanic {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(4, 16, 24, 0.9);
+  border: 1px solid rgba(142, 232, 216, 0.35);
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: #8ee8d8;
+}
+
+.network-node--monitored .network-node__mechanic {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fbbf24;
+}
+
+.network-node--locked .network-node__mechanic {
+  border-color: rgba(244, 63, 94, 0.65);
+  color: #ff8a96;
+}
+
+.network-node__mechanic--trap-ok {
+  border-color: rgba(16, 185, 129, 0.65);
+  color: #6ee7b7;
+}
+
+.network-node__mechanic--trap-hit,
+.network-node__mechanic--argus {
+  border-color: rgba(244, 63, 94, 0.75);
+  background: rgba(69, 10, 10, 0.85);
+  color: #fda4af;
 }

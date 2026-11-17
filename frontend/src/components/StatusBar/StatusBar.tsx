@@ -3,6 +3,7 @@ import {
   RECOVERY_COST,
   RESOURCE_RECOVERY_AMOUNT,
 } from '../../game/data/stageData';
+import type { DynamicMapInfo } from '../../game/model/types';
 import './StatusBar.css';
 
 interface StatusBarProps {
@@ -12,6 +13,7 @@ interface StatusBarProps {
   privilege: string;
   // バックエンドにつながらず Mock で動いているとき true
   offline?: boolean;
+  dynamicMap?: DynamicMapInfo;
   canRecover: boolean;
   onRecover: () => void;
   onReset: () => void;
@@ -36,14 +38,38 @@ export function StatusBar({
   analysisResource,
   privilege,
   offline = false,
+  dynamicMap,
   canRecover,
   onRecover,
   onReset,
   onSelectMission,
 }: StatusBarProps) {
+  const argusStatus = dynamicMap?.enableArgusCounterattack
+    ? dynamicMap.argusDisabled
+      ? { label: 'ARGUS: DISABLED', color: '#34d399' }
+      : alertLevel >= 70
+        ? { label: 'ARGUS: COUNTERATTACK (70%+)', color: '#fb7185' }
+        : alertLevel >= 40
+          ? { label: 'ARGUS: REINFORCED (40%+)', color: '#fbbf24' }
+          : { label: 'ARGUS: STANDBY', color: '#67e8f9' }
+    : null;
+
   return (
     <header className="status-bar">
       <div className="status-bar__title">CYBER LABYRINTH</div>
+
+      {dynamicMap && (
+        <span
+          className="status-bar__offline"
+          style={{
+            borderColor: dynamicMap.hardcore ? '#f43f5e' : argusStatus?.color ?? '#38bdf8',
+            color: dynamicMap.hardcore ? '#fda4af' : argusStatus?.color ?? '#67e8f9',
+          }}
+          title={`SEED: ${dynamicMap.seed ?? 'N/A'} / ハニーポットとARGUS反撃が有効`}
+        >
+          {dynamicMap.hardcore ? '☠ HARDCORE' : 'ROGUE'} // {argusStatus?.label ?? ''}
+        </span>
+      )}
 
       {offline && (
         <span
