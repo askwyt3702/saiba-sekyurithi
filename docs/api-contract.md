@@ -97,7 +97,9 @@ Core・Stage2・チュートリアルもmainの設定を維持し、追加報酬
 | `argusDisabled` | `boolean` | 解除ノードを攻略して ARGUS の反撃が止まっているか |
 | `enableArgusCounterattack` | `boolean` | ARGUS の反撃が有効なステージか |
 
-バックエンドは `[TRAP_FLAGGED:ID]`・`[TRAP_TRIGGERED:ID]`・`[ARGUS_REINFORCE:ID]`・`[ARGUS_SEVER:ID]` のログから、これらを復元する(再読み込みしても保持される)。マップ定義は `player_status.map_snapshot` に JSON で保存する(起動時に列を自動追加)。
+バックエンドは `[TRAP_FLAGGED:ID]`・`[TRAP_TRIGGERED:ID]`・`[ARGUS_REINFORCE:ID]`・`[ARGUS_SEVER:ID]` のログから、これらを復元する(再読み込みしても保持される)。マップ定義は `player_status.map_snapshot` に JSON で保存する(起動時に列を自動追加)。保存したマップには形式のバージョン `schema_version`(今は 1)を付ける。付いていない古いマップは 1 として読む。
+
+保存したマップが壊れている・読めない形式のバージョンのとき、`GET /api/games/{gameId}` と `POST /api/games/{gameId}/actions` は 500 ではなく **409 `{"detail": "map_snapshot_invalid"}`** を返す。フロントは保存済みのゲームの読み込みで 409 を受けたら、新しいゲームを作って始め直す。`POST /api/games/{gameId}/reset` は、保存したマップが壊れていても新しいマップでリセットできる。
 
 ---
 

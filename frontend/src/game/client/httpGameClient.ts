@@ -182,8 +182,10 @@ export class HttpGameClient implements GameClient {
         // 旧共有キーが別ミッションを指していても、その進行をリセットしない。
         if (raw.stageId !== undefined) storeGameId(raw.gameId, raw.stageId, true);
       }
-      // 404 はDBが作り直された等で保存済みのゲームが無いだけなので、新規作成に進む
-      if (!res.ok && res.status !== 404) throw new Error(`Failed to load game: ${res.status}`);
+      // 404 はDBが作り直された等で保存済みのゲームが無いだけなので、新規作成に進む。
+      // 409(map_snapshot_invalid)は保存したマップが壊れている・読めない形式なので、同じく新しいゲームで始め直す。
+      if (res.status === 409) console.warn('[HttpGameClient] 保存済みのマップを読めないため、新しいゲームを開始します。');
+      if (!res.ok && res.status !== 404 && res.status !== 409) throw new Error(`Failed to load game: ${res.status}`);
     }
     const raw = await createGameOnce(this.apiBase, this.stageId, {
       hardcore: this.hardcore,
