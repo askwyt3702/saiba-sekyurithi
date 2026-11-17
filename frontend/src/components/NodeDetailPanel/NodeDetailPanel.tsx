@@ -72,7 +72,13 @@ export function NodeDetailPanel({
   const modalAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [modalAlert, setModalAlert] = useState(false);
 
-  useEffect(() => {
+  // 選んでいるノード(またはステージ)が変わったら、攻撃画面の入力や回答状況を初期化する。
+  // useEffect の中で setState すると描画が二度走るので、描画中に「前回と違えば直す」形にしている
+  // (React 公式の「props が変わったときに state を調整する」書き方)。
+  const resetKey = `${stageId}:${node?.id ?? ''}`;
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey);
     setPasscode('');
     setIsExploitOpen(false);
     setQuestionIndex(0);
@@ -80,14 +86,16 @@ export function NodeDetailPanel({
     setPenalizedChoiceIds([]);
     setSolvedQuestionIds([]);
     setModalAlert(false);
-    if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
-  }, [node?.id, stageId]);
-
+  }
+  // 前のノードで動いていた赤フラッシュのタイマーは止める(state は触らない)
   useEffect(() => {
-    if (gameStatus !== 'playing') {
-      setIsExploitOpen(false);
-    }
-  }, [gameStatus]);
+    if (modalAlertTimer.current) clearTimeout(modalAlertTimer.current);
+  }, [resetKey]);
+
+  // 勝敗が決まったら攻撃画面を閉じる(RETRY 後も開いたままにならないよう、state ごと閉じる)
+  if (gameStatus !== 'playing' && isExploitOpen) {
+    setIsExploitOpen(false);
+  }
 
   useEffect(() => {
     if (!isInfoOpen && !isExploitOpen) return;
@@ -499,7 +507,7 @@ export function NodeDetailPanel({
             <header className="node-info-modal__header exploit-modal__header">
               <div>
                 <div className="node-info-modal__eyebrow">
-                  EXPLOIT TERMINAL // root@null-route:~# target {node.id}
+                  EXPLOIT TERMINAL // root@breach-term:~# target {node.id}
                 </div>
                 <h3 id="exploit-modal-title" className="node-info-modal__title">
                   攻撃手法（エクスプロイト）の選択：{node.name}
