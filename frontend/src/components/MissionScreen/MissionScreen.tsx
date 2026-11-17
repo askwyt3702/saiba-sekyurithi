@@ -101,6 +101,21 @@ const MISSIONS: MissionItem[] = [
     theme: 'amber',
     actionText: 'LAUNCH ROGUE BREACH',
   },
+  {
+    id: 5,
+    code: 'SECTOR 05 // CARD × TERRITORY',
+    badge: '11 NODES (DECK WAR)',
+    hazardTag: 'CARD BATTLE + TERRITORY RTS',
+    title: 'サイバー陣取りカード戦',
+    description:
+      'クイズなしの新モード！手札の攻撃・防御カードで隣接ノードのシールドを削って緑に塗り替え、デッキを強化しながら防衛AIの奪還を押し返してCore DBを制圧せよ。',
+    targetNode: 'C03 (CORE DB)',
+    idsStatus: 'TURN-BASED COUNTER',
+    difficultyLabel: '新モード / TACTICAL',
+    difficultyLevel: 3,
+    theme: 'cyan',
+    actionText: 'ENTER TERRITORY WAR',
+  },
 ];
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {

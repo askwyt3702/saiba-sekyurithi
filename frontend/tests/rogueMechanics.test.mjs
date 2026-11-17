@@ -104,7 +104,7 @@ test('MissionScreen renders Sector 04 Rogue card with Hardcore toggle', () => {
   let picked;
   const tree = MissionScreen({ onSelectMission: (id, opts) => { picked = { id, opts }; }, onBack() {} });
   const cards = elements(tree, 'article');
-  assert.equal(cards.length, 5);
+  assert.equal(cards.length, 6);
   cards[4].props.onClick();
   assert.equal(picked.id, 4);
   assert.equal(picked.opts.hardcore, false);

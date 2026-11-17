@@ -16,6 +16,7 @@ import { MissionFailure } from './components/MissionFailure/MissionFailure';
 import { StageMechanicsStatus } from './components/StageMechanics/StageMechanicsStatus';
 import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
+import { TerritoryGame } from './components/TerritoryGame/TerritoryGame';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import { playSound } from './game/sound/soundEffects';
 import './App.css';
@@ -44,7 +45,7 @@ interface Notice {
   message: string;
 }
 
-type Screen = 'title' | 'mission' | 'game';
+type Screen = 'title' | 'mission' | 'game' | 'territory';
 
 function App() {
   // タイトル画面・ミッション選択画面
@@ -212,6 +213,12 @@ function App() {
     return (
       <MissionScreen
         onSelectMission={(id, options) => {
+          if (id === 5) {
+            setSelectedNodeId(null);
+            setNotice(null);
+            setScreen('territory');
+            return;
+          }
           if (id === 0 || id === 1 || id === 2 || id === 4) {
             setStageId(id);
             setHardcore(Boolean(options?.hardcore));
@@ -222,6 +229,15 @@ function App() {
         }}
         onBack={() => setScreen('title')}
       />
+    );
+  }
+
+  // カード×陣取りバトル画面
+  if (screen === 'territory') {
+    return (
+      <div className="app-shell">
+        <TerritoryGame onBackToMissions={() => setScreen('mission')} />
+      </div>
     );
   }
 
