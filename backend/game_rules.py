@@ -298,11 +298,12 @@ def _monitoring_extra(stage: dict, statuses: dict[str, str], node_id: str, argus
     monitor = stage.get("conditional_breach_alert")
     if monitor and statuses.get(monitor["disabled_by_node_id"]) == "hacked":
         return 0
-    extra = 0.0
+    # 整数で足し合わせる。0.0 から始めるとログが「+12.0%」になり、Mock(TypeScript)の「+12%」とずれる
+    extra = 0
     if monitor and node_id in monitor["target_node_ids"]:
         extra += monitor["alert_delta"]
     if argus_reinforced and node_id in argus_reinforced:
-        extra += 12.0 if stage.get("hardcore") else 10.0
+        extra += 12 if stage.get("hardcore") else 10
     return extra
 
 
