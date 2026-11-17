@@ -558,7 +558,7 @@
 }
 
 .tw-modal {
-  width: min(620px, 92vw);
+  width: min(620px, calc(var(--app-w) * 0.92));
   padding: 22px;
   border-radius: 12px;
   background: #07131d;

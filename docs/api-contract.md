@@ -50,6 +50,57 @@ Core・Stage2・チュートリアルもmainの設定を維持し、追加報酬
 
 動的生成の第1段階では内部のゲーム別マップ型と純粋な行動遷移を追加した。その後の今回の統合で通信契約を上記のとおり拡張した。seed等はまだAPIで受け付けない。内部型と将来の接続範囲は[行動ルール基盤](action-rules-foundation.md)を参照。
 
+## ランダムマップ(ステージ4)・ハードコア・ハニーポットの追記
+
+`ebef686` で追加された内容。ステージ4は、ゲームを作るたびにマップをランダムに生成する。
+
+### リクエストの追加項目
+
+| エンドポイント | 追加項目 | 内容 |
+|---|---|---|
+| `POST /api/games` | `hardcore?: boolean`(既定 `false`)、`seed?: string` | `stageId: 4` のときだけ使う。`seed` を同じにすると同じマップになる。省略時はランダム |
+| `POST /api/games/{gameId}/reset` | `hardcore?: boolean`、`seed?: string` | 省略時、`hardcore` は前回の設定を引き継ぐ。`seed` を省略すると新しいマップになる |
+
+ハードコアでは、開始時の警戒度 5%、解析資源 22、警戒度の自然減衰なし、回復量 4、監視・強化監視の追加警戒度が +12%(通常は +10%)になる。
+
+### `ActionRequest.type` に `flagTrap`(ハニーポットの看破)を追加
+
+- `nodeId` が必要。対象はスキャン済み(`scanned`)のノードだけ。未スキャンは `node_not_scanned`、プレイ中でない・同じノードへの2回目は `invalid_state` で拒否する。
+- 対象がハニーポットなら警戒度 -5%、正規のノードなら警戒度 +4%(誤判定)。資源・時間は消費しない。
+- 看破したノード・罠が作動したノードには、以後 `breach` できない(`invalid_state`)。
+
+### ハニーポットへの侵入
+
+ハニーポットに `breach` すると `accepted: true` のまま罠が作動する。解析資源 -4、警戒度 +25%、ノードは封鎖されて侵入できなくなる。100%到達は敗北。
+
+### ARGUS の反撃(ステージ4だけ)
+
+各操作のあと、監視の解除ノード(I04)を攻略していなければ次のことが起きる。
+
+- 警戒度 40% 以上:未攻略のノード1つに強化監視を展開する(70% 以上なら最大2つ)。そのノードへの侵入は追加警戒度 +10%(ハードコアは +12%)。入口・最終目標・解除ノード・ハニーポットは対象外。
+- 警戒度 70% 以上で `breach` したとき:侵入済みのノード1つ(入口・最終目標・解除ノードを除く)を `scanned` に戻す(強制遮断。再侵入が必要)。
+
+### `GameState.dynamicMap`(ステージ4のゲームだけ)
+
+ランダムに生成したマップの情報。固定ステージ(0〜2)のゲームには含まれない。
+
+| 項目 | 型 | 内容 |
+|---|---|---|
+| `seed` | `string \| null` | マップの元になった seed |
+| `hardcore` | `boolean` | ハードコアかどうか |
+| `entryNodeIds` / `targetNodeIds` / `keyFragmentNodeIds` | `string[]` | 入口・最終目標・暗号鍵のノード |
+| `nodeEffects` | `Record<string, { resourceBonus, alertDelta, log }>` | 初回侵入時の効果 |
+| `breachRequirements` | `Record<string, string[]>` | 侵入に先に攻略が必要なノード |
+| `conditionalBreachAlert` | `{ disabledByNodeId, targetNodeIds, alertDelta } \| null` | 条件付き監視 |
+| `flaggedTraps` / `triggeredTraps` | `string[]` | 看破したノード・罠が作動したノード |
+| `argusReinforced` | `string[]` | 強化監視が展開されたノード |
+| `argusDisabled` | `boolean` | 解除ノードを攻略して ARGUS の反撃が止まっているか |
+| `enableArgusCounterattack` | `boolean` | ARGUS の反撃が有効なステージか |
+
+バックエンドは `[TRAP_FLAGGED:ID]`・`[TRAP_TRIGGERED:ID]`・`[ARGUS_REINFORCE:ID]`・`[ARGUS_SEVER:ID]` のログから、これらを復元する(再読み込みしても保持される)。マップ定義は `player_status.map_snapshot` に JSON で保存する(起動時に列を自動追加)。
+
+---
+
 フロントエンド担当・バックエンド担当・シナリオ/データ担当が、互いの実装を待たずに並行して作業できるようにするための取り決めです。
 ここで決めた形を変える場合は、必ずこのファイルを更新してからチームに共有してください（型定義はこの契約から自動的に導かれるものではなく、`frontend/src/game/model/types.ts` に手で同期させています）。
 
