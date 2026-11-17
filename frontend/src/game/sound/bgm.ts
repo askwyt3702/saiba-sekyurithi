@@ -14,6 +14,9 @@ export function bgmIntensity(alertLevel: number): BgmIntensity {
   return 0;
 }
 
+// 緊張度ごとの持続音の明るさ(ローパスフィルターの周波数 Hz)
+const PAD_BRIGHTNESS: Record<BgmIntensity, number> = { 0: 900, 1: 1200, 2: 1900 };
+
 // 緊張度ごとのテンポ(1分あたりの拍数)
 export const BGM_TEMPO: Record<BgmIntensity, number> = { 0: 92, 1: 110, 2: 128 };
 
@@ -44,7 +47,7 @@ export function setBgmEnabled(enabled: boolean): void {
 }
 
 // A マイナーの音(Hz)
-const NOTE = { A1: 55, C2: 65.41, E2: 82.41, G2: 98, A2: 110, E3: 164.81, A3: 220, C4: 261.63, E4: 329.63, G4: 392, A4: 440, Bb2: 116.54 };
+const NOTE = { A1: 55, C2: 65.41, E2: 82.41, G2: 98, A2: 110, E3: 164.81, A3: 220, C4: 261.63, E4: 329.63, G4: 392, A4: 440 };
 // 8分音符ごとのベースの並び(1小節 = 8個)
 const BASS_LINE = [NOTE.A1, NOTE.A1, NOTE.C2, NOTE.A1, NOTE.G2 / 2, NOTE.A1, NOTE.E2, NOTE.A1];
 // 16分音符ごとのアルペジオ(1小節 = 16個)
@@ -56,7 +59,7 @@ const TICK_MS = 30;
 class BgmEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  private pad: { oscs: OscillatorNode[]; gain: GainNode; tension: GainNode } | null = null;
+  private pad: { oscs: OscillatorNode[]; gain: GainNode; filter: BiquadFilterNode } | null = null;
   private noise: AudioBuffer | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private nextTime = 0;
@@ -133,8 +136,9 @@ class BgmEngine {
     this.intensity = next;
     if (!this.ctx || !this.pad) return;
     const t = this.ctx.currentTime;
-    // 警報のときだけ、ぶつかる音(半音上)を重ねて不安感を出す
-    this.pad.tension.gain.setTargetAtTime(next === 2 ? 0.35 : 0, t, 0.6);
+    // 緊張度が上がるほど持続音のこもりを取って明るく(鋭く)する。
+    // 以前は警報で半音ぶつかる持続音を重ねていたが、ずっと「ぶーー」と鳴って耳障りだったのでやめた。
+    this.pad.filter.frequency.setTargetAtTime(PAD_BRIGHTNESS[next], t, 0.8);
     this.pad.gain.gain.setTargetAtTime(next === 0 ? 0.5 : 0.65, t, 0.6);
   }
 
@@ -144,8 +148,6 @@ class BgmEngine {
     filter.frequency.value = 900;
     const gain = ctx.createGain();
     gain.gain.value = 0.5;
-    const tension = ctx.createGain();
-    tension.gain.value = 0;
     filter.connect(gain).connect(out);
     const oscs = [NOTE.A2, NOTE.E3, NOTE.A2 * 1.003].map((freq) => {
       const osc = ctx.createOscillator();
@@ -157,13 +159,7 @@ class BgmEngine {
       osc.start();
       return osc;
     });
-    const dissonance = ctx.createOscillator();
-    dissonance.type = 'sawtooth';
-    dissonance.frequency.value = NOTE.Bb2;
-    dissonance.connect(tension).connect(filter);
-    dissonance.start();
-    oscs.push(dissonance);
-    this.pad = { oscs, gain, tension };
+    this.pad = { oscs, gain, filter };
     this.setIntensity(this.intensity);
   }
 
@@ -190,8 +186,10 @@ class BgmEngine {
     // ハイハット:静かなときは裏拍だけ、緊張・警報では16分で刻む
     if (level === 0 ? step % 4 === 2 : true) this.hat(time, step % 4 === 2 ? 0.5 : 0.25);
     if (level >= 1) this.arp(ARP[step % ARP.length], time);
-    // 警報:小節の頭と真ん中で、短い警報音
+    // 警報:小節の頭と真ん中で、短い警報音と、心臓の鼓動のような低い「ドクッ、ドクッ」
     if (level === 2 && (step === 0 || step === 8)) this.alarm(time);
+    if (level === 2 && step % 8 === 0) this.heartbeat(time, 1);
+    if (level === 2 && step % 8 === 2) this.heartbeat(time, 0.65);
   }
 
   private envelope(gain: GainNode, time: number, peak: number, length: number): void {
@@ -239,6 +237,19 @@ class BgmEngine {
     osc.connect(filter).connect(gain).connect(this.master!);
     osc.start(time);
     osc.stop(time + 0.12);
+  }
+
+  private heartbeat(time: number, strength: number): void {
+    const ctx = this.ctx!;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140, time);
+    osc.frequency.exponentialRampToValueAtTime(42, time + 0.16);
+    this.envelope(gain, time, 1.1 * strength, 0.24);
+    osc.connect(gain).connect(this.master!);
+    osc.start(time);
+    osc.stop(time + 0.26);
   }
 
   private alarm(time: number): void {

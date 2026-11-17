@@ -97,8 +97,9 @@ export function playSound(effect: SoundEffectType): void {
   try {
     switch (effect) {
       case 'click':
-        // 軽快なサイバー端末クリック音
-        playTone(ctx, 980, 1420, 0.04, 0, 'triangle', 0.06);
+        // 端末のキーを押したような、低く短い「コッ」(暗い雰囲気に合わせて高すぎない音にした)
+        playTone(ctx, 560, 360, 0.045, 0, 'sine', 0.07);
+        playTone(ctx, 190, 140, 0.04, 0, 'sine', 0.05);
         break;
 
       case 'scan':
