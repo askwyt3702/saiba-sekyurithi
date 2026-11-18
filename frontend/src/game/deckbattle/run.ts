@@ -2,12 +2,14 @@
 // 画面に依存しない純粋な関数で実装し、node --test と画面の両方から使う。
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
 import { createBattle, getCardDefinition } from './battle';
-import { REWARD_CARD_IDS, STARTER_DECK_IDS } from './cards';
+import { RARE_CARD_IDS, REWARD_CARD_IDS, STARTER_DECK_IDS } from './cards';
+import { ALL_RELIC_IDS } from './relics';
 import { shuffled } from './rng';
 import type {
   BattleState,
   CardInstance,
   CardLevel,
+  RelicId,
   RunEventId,
   RunNode,
   RunState,
@@ -22,14 +24,15 @@ export const QUIZ_XP_REWARD = 2;
 export const BATTLE_WIN_HEAL_RATIO = 0.1;
 export const VULN_EVENT_FAIL_DAMAGE = 5;
 export const PATCH_EVENT_HEAL = 15;
+export const MAX_EVENT_STREAK = 3;
 
-/** 1回のランのマスの並び(分岐マップを足すときは、この一覧の形を変える) */
+/** 1回のランのマスの並び(戦闘3では通常/エリートの2択が可能) */
 export const DEFAULT_RUN_NODES: RunNode[] = [
   { kind: 'battle', enemyIds: ['scanner_bot'] },
   { kind: 'event', eventId: 'vuln_check' },
   { kind: 'battle', enemyIds: ['ids_sensor', 'ids_sensor'] },
   { kind: 'event', eventId: 'patch' },
-  { kind: 'battle', enemyIds: ['firewall_ai'] },
+  { kind: 'battle', enemyIds: ['firewall_ai'], eliteEnemyIds: ['zero_trust_gate'] },
   { kind: 'boss', enemyIds: ['argus'] },
 ];
 
@@ -46,6 +49,8 @@ export function createRun(options: { fastGrowth?: boolean } = {}): RunState {
     maxHp: PLAYER_MAX_HP,
     nodes: DEFAULT_RUN_NODES.map((n) => ({ ...n })),
     nodeIndex: 0,
+    relics: [],
+    currentBattleElite: false,
     pendingEvolutions: [],
     askedQuestionIds: [],
     fastGrowth: options.fastGrowth ?? false,
@@ -77,10 +82,18 @@ export function getXpProgress(card: CardInstance): { label: string; remainingToN
 }
 
 /** 今のマスが戦闘(またはボス)なら、その戦闘を作る */
-export function createBattleForCurrentNode(run: RunState, seed: number): BattleState {
+export function createBattleForCurrentNode(run: RunState, seed: number, useElite = false): BattleState {
   const node = run.nodes[run.nodeIndex];
   if (!node || node.kind === 'event') throw new Error('current node is not a battle');
-  return createBattle({ deck: run.deck, playerHp: run.hp, playerMaxHp: run.maxHp, enemyIds: node.enemyIds, seed });
+  const enemyIds = useElite && node.kind === 'battle' && node.eliteEnemyIds ? node.eliteEnemyIds : node.enemyIds;
+  return createBattle({
+    deck: run.deck,
+    playerHp: run.hp,
+    playerMaxHp: run.maxHp,
+    enemyIds,
+    seed,
+    relics: run.relics,
+  });
 }
 
 function addXp(
@@ -155,14 +168,24 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
   for (const card of run.deck) {
     const uses = battle.usesThisBattle[card.uid] ?? 0;
     if (uses <= 0) continue;
-    const delta = run.fastGrowth ? uses * 3 + 2 : Math.min(MAX_BATTLE_XP, uses + 1);
+    const baseDelta = run.fastGrowth ? uses * 3 + 2 : Math.min(MAX_BATTLE_XP, uses + 1);
+    const delta = run.currentBattleElite ? baseDelta * 2 : baseDelta;
     const res = addXp(deck, pendingEvolutions, card.uid, delta);
     deck = res.deck;
     pendingEvolutions = res.pendingEvolutions;
     if (res.entry) xpGains.push(res.entry);
   }
 
-  const rewardChoices = isBoss ? [] : shuffled(REWARD_CARD_IDS, rewardSeed).items.slice(0, 3);
+  let rewardChoices: string[] = [];
+  if (!isBoss) {
+    if (run.currentBattleElite) {
+      const rare = shuffled(RARE_CARD_IDS, rewardSeed).items[0];
+      const others = shuffled(REWARD_CARD_IDS.filter((id) => id !== rare), rewardSeed + 1).items.slice(0, 2);
+      rewardChoices = [rare, ...others];
+    } else {
+      rewardChoices = shuffled(REWARD_CARD_IDS, rewardSeed).items.slice(0, 3);
+    }
+  }
 
   return {
     run: {
@@ -170,6 +193,7 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
       status: isBoss ? 'won' : run.status,
       hp: nextHp,
       deck,
+      currentBattleElite: false,
       pendingEvolutions,
     },
     xpGains,
@@ -272,14 +296,44 @@ export function applyQuizXpReward(run: RunState, cardUid: string): { run: RunSta
 /** イベント2(パッチ適用)正解時の追加報酬:HP 15回復 または カード1枚削除 */
 export function applyPatchBonus(
   run: RunState,
-  choice: { type: 'heal' } | { type: 'remove'; cardUid: string },
+  choice: { type: 'heal'; amount?: number } | { type: 'remove'; cardUid: string },
 ): RunState {
   if (choice.type === 'heal') {
-    return { ...run, hp: Math.min(run.maxHp, run.hp + PATCH_EVENT_HEAL) };
+    const amount = choice.amount ?? PATCH_EVENT_HEAL;
+    return { ...run, hp: Math.min(run.maxHp, run.hp + amount) };
   }
+  return removeCardFromDeck(run, choice.cardUid);
+}
+
+/** デッキから不要なカードを1枚削除する(圧縮用) */
+export function removeCardFromDeck(run: RunState, cardUid: string): RunState {
+  if (run.deck.length <= 1) return run;
   return {
     ...run,
-    deck: run.deck.filter((c) => c.uid !== choice.cardUid),
-    pendingEvolutions: run.pendingEvolutions.filter((id) => id !== choice.cardUid),
+    deck: run.deck.filter((c) => c.uid !== cardUid),
+    pendingEvolutions: run.pendingEvolutions.filter((id) => id !== cardUid),
   };
+}
+
+/** 未所持のパッシブ装備を1つランダムに選ぶ(全部所持済みなら null) */
+export function pickAvailableRelic(run: RunState, seed: number): RelicId | null {
+  const available = ALL_RELIC_IDS.filter((id) => !run.relics.includes(id));
+  if (available.length === 0) return null;
+  return shuffled(available, seed).items[0];
+}
+
+/** パッシブ装備をランに追加する */
+export function grantRelic(run: RunState, relicId: RelicId): RunState {
+  if (run.relics.includes(relicId)) return run;
+  return { ...run, relics: [...run.relics, relicId] };
+}
+
+/** イベント報酬用:3枚のカード候補を返す */
+export function pickRewardPool(seed: number, count = 3): string[] {
+  return shuffled(REWARD_CARD_IDS, seed).items.slice(0, count);
+}
+
+/** イベント3問目報酬用:レアカード候補を返す */
+export function pickRarePool(seed: number): string[] {
+  return shuffled(RARE_CARD_IDS, seed).items;
 }

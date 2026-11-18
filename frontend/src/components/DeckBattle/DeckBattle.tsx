@@ -1,4 +1,4 @@
-// SECTOR 06 のゲーム画面(M1:戦闘 + M2:成長・進化 + M3:6マスラン・報酬・クイズイベント・結果)。
+// SECTOR 06 のゲーム画面(M1:戦闘 + M2:成長・進化 + M3:6マスラン・連続クイズ・レリック・エリート分岐)。
 // ルールはすべて game/deckbattle/ にあり、この画面は表示と操作の受け渡しだけをする。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeckQuizQuestion } from '../../game/data/securityLearningData';
@@ -13,8 +13,10 @@ import {
   playCard,
 } from '../../game/deckbattle/battle';
 import { ENEMY_DEFINITIONS } from '../../game/deckbattle/enemies';
+import { RELIC_DEFINITIONS } from '../../game/deckbattle/relics';
 import { randomSeed } from '../../game/deckbattle/rng';
 import {
+  MAX_EVENT_STREAK,
   advanceToNextNode,
   applyBattleResult,
   applyPatchBonus,
@@ -23,8 +25,13 @@ import {
   createBattleForCurrentNode,
   createRun,
   getXpProgress,
+  grantRelic,
+  pickAvailableRelic,
   pickEventQuestion,
+  pickRarePool,
   pickRewardCard,
+  pickRewardPool,
+  removeCardFromDeck,
   resolveEventQuiz,
 } from '../../game/deckbattle/run';
 import type {
@@ -34,6 +41,7 @@ import type {
   EnemyActionEvent,
   EnemyMove,
   EnemyState,
+  RelicId,
   RunEventId,
   RunNode,
   RunState,
@@ -62,7 +70,7 @@ interface Playback {
   final: BattleState;
 }
 
-type StagePhase = 'battle' | 'post_battle' | 'evolve' | 'reward' | 'event' | 'run_result';
+type StagePhase = 'battle' | 'elite_choice' | 'post_battle' | 'evolve' | 'reward' | 'event' | 'run_result';
 
 interface PostBattleSummary {
   xpGains: XpGainEntry[];
@@ -72,13 +80,17 @@ interface PostBattleSummary {
 
 interface EventViewState {
   eventId: RunEventId;
+  step: number; // 1..3
   question: DeckQuizQuestion;
   selectedChoiceId: string | null;
   isCorrect: boolean | null;
   hpLost: number;
-  xpChosen: boolean;
-  patchBonusDone: boolean;
+  stepRewardDone: boolean;
   xpGain: XpGainEntry | null;
+  rewardCards: string[];
+  rareCards: string[];
+  offeredRelic: RelicId | null;
+  finished: boolean;
 }
 
 interface DeckBattleProps {
@@ -152,6 +164,9 @@ function fxForPlay(before: BattleState, after: BattleState): FxSpec[] {
   if (blockGain > 0) specs.push({ at: 'player', text: `+FW${blockGain}`, tone: 'shield' });
   const hpGain = after.player.hp - before.player.hp;
   if (hpGain > 0) specs.push({ at: 'player', text: `+HP${hpGain}`, tone: 'heal' });
+  if (after.modifiers.reconCombo === 'done' && before.modifiers.reconCombo === 'ready') {
+    specs.push({ at: 'player', text: '解析コンボ +1EN', tone: 'buff' });
+  }
   if (after.modifiers.nextAttackBonus > before.modifiers.nextAttackBonus) {
     specs.push({ at: 'player', text: `次攻撃+${after.modifiers.nextAttackBonus - before.modifiers.nextAttackBonus}`, tone: 'buff' });
   }
@@ -173,6 +188,24 @@ function snapshotState(base: BattleState, event: EnemyActionEvent): BattleState 
       const snap = after.enemies.find((s) => s.uid === e.uid);
       return snap ? { ...e, hp: snap.hp, block: snap.block } : e;
     }),
+  };
+}
+
+function buildEventStep(run: RunState, eventId: RunEventId, step: number): EventViewState {
+  const seed = randomSeed();
+  return {
+    eventId,
+    step,
+    question: pickEventQuestion(run, eventId, seed),
+    selectedChoiceId: null,
+    isCorrect: null,
+    hpLost: 0,
+    stepRewardDone: false,
+    xpGain: null,
+    rewardCards: pickRewardPool(seed + 3),
+    rareCards: pickRarePool(seed + 7),
+    offeredRelic: pickAvailableRelic(run, seed + 11),
+    finished: false,
   };
 }
 
@@ -221,7 +254,6 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     [run],
   );
 
-  // 敵ターン再生が終わったらバトル完了処理へ
   useEffect(() => {
     if (!playback) return;
     const next = playback.index + 1;
@@ -243,8 +275,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     const t = window.setTimeout(() => {
       const ev = playback.events[next];
       if (ev.kind === 'attack') playSound(ev.damage > 0 ? 'alert' : 'recover');
-      else if (ev.kind === 'burn') playSound('breach');
-      else if (ev.kind === 'retaliate') playSound('breach');
+      else if (ev.kind === 'burn' || ev.kind === 'retaliate') playSound('breach');
       else playSound('scan');
       pushFx(fxForEvent(ev));
       setPlayback((p) => (p ? { ...p, index: next } : null));
@@ -293,21 +324,23 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       return;
     }
     if (node.kind === 'event') {
-      const question = pickEventQuestion(nextRun, node.eventId, randomSeed());
-      setEventView({
-        eventId: node.eventId,
-        question,
-        selectedChoiceId: null,
-        isCorrect: null,
-        hpLost: 0,
-        xpChosen: false,
-        patchBonusDone: false,
-        xpGain: null,
-      });
+      setEventView(buildEventStep(nextRun, node.eventId, 1));
       setPhase('event');
       return;
     }
+    if (node.kind === 'battle' && node.eliteEnemyIds && node.eliteEnemyIds.length > 0) {
+      setPhase('elite_choice');
+      return;
+    }
     setBattle(createBattleForCurrentNode(nextRun, randomSeed()));
+    setPhase('battle');
+  };
+
+  const onChooseRoute = (useElite: boolean) => {
+    playSound('click');
+    const updated: RunState = { ...run, currentBattleElite: useElite };
+    setRun(updated);
+    setBattle(createBattleForCurrentNode(updated, randomSeed(), useElite));
     setPhase('battle');
   };
 
@@ -419,6 +452,15 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     enterNode(nextRun);
   };
 
+  const onRemoveInReward = (cardUid: string) => {
+    playSound('recover');
+    const compressed = removeCardFromDeck(run, cardUid);
+    const nextRun = advanceToNextNode(compressed);
+    setRun(nextRun);
+    setPostBattle(null);
+    enterNode(nextRun);
+  };
+
   const onAnswerQuiz = (choiceId: string) => {
     if (!eventView || eventView.selectedChoiceId) return;
     const choice = eventView.question.choices.find((c) => c.id === choiceId);
@@ -431,6 +473,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       selectedChoiceId: choiceId,
       isCorrect: choice.isCorrect,
       hpLost: resolved.hpLost,
+      finished: !choice.isCorrect,
     });
     if (resolved.run.status === 'lost') {
       window.setTimeout(() => setPhase('run_result'), 900);
@@ -438,22 +481,45 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const onPickEventXpCard = (cardUid: string) => {
-    if (!eventView || eventView.xpChosen) return;
+    if (!eventView || eventView.stepRewardDone) return;
     playSound('recover');
     const res = applyQuizXpReward(run, cardUid);
     setRun(res.run);
-    setEventView({ ...eventView, xpChosen: true, xpGain: res.gain });
+    setEventView({ ...eventView, stepRewardDone: true, xpGain: res.gain });
     if (res.run.pendingEvolutions.length > 0) {
       setEvolveOrigin('event');
       setPhase('evolve');
     }
   };
 
-  const onPatchBonus = (choice: { type: 'heal' } | { type: 'remove'; cardUid: string }) => {
-    if (!eventView || eventView.patchBonusDone) return;
+  const onEventStep2Reward = (action: { type: 'heal' } | { type: 'card'; defId: string } | { type: 'remove'; cardUid: string }) => {
+    if (!eventView || eventView.stepRewardDone) return;
     playSound('recover');
-    setRun((prev) => applyPatchBonus(prev, choice));
-    setEventView({ ...eventView, patchBonusDone: true });
+    if (action.type === 'heal') {
+      setRun((prev) => applyPatchBonus(prev, { type: 'heal', amount: 10 }));
+    } else if (action.type === 'card') {
+      setRun((prev) => pickRewardCard(prev, action.defId));
+    } else {
+      setRun((prev) => removeCardFromDeck(prev, action.cardUid));
+    }
+    setEventView({ ...eventView, stepRewardDone: true });
+  };
+
+  const onEventStep3Reward = (action: { type: 'relic'; relicId: RelicId } | { type: 'rare'; defId: string }) => {
+    if (!eventView || eventView.stepRewardDone) return;
+    playSound('extract');
+    if (action.type === 'relic') {
+      setRun((prev) => grantRelic(prev, action.relicId));
+    } else {
+      setRun((prev) => pickRewardCard(prev, action.defId));
+    }
+    setEventView({ ...eventView, stepRewardDone: true, finished: true });
+  };
+
+  const onChallengeNextQuestion = () => {
+    if (!eventView || eventView.step >= MAX_EVENT_STREAK) return;
+    playSound('click');
+    setEventView(buildEventStep(run, eventView.eventId, eventView.step + 1));
   };
 
   const onFinishEvent = () => {
@@ -511,7 +577,21 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         </div>
       </header>
 
-      <div className="db-reload-note">※ 試作版のため、ブラウザを読み込み直すとランは最初からやり直しになります。</div>
+      <div className="db-reload-note">
+        <span>※ 試作版のため、ブラウザを読み込み直すとランは最初からやり直しになります。</span>
+        {run.relics.length > 0 && (
+          <span className="db-relic-bar">
+            {run.relics.map((id) => {
+              const r = RELIC_DEFINITIONS[id];
+              return (
+                <span key={id} className="db-chip db-chip--buff" title={r.description}>
+                  {r.icon} {r.name}
+                </span>
+              );
+            })}
+          </span>
+        )}
+      </div>
 
       {phase === 'event' && eventView ? (
         <EventScreen
@@ -519,7 +599,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           eventView={eventView}
           onAnswer={onAnswerQuiz}
           onPickXpCard={onPickEventXpCard}
-          onPatchBonus={onPatchBonus}
+          onStep2Reward={onEventStep2Reward}
+          onStep3Reward={onEventStep3Reward}
+          onNextQuestion={onChallengeNextQuestion}
           onContinue={onFinishEvent}
         />
       ) : (
@@ -596,6 +678,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 </span>
                 {player.block > 0 && <span className="db-chip db-chip--shield">🛡 FW {player.block}</span>}
                 {player.retaliate > 0 && <span className="db-chip db-chip--buff">🪤 反撃 {player.retaliate}</span>}
+                {modifiers.reconCombo === 'ready' && (
+                  <span className="db-chip db-chip--buff" title="このターン中に攻撃カードを使うと帯域+1">
+                    🔍 解析コンボ準備中(攻撃で+1EN)
+                  </span>
+                )}
                 {modifiers.nextAttackBonus > 0 && <span className="db-chip db-chip--buff">🎯 次の攻撃+{modifiers.nextAttackBonus}</span>}
                 {modifiers.repeatNextAttack && <span className="db-chip db-chip--buff">⏩ 次の攻撃×2</span>}
                 {modifiers.nextCardDiscount > 0 && <span className="db-chip db-chip--buff">📜 次のカード−{modifiers.nextCardDiscount}EN</span>}
@@ -614,10 +701,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
             </div>
 
             <div className="db-table">
-              <div className="db-energy" title="帯域:カードを使うのに必要。毎ターン4に戻る">
+              <div className="db-energy" title="帯域:カードを使うのに必要">
                 <span className="db-energy__value">
                   {player.energy}
-                  <small>/{player.maxEnergy}</small>
+                  <small>/{player.maxEnergy + player.turnEnergyBonus}</small>
                 </span>
                 <span className="db-energy__label">帯域</span>
               </div>
@@ -686,6 +773,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         </div>
       )}
 
+      {phase === 'elite_choice' && (
+        <EliteChoiceOverlay onChoose={onChooseRoute} />
+      )}
+
       {!playback && phase === 'post_battle' && postBattle && (
         <PostBattleOverlay run={run} summary={postBattle} onProceed={proceedAfterPostBattle} />
       )}
@@ -699,7 +790,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       )}
 
       {phase === 'reward' && postBattle && (
-        <RewardOverlay rewardDefIds={postBattle.rewardChoices} onPick={onPickReward} />
+        <RewardOverlay run={run} rewardDefIds={postBattle.rewardChoices} onPick={onPickReward} onRemove={onRemoveInReward} />
       )}
 
       {phase === 'run_result' && (
@@ -707,6 +798,37 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       )}
 
       {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
+    </div>
+  );
+}
+
+function EliteChoiceOverlay({ onChoose }: { onChoose: (useElite: boolean) => void }) {
+  return (
+    <div className="db-overlay" role="dialog" aria-modal="true">
+      <div className="db-result db-result--wide db-result--won">
+        <div className="db-result__title">ROUTE SELECTION // 侵入経路選択</div>
+        <p className="db-result__sub">通常の防衛ルートを進むか、強敵(エリート)を突破してレア報酬を狙うか選べます。</p>
+        <div className="db-evo-grid">
+          <button type="button" className="db-evo-card" onClick={() => onChoose(false)}>
+            <div className="db-evo-card__head">
+              <span className="db-evo-card__icon">🧠</span>
+              <span className="db-evo-card__cost">通常ルート</span>
+            </div>
+            <div className="db-evo-card__name">ファイアウォールAI (HP 40)</div>
+            <div className="db-evo-card__text">標準的な強さの敵。通常の報酬とEXPを獲得します。</div>
+            <div className="db-evo-card__cta">通常ルートへ進む</div>
+          </button>
+          <button type="button" className="db-evo-card db-evo-card--elite" onClick={() => onChoose(true)}>
+            <div className="db-evo-card__head">
+              <span className="db-evo-card__icon">⛩️</span>
+              <span className="db-evo-card__cost">エリート(強敵)</span>
+            </div>
+            <div className="db-evo-card__name">ゼロトラストゲート (HP 62)</div>
+            <div className="db-evo-card__text">強敵だが、勝利すると「獲得EXP 2倍」＋「レアカード1枚確定」！</div>
+            <div className="db-evo-card__cta">強敵に挑む！</div>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -795,38 +917,86 @@ function EvolutionOverlay({
   );
 }
 
-function RewardOverlay({ rewardDefIds, onPick }: { rewardDefIds: string[]; onPick: (defId: string | null) => void }) {
+function RewardOverlay({
+  run,
+  rewardDefIds,
+  onPick,
+  onRemove,
+}: {
+  run: RunState;
+  rewardDefIds: string[];
+  onPick: (defId: string | null) => void;
+  onRemove: (cardUid: string) => void;
+}) {
+  const [compressMode, setCompressMode] = useState(false);
+
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className="db-result db-result--wide db-result--won">
         <div className="db-result__title">REWARD DRAFT</div>
-        <p className="db-result__sub">デッキに加えるカードを1枚選んでください（スキップもできます）。</p>
-        <div className="db-reward-grid">
-          {rewardDefIds.map((defId) => {
-            const def = getCardDefinition(defId);
-            const lv1 = def.levels[1];
-            return (
-              <button
-                key={defId}
-                type="button"
-                className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--reward`}
-                onClick={() => onPick(defId)}
-              >
-                <span className="db-card__cost">{lv1.cost}</span>
-                <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
-                <span className="db-card__art">{def.icon}</span>
-                <span className="db-card__name">{def.name}</span>
-                <span className="db-card__desc">{lv1.text}</span>
-                <span className="db-card__lore">{def.lore}</span>
+        {!compressMode ? (
+          <>
+            <p className="db-result__sub">デッキに加えるカードを1枚選んでください（代わりに不要カード1枚削除・スキップも可）。</p>
+            <div className="db-reward-grid">
+              {rewardDefIds.map((defId) => {
+                const def = getCardDefinition(defId);
+                const lv1 = def.levels[1];
+                return (
+                  <button
+                    key={defId}
+                    type="button"
+                    className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--reward`}
+                    onClick={() => onPick(defId)}
+                  >
+                    <span className="db-card__cost">{lv1.cost}</span>
+                    <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
+                    <span className="db-card__art">{def.icon}</span>
+                    <span className="db-card__name">{def.name}</span>
+                    <span className="db-card__desc">{lv1.text}</span>
+                    <span className="db-card__lore">{def.lore}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="db-result__actions">
+              {run.deck.length > 1 && (
+                <button type="button" className="db-btn db-btn--end" onClick={() => setCompressMode(true)}>
+                  カードを1枚削除して圧縮する
+                </button>
+              )}
+              <button type="button" className="db-btn db-btn--ghost" onClick={() => onPick(null)}>
+                スキップして次のマスへ
               </button>
-            );
-          })}
-        </div>
-        <div className="db-result__actions">
-          <button type="button" className="db-btn db-btn--ghost" onClick={() => onPick(null)}>
-            スキップして次のマスへ
-          </button>
-        </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="db-result__sub">デッキから削除するカードを1枚選んでください。</p>
+            <div className="db-deck-grid" style={{ margin: '12px 0 18px' }}>
+              {run.deck.map((card) => {
+                const stats = getCardStats(card);
+                return (
+                  <button
+                    key={card.uid}
+                    type="button"
+                    className="db-deck-pill db-deck-pill--danger"
+                    onClick={() => onRemove(card.uid)}
+                  >
+                    <span>
+                      🗑 {stats.icon} {stats.name} ({card.uid})
+                    </span>
+                    <span className="db-muted">{getXpProgress(card).label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="db-result__actions">
+              <button type="button" className="db-btn db-btn--ghost" onClick={() => setCompressMode(false)}>
+                カード選択に戻る
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -837,27 +1007,36 @@ function EventScreen({
   eventView,
   onAnswer,
   onPickXpCard,
-  onPatchBonus,
+  onStep2Reward,
+  onStep3Reward,
+  onNextQuestion,
   onContinue,
 }: {
   run: RunState;
   eventView: EventViewState;
   onAnswer: (choiceId: string) => void;
   onPickXpCard: (cardUid: string) => void;
-  onPatchBonus: (choice: { type: 'heal' } | { type: 'remove'; cardUid: string }) => void;
+  onStep2Reward: (action: { type: 'heal' } | { type: 'card'; defId: string } | { type: 'remove'; cardUid: string }) => void;
+  onStep3Reward: (action: { type: 'relic'; relicId: RelicId } | { type: 'rare'; defId: string }) => void;
+  onNextQuestion: () => void;
   onContinue: () => void;
 }) {
-  const { eventId, question, selectedChoiceId, isCorrect, hpLost, xpChosen, patchBonusDone, xpGain } = eventView;
+  const { eventId, step, question, selectedChoiceId, isCorrect, hpLost, stepRewardDone, xpGain, rewardCards, rareCards, offeredRelic, finished } =
+    eventView;
   const selectedChoice = question.choices.find((c) => c.id === selectedChoiceId);
-  const needsPatchBonus = eventId === 'patch' && isCorrect === true && !patchBonusDone;
-  const needsXpPick = isCorrect === true && !xpChosen;
-  const canContinue = selectedChoiceId !== null && run.status === 'playing' && !needsXpPick && !needsPatchBonus;
+  const canChallengeMore = isCorrect === true && stepRewardDone && step < MAX_EVENT_STREAK && run.status === 'playing' && !finished;
+  const canLeave = (selectedChoiceId !== null && !isCorrect && run.status === 'playing') || (isCorrect === true && stepRewardDone && run.status === 'playing');
 
   return (
     <main className="db-event-wrap">
       <section className="db-event-card">
         <div className="db-event-head">
-          <span className="db-brand__tag">{eventId === 'vuln_check' ? 'EVENT 1 // 脆弱性診断' : 'EVENT 2 // パッチ適用'}</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="db-brand__tag">{eventId === 'vuln_check' ? 'EVENT 1 // 脆弱性診断' : 'EVENT 2 // パッチ適用'}</span>
+            <span className="db-step db-step--current">
+              連続チャレンジ {step} / {MAX_EVENT_STREAK} 問目
+            </span>
+          </div>
           <span className="db-event-hp">
             現在 HP {run.hp} / {run.maxHp}
           </span>
@@ -892,7 +1071,9 @@ function EventScreen({
         {selectedChoice && (
           <div className={`db-event-feedback ${isCorrect ? 'db-event-feedback--ok' : 'db-event-feedback--ng'}`}>
             <div className="db-event-feedback__badge">
-              {isCorrect ? '✔ 正解！カードの経験値を獲得できます' : `✖ 不正解${hpLost > 0 ? `（HP -${hpLost}）` : '（ペナルティなし）'}`}
+              {isCorrect
+                ? `✔ ${step}問目 正解！`
+                : `✖ 不正解（チャレンジ終了${hpLost > 0 ? `・HP -${hpLost}` : '・ペナルティなし'}）`}
             </div>
             <p>{selectedChoice.feedback}</p>
             <p className="db-event-feedback__sub">
@@ -904,9 +1085,9 @@ function EventScreen({
           </div>
         )}
 
-        {needsXpPick && (
+        {isCorrect === true && !stepRewardDone && step === 1 && (
           <div className="db-event-reward-box">
-            <h3>経験値 +{run.fastGrowth ? 5 : 2} を与えるカードを1枚選んでください</h3>
+            <h3>1問目報酬: 経験値 +{run.fastGrowth ? 5 : 2} を与えるカードを1枚選んでください</h3>
             <div className="db-deck-grid">
               {run.deck.map((card) => {
                 const stats = getCardStats(card);
@@ -924,7 +1105,7 @@ function EventScreen({
         )}
 
         {xpGain && (
-          <div className="db-xp-row db-xp-row--levelup">
+          <div className="db-xp-row db-xp-row--levelup" style={{ marginTop: 10 }}>
             <span>
               {getCardDefinition(xpGain.defId).icon} {getCardDefinition(xpGain.defId).name} ({xpGain.uid}) に +{xpGain.xpAdded} EXP!
             </span>
@@ -932,31 +1113,97 @@ function EventScreen({
           </div>
         )}
 
-        {isCorrect && xpChosen && needsPatchBonus && (
+        {isCorrect === true && !stepRewardDone && step === 2 && (
           <div className="db-event-reward-box">
-            <h3>パッチ適用ボーナスを選択してください</h3>
-            <div className="db-result__actions">
-              <button type="button" className="db-btn db-btn--end" onClick={() => onPatchBonus({ type: 'heal' })}>
-                HP を 15 回復する ({run.hp} → {Math.min(run.maxHp, run.hp + 15)})
+            <h3>2問目連続正解ボーナス！以下から1つ選んでください</h3>
+            <div className="db-result__actions" style={{ justifyContent: 'flex-start', marginBottom: 10 }}>
+              <button type="button" className="db-btn db-btn--end" onClick={() => onStep2Reward({ type: 'heal' })}>
+                HP を 10 回復 ({run.hp} → {Math.min(run.maxHp, run.hp + 10)})
               </button>
             </div>
-            <div className="db-muted" style={{ margin: '10px 0 6px' }}>
-              または不要なカードを 1 枚削除する:
+            <div className="db-muted" style={{ marginBottom: 6 }}>
+              またはカードを1枚デッキに加える:
             </div>
-            <div className="db-deck-grid">
-              {run.deck.map((card) => {
-                const stats = getCardStats(card);
+            <div className="db-reward-grid" style={{ margin: '6px 0 12px' }}>
+              {rewardCards.map((defId) => {
+                const def = getCardDefinition(defId);
                 return (
                   <button
-                    key={card.uid}
+                    key={defId}
                     type="button"
-                    className="db-deck-pill db-deck-pill--danger"
-                    onClick={() => onPatchBonus({ type: 'remove', cardUid: card.uid })}
+                    className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--reward`}
+                    onClick={() => onStep2Reward({ type: 'card', defId })}
                   >
-                    <span>
-                      🗑 {stats.icon} {stats.name} ({card.uid})
-                    </span>
-                    <span className="db-muted">{getXpProgress(card).label}</span>
+                    <span className="db-card__cost">{def.levels[1].cost}</span>
+                    <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
+                    <span className="db-card__art">{def.icon}</span>
+                    <span className="db-card__name">{def.name}</span>
+                    <span className="db-card__desc">{def.levels[1].text}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {run.deck.length > 1 && (
+              <>
+                <div className="db-muted" style={{ marginBottom: 6 }}>
+                  または不要なカードを1枚削除する:
+                </div>
+                <div className="db-deck-grid">
+                  {run.deck.map((card) => {
+                    const stats = getCardStats(card);
+                    return (
+                      <button
+                        key={card.uid}
+                        type="button"
+                        className="db-deck-pill db-deck-pill--danger"
+                        onClick={() => onStep2Reward({ type: 'remove', cardUid: card.uid })}
+                      >
+                        <span>
+                          🗑 {stats.icon} {stats.name} ({card.uid})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {isCorrect === true && !stepRewardDone && step === 3 && (
+          <div className="db-event-reward-box">
+            <h3>3問目パーフェクト達成！特賞を選んでください</h3>
+            {offeredRelic && (
+              <div style={{ marginBottom: 12 }}>
+                <button type="button" className="db-evo-card db-evo-card--elite" onClick={() => onStep3Reward({ type: 'relic', relicId: offeredRelic })}>
+                  <div className="db-evo-card__head">
+                    <span className="db-evo-card__icon">{RELIC_DEFINITIONS[offeredRelic].icon}</span>
+                    <span className="db-evo-card__cost">パッシブ装備</span>
+                  </div>
+                  <div className="db-evo-card__name">{RELIC_DEFINITIONS[offeredRelic].name}</div>
+                  <div className="db-evo-card__text">{RELIC_DEFINITIONS[offeredRelic].description}</div>
+                  <div className="db-evo-card__cta">この常駐ツールを装備する</div>
+                </button>
+              </div>
+            )}
+            <div className="db-muted" style={{ marginBottom: 6 }}>
+              またはレアカードを1枚獲得する:
+            </div>
+            <div className="db-reward-grid" style={{ margin: '6px 0' }}>
+              {rareCards.map((defId) => {
+                const def = getCardDefinition(defId);
+                return (
+                  <button
+                    key={defId}
+                    type="button"
+                    className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--reward`}
+                    onClick={() => onStep3Reward({ type: 'rare', defId })}
+                  >
+                    <span className="db-card__cost">{def.levels[1].cost}</span>
+                    <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
+                    <span className="db-card__art">{def.icon}</span>
+                    <span className="db-card__name">{def.name}</span>
+                    <span className="db-card__desc">{def.levels[1].text}</span>
                   </button>
                 );
               })}
@@ -964,11 +1211,18 @@ function EventScreen({
           </div>
         )}
 
-        {canContinue && (
+        {(canChallengeMore || canLeave) && (
           <div className="db-result__actions" style={{ marginTop: 14 }}>
-            <button type="button" className="db-btn db-btn--end" onClick={onContinue}>
-              次のマスへ進む →
-            </button>
+            {canChallengeMore && (
+              <button type="button" className="db-btn db-btn--end" onClick={onNextQuestion}>
+                次の問題に挑戦する ({step + 1} / {MAX_EVENT_STREAK}問目) →
+              </button>
+            )}
+            {canLeave && (
+              <button type="button" className="db-btn db-btn--ghost" onClick={onContinue}>
+                {canChallengeMore ? '報酬を確定して次のマスへ' : '次のマスへ進む →'}
+              </button>
+            )}
           </div>
         )}
       </section>
@@ -984,7 +1238,9 @@ function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: ()
         <div className="db-result__title">{won ? 'RUN COMPLETE // ARGUS 撃破' : 'CONNECTION LOST'}</div>
         <p className="db-result__sub">{won ? '6マスすべてを突破し、監視AI ARGUSを攻略した！' : '回線耐久が尽きた…。'}</p>
         <div className="db-result__stats">
-          <span>到達マス {run.nodeIndex + 1} / {run.nodes.length}</span>
+          <span>
+            到達マス {run.nodeIndex + 1} / {run.nodes.length}
+          </span>
           <span>
             残りHP {run.hp} / {run.maxHp}
           </span>

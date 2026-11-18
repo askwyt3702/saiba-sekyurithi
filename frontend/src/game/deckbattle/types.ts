@@ -7,8 +7,8 @@ export type CardLevel = 1 | 2 | 3;
 
 /** カードの効果1つ。1枚のカードは効果を順番に並べたもの */
 export type CardEffect =
-  /** ダメージ。hits 回くり返す。target が all なら敵全体 */
-  | { type: 'damage'; amount: number; hits?: number; target: 'single' | 'all' }
+  /** ダメージ。hits 回くり返す。target が all なら敵全体。pierce が true なら敵 FW を無視 */
+  | { type: 'damage'; amount: number; hits?: number; target: 'single' | 'all'; pierce?: boolean }
   /** ファイアウォール(ブロック)を得る */
   | { type: 'block'; amount: number }
   /** カードを引く */
@@ -26,7 +26,9 @@ export type CardEffect =
   /** 過熱:敵のターン終了時にダメージ(FW 無視)、3ターン続く */
   | { type: 'burn'; amount: number }
   /** 反撃:次に受ける攻撃1回で、攻撃してきた敵にダメージ */
-  | { type: 'retaliate'; amount: number };
+  | { type: 'retaliate'; amount: number }
+  /** 常駐効果:戦闘中ずっと毎ターン開始時に自動で発動 */
+  | { type: 'persistent'; stat: 'turnBlock' | 'turnDraw' | 'turnEnergy' | 'turnAttackBonus'; amount: number };
 
 /** あるレベル(または進化先)でのカードの性能 */
 export interface CardStats {
@@ -114,6 +116,15 @@ export interface EnemyState {
   burn?: BurnStatus;
 }
 
+export type RelicId = 'encrypted_vpn' | 'auto_scraper' | 'packet_cache' | 'zero_trust_key';
+
+export interface RelicDefinition {
+  id: RelicId;
+  name: string;
+  icon: string;
+  description: string;
+}
+
 export interface PlayerState {
   hp: number;
   maxHp: number;
@@ -124,6 +135,11 @@ export interface PlayerState {
   retaliate: number;
   /** 次のターンの帯域の減少(敵の「検知」) */
   energyPenalty: number;
+  /** 常駐効果(バックドアやパッシブ装備) */
+  turnBlockBonus: number;
+  turnDrawBonus: number;
+  turnEnergyBonus: number;
+  turnAttackBonus: number;
 }
 
 /** 次の攻撃・次のカードへの修正(7章) */
@@ -131,6 +147,8 @@ export interface Modifiers {
   nextAttackBonus: number;
   repeatNextAttack: boolean;
   nextCardDiscount: number;
+  /** このターン補助カード使用済みなら攻撃で帯域+1(解析コンボ) */
+  reconCombo: 'none' | 'ready' | 'done';
 }
 
 export interface BattleLog {
@@ -173,6 +191,8 @@ export interface BattleState {
   modifiers: Modifiers;
   /** この戦闘で各カードを使った回数(経験値の計算に使う。M2) */
   usesThisBattle: Record<string, number>;
+  /** 装備中のパッシブ装備 */
+  relics: RelicId[];
   log: BattleLog[];
   lastEnemyActions: EnemyActionEvent[];
   nextUid: number;
@@ -184,7 +204,7 @@ export interface BattleState {
 export type RunEventId = 'vuln_check' | 'patch';
 
 export type RunNode =
-  | { kind: 'battle'; enemyIds: string[] }
+  | { kind: 'battle'; enemyIds: string[]; eliteEnemyIds?: string[] }
   | { kind: 'event'; eventId: RunEventId }
   | { kind: 'boss'; enemyIds: string[] };
 
@@ -206,6 +226,10 @@ export interface RunState {
   maxHp: number;
   nodes: RunNode[];
   nodeIndex: number;
+  /** 装備中のパッシブ装備(常駐ツール) */
+  relics: RelicId[];
+  /** 現在の戦闘でエリートルートを選んだか(報酬レア確定＆EXP2倍) */
+  currentBattleElite: boolean;
   /** Lv.3 の進化先を選ぶ必要があるカード(M2) */
   pendingEvolutions: string[];
   /** このランで出題した問題(同じ問題を出さない。M3) */

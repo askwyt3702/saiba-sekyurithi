@@ -390,3 +390,67 @@ test('6マス目のボス(ARGUS)に勝つとラン勝利になる', () => {
   assert.equal(res.run.status, 'won');
   assert.equal(res.rewardChoices.length, 0);
 });
+
+
+// ---------- 拡張機能テスト(12種カード・レリック・解析コンボ・エリート・削除) ----------
+
+test('SQLインジェクションは敵FWを貫通し、バックドア常駐は毎ターンFW+3を付与する', () => {
+  let s = setup([{ defId: 'sql_injection' }, { defId: 'backdoor' }], ['scanner_bot'], ['c1', 'c2']);
+  s.enemies[0].block = 10;
+  s = play(s, 'c1');
+  assert.equal(s.enemies[0].hp, 28 - 5);
+  assert.equal(s.enemies[0].block, 10, 'FWを削らず貫通する');
+
+  s = play(s, 'c2');
+  assert.equal(s.player.turnBlockBonus, 3);
+  const nextTurn = battle.endTurn(s);
+  assert.equal(nextTurn.player.block, 3);
+});
+
+test('解析コンボ:補助カード後に攻撃カードを使うと1ターン1回だけ帯域+1される', () => {
+  let s = setup([{ defId: 'port_scan' }, { defId: 'ssh_brute' }, { defId: 'ssh_brute' }], ['argus'], ['c1', 'c2', 'c3']);
+  s = play(s, 'c1'); // 0EN -> reconCombo = 'ready'
+  assert.equal(s.modifiers.reconCombo, 'ready');
+  s = play(s, 'c2'); // 1EN消費だがコンボ+1ENで実質4EN維持
+  assert.equal(s.modifiers.reconCombo, 'done');
+  assert.equal(s.player.energy, 4);
+  s = play(s, 'c3'); // 同ターン2回目は発動しない
+  assert.equal(s.player.energy, 3);
+});
+
+test('パッシブ装備(暗号化VPN・ゼロトラスト鍵・パケットキャッシュ・自動スクレイパー)が戦闘に反映される', () => {
+  const s = battle.createBattle({
+    deck: [
+      { uid: 'c1', defId: 'ssh_brute', level: 1, xp: 0 },
+      { uid: 'c2', defId: 'ssh_brute', level: 1, xp: 0 },
+      { uid: 'c3', defId: 'ssh_brute', level: 1, xp: 0 },
+      { uid: 'c4', defId: 'ssh_brute', level: 1, xp: 0 },
+      { uid: 'c5', defId: 'ssh_brute', level: 1, xp: 0 },
+    ],
+    playerHp: 65,
+    playerMaxHp: 65,
+    enemyIds: ['argus'],
+    seed: 1,
+    relics: ['encrypted_vpn', 'auto_scraper', 'packet_cache', 'zero_trust_key'],
+  });
+  assert.equal(s.player.block, 3);
+  assert.equal(s.player.energy, 5);
+  assert.equal(s.hand.length, 5);
+  assert.equal(s.modifiers.nextAttackBonus, 3);
+});
+
+test('エリートルート(ゼロトラストゲート)はEXP2倍＆レアカード確定報酬になる', () => {
+  let r = run.createRun({ fastGrowth: false });
+  r.nodeIndex = 4;
+  r.currentBattleElite = true;
+  const b = run.createBattleForCurrentNode(r, 5, true);
+  assert.equal(b.enemies[0].defId, 'zero_trust_gate');
+  b.status = 'won';
+  b.usesThisBattle = { c1: 1 }; // 通常2EXP -> エリートで4EXP
+  const res = run.applyBattleResult(r, b, 15);
+  assert.equal(res.run.deck[0].xp, 4);
+  assert.ok(res.rewardChoices.some((id) => id === 'zero_day' || id === 'backdoor'));
+
+  const compressed = run.removeCardFromDeck(res.run, 'c2');
+  assert.equal(compressed.deck.length, 9);
+});

@@ -12,6 +12,7 @@ import type {
   EnemyActionKind,
   EnemyMove,
   EnemyState,
+  RelicId,
 } from './types';
 
 // ---------- 設定(4章) ----------
@@ -79,9 +80,10 @@ export interface CreateBattleOptions {
   playerMaxHp: number;
   enemyIds: string[];
   seed: number;
+  relics?: RelicId[];
 }
 
-export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed }: CreateBattleOptions): BattleState {
+export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, relics = [] }: CreateBattleOptions): BattleState {
   const seen: Record<string, number> = {};
   const total = (id: string) => enemyIds.filter((x) => x === id).length;
   const enemies: EnemyState[] = enemyIds.map((id, index) => {
@@ -110,14 +112,27 @@ export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed }: Cr
   const state: BattleState = {
     status: 'playing',
     turn: 0,
-    player: { hp: playerHp, maxHp: playerMaxHp, block: 0, energy: 0, maxEnergy: ENERGY_PER_TURN, retaliate: 0, energyPenalty: 0 },
+    player: {
+      hp: playerHp,
+      maxHp: playerMaxHp,
+      block: 0,
+      energy: 0,
+      maxEnergy: ENERGY_PER_TURN,
+      retaliate: 0,
+      energyPenalty: 0,
+      turnBlockBonus: relics.includes('encrypted_vpn') ? 3 : 0,
+      turnDrawBonus: relics.includes('packet_cache') ? 1 : 0,
+      turnEnergyBonus: relics.includes('zero_trust_key') ? 1 : 0,
+      turnAttackBonus: relics.includes('auto_scraper') ? 3 : 0,
+    },
     enemies,
     cards,
     drawPile,
     hand: [],
     discard: [],
-    modifiers: { nextAttackBonus: 0, repeatNextAttack: false, nextCardDiscount: 0 },
+    modifiers: { nextAttackBonus: 0, repeatNextAttack: false, nextCardDiscount: 0, reconCombo: 'none' },
     usesThisBattle: {},
+    relics: [...relics],
     log: [],
     lastEnemyActions: [],
     nextUid: 1,
@@ -156,11 +171,15 @@ function drawCards(state: BattleState, count: number): void {
 
 function startPlayerTurn(state: BattleState): void {
   state.turn += 1;
-  state.player.block = 0;
-  state.player.energy = Math.max(0, state.player.maxEnergy - state.player.energyPenalty);
+  state.player.block = state.player.turnBlockBonus;
+  state.player.energy = Math.max(0, state.player.maxEnergy + state.player.turnEnergyBonus - state.player.energyPenalty);
   if (state.player.energyPenalty > 0) addLog(state, `検知されたため、帯域が ${state.player.energyPenalty} 減った。`, 'bad');
   state.player.energyPenalty = 0;
-  drawCards(state, DRAW_PER_TURN);
+  state.modifiers.reconCombo = 'none';
+  if (state.player.turnAttackBonus > 0) {
+    state.modifiers.nextAttackBonus += state.player.turnAttackBonus;
+  }
+  drawCards(state, DRAW_PER_TURN + state.player.turnDrawBonus);
 }
 
 /** 敵にダメージ(FW から先に削る)。実際に HP が減った量を返す */
@@ -201,7 +220,7 @@ function applyEffect(state: BattleState, effect: CardEffect, target: EnemyState 
       const hits = effect.hits ?? 1;
       for (let i = 0; i < hits; i++) {
         const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
-        for (const enemy of targets) damageEnemy(enemy, effect.amount + attackBonus);
+        for (const enemy of targets) damageEnemy(enemy, effect.amount + attackBonus, Boolean(effect.pierce));
       }
       break;
     }
@@ -234,6 +253,12 @@ function applyEffect(state: BattleState, effect: CardEffect, target: EnemyState 
       break;
     case 'retaliate':
       state.player.retaliate += effect.amount;
+      break;
+    case 'persistent':
+      if (effect.stat === 'turnBlock') state.player.turnBlockBonus += effect.amount;
+      else if (effect.stat === 'turnDraw') state.player.turnDrawBonus += effect.amount;
+      else if (effect.stat === 'turnEnergy') state.player.turnEnergyBonus += effect.amount;
+      else if (effect.stat === 'turnAttackBonus') state.player.turnAttackBonus += effect.amount;
       break;
   }
 }
@@ -287,6 +312,15 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
     for (const effect of stats.effects) applyEffect(state, effect, target, bonus);
   }
   state.discard.push(uid);
+
+  // 解析コンボ(補助 → 攻撃で1ターンに1回 帯域+1)
+  if (def.kind === 'utility' && state.modifiers.reconCombo === 'none') {
+    state.modifiers.reconCombo = 'ready';
+  } else if (isAttack && state.modifiers.reconCombo === 'ready') {
+    state.modifiers.reconCombo = 'done';
+    state.player.energy += 1;
+    addLog(state, '🔍 解析コンボ発動! 帯域 +1', 'good');
+  }
 
   const hits = state.enemies
     .map((e) => ({ e, lost: hpBefore[e.uid] - (e.hp + e.block) }))

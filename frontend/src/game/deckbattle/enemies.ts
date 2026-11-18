@@ -53,4 +53,15 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
       ],
     },
   },
+  zero_trust_gate: {
+    id: 'zero_trust_gate',
+    name: 'ゼロトラストゲート(強敵)',
+    icon: '⛩️',
+    maxHp: 62,
+    pattern: [
+      { type: 'blockAttack', block: 12, amount: 7 },
+      { type: 'detect', amount: 1 },
+      { type: 'attack', amount: 14 },
+    ],
+  },
 };
