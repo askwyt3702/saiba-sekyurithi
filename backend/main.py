@@ -3,6 +3,7 @@ from typing import Literal, Optional
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -13,6 +14,12 @@ from database import engine, SessionLocal
 from game_data import ALL_STAGE_NODES, DEFAULT_STAGE_ID
 
 app = FastAPI(title="NULL ROUTE API")
+
+
+@app.exception_handler(game_logic.MapSnapshotError)
+async def invalid_map_snapshot(_request, _error):
+    """保存したマップが読めないときは 500 で落とさず、409 で知らせる(フロントは新しいゲームを始める)。"""
+    return JSONResponse(status_code=409, content={"detail": "map_snapshot_invalid"})
 
 app.add_middleware(
     CORSMiddleware,

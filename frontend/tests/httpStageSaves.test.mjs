@@ -26,6 +26,8 @@ function harness(initial = {}, forceWrongStage = false) {
         games.set(game.gameId, value);
       } else value = game;
     }
+    // 保存したマップが壊れているゲームは、バックエンドが 409 map_snapshot_invalid を返す
+    if (value === 'BROKEN_MAP') return { ok: false, status: 409, json: async () => ({ detail: 'map_snapshot_invalid' }) };
     return { ok: !!value, status: value ? 200 : 404, json: async () => structuredClone(value) };
   };
   const { outputText } = ts.transpileModule(readFileSync(new URL('../src/game/client/httpGameClient.ts', import.meta.url), 'utf8'), {
@@ -84,4 +86,19 @@ test('wrong-stage response from an outdated server is rejected and never saved a
   const h = harness({}, true);
   await assert.rejects(new h.Client('http://test', 2).connect(() => {}), /指定ステージ/);
   assert.equal(h.storage.has('nullroute.gameId.2'), false);
+});
+
+test('a saved game whose map cannot be read is replaced by a new game instead of failing', async () => {
+  const h = harness({ 'nullroute.gameId.4': 'broken' });
+  h.games.set('broken', 'BROKEN_MAP');
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const state = await new h.Client('http://test', 4).connect(() => {});
+    assert.equal(state.stageId, 4);
+    assert.notEqual(state.gameId, 'broken');
+    assert.equal(h.storage.get('nullroute.gameId.4'), state.gameId, 'the new game should be remembered for next time');
+  } finally {
+    console.warn = warn;
+  }
 });

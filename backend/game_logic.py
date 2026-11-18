@@ -84,16 +84,37 @@ _SET_FIELDS = (
 )
 
 
+# 保存したマップ(player_status.map_snapshot)の形式のバージョン。
+# 保存の形を変えるときはこの数字を上げ、古い形を読む処理を _deserialize_map に足す。
+MAP_SNAPSHOT_VERSION = 1
+
+
+class MapSnapshotError(Exception):
+    """保存したマップが壊れている、または読めない形式のバージョン。API は 409 map_snapshot_invalid を返す。"""
+
+
 def _serialize_map(stage: dict) -> str:
     payload = dict(stage)
     for key in _SET_FIELDS:
         if key in payload:
             payload[key] = sorted(payload[key])
+    payload["schema_version"] = MAP_SNAPSHOT_VERSION
     return json.dumps(payload, ensure_ascii=False)
 
 
 def _deserialize_map(raw: str) -> dict:
-    payload = json.loads(raw)
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError) as error:
+        raise MapSnapshotError("saved map is not valid JSON") from error
+    if not isinstance(payload, dict):
+        raise MapSnapshotError("saved map is not an object")
+    # バージョンが付く前(2026-11-17 以前)に保存したマップは、形が同じなので 1 として読む
+    version = payload.pop("schema_version", 1)
+    if version != MAP_SNAPSHOT_VERSION:
+        raise MapSnapshotError(f"unsupported saved map version: {version}")
+    if not isinstance(payload.get("nodes"), list) or not isinstance(payload.get("edges"), list) or "id" not in payload:
+        raise MapSnapshotError("saved map is missing nodes, edges or id")
     for key in _SET_FIELDS:
         if key in payload:
             payload[key] = set(payload[key])
@@ -265,7 +286,11 @@ def reset_game(
     target_stage_id = stage_id if stage_id is not None else (player.stage_id if player.stage_id is not None else DEFAULT_STAGE_ID)
     prev_hardcore = False
     if getattr(player, "map_snapshot", None):
-        prev_hardcore = bool(_deserialize_map(player.map_snapshot).get("hardcore", False))
+        try:
+            prev_hardcore = bool(_deserialize_map(player.map_snapshot).get("hardcore", False))
+        except MapSnapshotError:
+            # 保存したマップが壊れていても、リセットすれば新しいマップで遊び直せるようにする
+            prev_hardcore = False
     actual_hardcore = prev_hardcore if hardcore is None else hardcore
 
     stage, snapshot = _build_stage_for_new_game(target_stage_id, hardcore=actual_hardcore, seed=seed)

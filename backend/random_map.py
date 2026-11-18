@@ -178,7 +178,7 @@ def generate_random_stage(seed: str | None = None, hardcore: bool = False) -> Ga
     monitoring = {
         "disabled_by_node_id": "I04",
         "target_node_ids": monitored_targets,
-        "alert_delta": 12.0 if hardcore else 10.0,
+        "alert_delta": 12 if hardcore else 10,  # 整数にする(小数だとログが「+12.0%」になり Mock とずれる)
     }
 
     # ゲート制限（Coreの非目標1つにI04前提を付けるか、またはC03以外にロックを置く）
