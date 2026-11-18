@@ -513,3 +513,45 @@ test('解析コインは敵撃破時に約20%・エリート撃破で確定ド�
   }
   assert.ok(drops >= 10 && drops <= 35, `expected ~20 drops out of 100, got ${drops}`);
 });
+
+
+test('カード基地プロフィール:図鑑・弱点ノート復習・ボーナスコイン・戦績・実績が正しく動く', () => {
+  const profileMod = load(new URL('../src/game/deckbattle/profile.ts', import.meta.url));
+  const mem = new Map();
+  const storage = {
+    getItem: (k) => mem.get(k) ?? null,
+    setItem: (k, v) => mem.set(k, v),
+  };
+
+  let p = profileMod.loadDeckProfile(storage);
+  assert.equal(p.stats.runsPlayed, 0);
+  assert.equal(p.bonusStartCoins, 0);
+
+  // 間違えた問題を弱点ノートへ記録
+  const r = run.createRun({ fastGrowth: false });
+  const q = run.pickEventQuestion(r, 'vuln_check', 3);
+  p = profileMod.recordQuizOutcome(p, q.id, false, 1);
+  assert.ok(p.wrongQuestionIds.includes(q.id));
+
+  // 弱点ノートで復習正解 -> ノートから外れ、次回開始コイン+1 & 実績「弱点克服」解除
+  p = profileMod.resolveWeaknessReview(p, q.id, true);
+  assert.ok(!p.wrongQuestionIds.includes(q.id));
+  assert.equal(p.bonusStartCoins, 1);
+  assert.ok(p.achievements.includes('weakness_cleared'));
+
+  // 3問連続正解 & エリート撃破 & ラン勝利で実績解除
+  p = profileMod.recordQuizOutcome(p, q.id, true, 3);
+  p = profileMod.recordEliteDefeat(p);
+  p = profileMod.recordRunResult(p, { ...r, status: 'won' });
+  assert.ok(p.achievements.includes('quiz_streak_3'));
+  assert.ok(p.achievements.includes('elite_slayer'));
+  assert.ok(p.achievements.includes('first_clear'));
+
+  profileMod.saveDeckProfile(p, storage);
+  const reloaded = profileMod.loadDeckProfile(storage);
+  assert.equal(reloaded.stats.runsWon, 1);
+
+  const consumed = profileMod.consumeBonusStartCoins(reloaded);
+  assert.equal(consumed.coins, 1);
+  assert.equal(consumed.profile.bonusStartCoins, 0);
+});

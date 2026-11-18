@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getStageClearRecords } from '../../game/model/missionRecords';
 import { playSound } from '../../game/sound/soundEffects';
+import { DeckHubModal } from '../DeckBattle/DeckHubModal';
 import './MissionScreen.css';
 
 interface MissionScreenProps {
@@ -136,6 +137,7 @@ const MISSIONS: MissionItem[] = [
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
   const clearRecords = getStageClearRecords();
   const [hardcore, setHardcore] = useState(false);
+  const [hubOpen, setHubOpen] = useState(false);
 
   return (
     <main className="ms-root" id="missionScreen">
@@ -154,6 +156,17 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           </div>
 
           <div className="ms-status">
+            <button
+              type="button"
+              className="db-btn db-btn--end"
+              style={{ marginRight: 10 }}
+              onClick={() => {
+                playSound('click');
+                setHubOpen(true);
+              }}
+            >
+              🎴 カード基地（図鑑・弱点・戦績・実績）
+            </button>
             <span className="ms-status-dot" />
             <span>STEALTH LINK: ACTIVE // IDS EVADING</span>
           </div>
@@ -326,6 +339,8 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           </div>
         </footer>
       </div>
+
+      {hubOpen && <DeckHubModal onClose={() => setHubOpen(false)} />}
     </main>
   );
 }

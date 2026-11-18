@@ -1350,3 +1350,136 @@
 .db-deck-pill__preview--max {
   color: #94a3b8;
 }
+
+
+/* ---------- カード基地モーダル(図鑑・弱点ノート・戦績・実績) ---------- */
+.db-hub {
+  text-align: left;
+  max-width: 860px;
+}
+
+.db-hub__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.db-hub__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  padding-bottom: 10px;
+}
+
+.db-hub__tab {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.75);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.db-hub__tab--active {
+  border-color: #22d3ee;
+  background: rgba(8, 51, 68, 0.85);
+  color: #e0f2fe;
+}
+
+.db-hub__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.db-hub__sub {
+  margin: 12px 0 4px;
+  font-size: 13px;
+  color: #67e8f9;
+}
+
+.db-codex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.db-codex-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  background: rgba(15, 23, 42, 0.85);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-codex-card--locked {
+  opacity: 0.6;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.db-codex-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #f8fafc;
+}
+
+.db-codex-card__lore {
+  font-size: 11px;
+  color: #a5f3fc;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.db-codex-branches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.db-codex-branch {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 11px;
+}
+
+.db-codex-branch--open {
+  border-color: rgba(16, 185, 129, 0.55);
+  background: rgba(6, 78, 59, 0.3);
+}
+
+.db-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.db-stat-box {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-stat-box strong {
+  font-size: 18px;
+  color: #e0f2fe;
+}

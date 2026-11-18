@@ -13,6 +13,17 @@ import {
   playCard,
 } from '../../game/deckbattle/battle';
 import { ENEMY_DEFINITIONS } from '../../game/deckbattle/enemies';
+import {
+  type DeckProfile,
+  consumeBonusStartCoins,
+  loadDeckProfile,
+  recordDiscovery,
+  recordEliteDefeat,
+  recordEvolutionUnlocked,
+  recordQuizOutcome,
+  recordRunResult,
+  saveDeckProfile,
+} from '../../game/deckbattle/profile';
 import { RELIC_DEFINITIONS } from '../../game/deckbattle/relics';
 import { randomSeed } from '../../game/deckbattle/rng';
 import {
@@ -215,8 +226,20 @@ function buildEventStep(run: RunState, eventId: RunEventId, step: number): Event
   };
 }
 
+function updateProfile(mutator: (p: DeckProfile) => DeckProfile): void {
+  const next = mutator(loadDeckProfile());
+  saveDeckProfile(next);
+}
+
+function createRunWithProfileCoins(fastGrowth: boolean): RunState {
+  const fresh = createRun({ fastGrowth });
+  const { profile, coins } = consumeBonusStartCoins(loadDeckProfile());
+  if (coins > 0) saveDeckProfile(profile);
+  return coins > 0 ? { ...fresh, reconCoins: fresh.reconCoins + coins } : fresh;
+}
+
 export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
-  const [run, setRun] = useState<RunState>(() => createRun({ fastGrowth: true }));
+  const [run, setRun] = useState<RunState>(() => createRunWithProfileCoins(true));
   const [battle, setBattle] = useState<BattleState>(() => createBattleForCurrentNode(run, randomSeed()));
   const [phase, setPhase] = useState<StagePhase>('battle');
   const [postBattle, setPostBattle] = useState<PostBattleSummary | null>(null);
@@ -244,7 +267,18 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const handleBattleFinished = useCallback(
     (finishedBattle: BattleState) => {
+      const wasElite = run.currentBattleElite;
       const resolved = applyBattleResult(run, finishedBattle, randomSeed());
+      updateProfile((p) => {
+        let next = recordDiscovery(
+          p,
+          resolved.run.deck.map((c) => c.defId),
+          finishedBattle.enemies.map((e) => e.defId),
+        );
+        if (wasElite && finishedBattle.status === 'won') next = recordEliteDefeat(next);
+        if (resolved.run.status !== 'playing') next = recordRunResult(next, resolved.run);
+        return next;
+      });
       setRun(resolved.run);
       if (resolved.run.status === 'lost') {
         setPhase('run_result');
@@ -303,7 +337,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const startRun = (fastGrowth = run.fastGrowth) => {
     playSound('click');
-    const fresh = createRun({ fastGrowth });
+    const fresh = createRunWithProfileCoins(fastGrowth);
     setRun(fresh);
     setBattle(createBattleForCurrentNode(fresh, randomSeed()));
     setPhase('battle');
@@ -431,6 +465,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const onChooseBranch = (cardUid: string, branchId: string) => {
     playSound('extract');
     const updated = chooseEvolution(run, cardUid, branchId);
+    updateProfile((p) => recordEvolutionUnlocked(p, branchId));
     setRun(updated);
     if (updated.pendingEvolutions.length > 0) return;
     if (evolveOrigin === 'event') {
@@ -438,6 +473,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       return;
     }
     if (updated.status === 'won') {
+      updateProfile((p) => recordRunResult(p, updated));
       setPhase('run_result');
       return;
     }
@@ -452,6 +488,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const onPickReward = (defId: string | null) => {
     playSound('click');
+    if (defId) updateProfile((p) => recordDiscovery(p, [defId], []));
     const withReward = pickRewardCard(run, defId);
     const nextRun = advanceToNextNode(withReward);
     setRun(nextRun);
@@ -483,6 +520,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (!choice) return;
     const resolved = resolveEventQuiz(run, eventView.eventId, eventView.question.id, choice.isCorrect);
     playSound(choice.isCorrect ? 'extract' : 'alert');
+    updateProfile((p) => {
+      let next = recordQuizOutcome(p, eventView.question.id, choice.isCorrect, eventView.step);
+      if (resolved.run.status === 'lost') next = recordRunResult(next, resolved.run);
+      return next;
+    });
     setRun(resolved.run);
     setEventView({
       ...eventView,
