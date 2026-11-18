@@ -35,6 +35,7 @@ import {
   previewQuizXpReward,
   removeCardFromDeck,
   resolveEventQuiz,
+  spendReconCoin,
 } from '../../game/deckbattle/run';
 import type {
   BattleState,
@@ -78,6 +79,7 @@ interface PostBattleSummary {
   xpGains: XpGainEntry[];
   rewardChoices: string[];
   healed: number;
+  coinsDropped: number;
 }
 
 interface EventViewState {
@@ -252,6 +254,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         xpGains: resolved.xpGains,
         rewardChoices: resolved.rewardChoices,
         healed: resolved.healed,
+        coinsDropped: resolved.coinsDropped,
       });
       setPhase('post_battle');
     },
@@ -466,8 +469,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const onUseEventRecon = () => {
-    if (!eventView || eventView.reconUsed || eventView.selectedChoiceId) return;
+    if (!eventView || eventView.reconUsed || eventView.selectedChoiceId || run.reconCoins <= 0) return;
     playSound('scan');
+    setRun((prev) => spendReconCoin(prev));
     setEventView({ ...eventView, reconUsed: true });
   };
 
@@ -575,6 +579,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         </nav>
 
         <div className="db-topbar__right">
+          <span className="db-chip db-chip--buff" title="イベントの事前調査(ダミー1択除外)に使う。敵撃破時20%でドロップ">
+            🪙 解析コイン: {run.reconCoins}
+          </span>
           <button
             type="button"
             className={`db-btn db-fast-toggle ${run.fastGrowth ? 'db-fast-toggle--on' : ''}`}
@@ -857,6 +864,7 @@ function PostBattleOverlay({ run, summary, onProceed }: { run: RunState; summary
         <div className="db-result__title">BATTLE CLEAR</div>
         <p className="db-result__sub">
           システムを突破した！{summary.healed > 0 ? `（回線耐久 +${summary.healed} 回復 → ${run.hp}/${run.maxHp}）` : ''}
+          {summary.coinsDropped > 0 ? ` 🪙 解析コイン +${summary.coinsDropped} ドロップ！` : ''}
         </p>
 
         <div className="db-result__used">
@@ -1097,10 +1105,15 @@ function EventScreen({
         ) : selectedChoiceId === null ? (
           <div className="db-event-recon">
             <span className="db-event-recon__prompt">
-              💡 回答に迷ったら、無料の「事前調査（ディープスキャン）」でセキュリティヒント開示＆ダミー選択肢を1つ除外（2択化）できます
+              🪙 「解析コイン」を1枚使うと、セキュリティヒント開示＆ダミー選択肢を1つ除外（2択化）できます（所持: {run.reconCoins}枚 / 敵撃破で20%ドロップ）
             </span>
-            <button type="button" className="db-event-recon__btn" onClick={onUseRecon}>
-              📡 事前調査を実行（ダミー1択カット）
+            <button
+              type="button"
+              className="db-event-recon__btn"
+              onClick={onUseRecon}
+              disabled={run.reconCoins <= 0}
+            >
+              {run.reconCoins > 0 ? '🪙 コイン×1で事前調査（ダミー1択カット）' : '🪙 解析コイン不足（使用不可）'}
             </button>
           </div>
         ) : null}

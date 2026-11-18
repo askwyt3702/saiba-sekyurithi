@@ -228,6 +228,8 @@ export interface RunState {
   nodeIndex: number;
   /** 装備中のパッシブ装備(常駐ツール) */
   relics: RelicId[];
+  /** イベントの事前調査に使う解析コイン(敵撃破で確率ドロップ) */
+  reconCoins: number;
   /** 現在の戦闘でエリートルートを選んだか(報酬レア確定＆EXP2倍) */
   currentBattleElite: boolean;
   /** Lv.3 の進化先を選ぶ必要があるカード(M2) */

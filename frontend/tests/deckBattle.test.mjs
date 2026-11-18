@@ -484,3 +484,32 @@ test('エリートルート(ゼロトラストゲート)はEXP2倍＆レアカ�
   const compressed = run.removeCardFromDeck(res.run, 'c2');
   assert.equal(compressed.deck.length, 9);
 });
+
+
+test('解析コインは敵撃破時に約20%・エリート撃破で確定ドロップし、事前調査で消費できる', () => {
+  const baseRun = run.createRun({ fastGrowth: false });
+  assert.equal(baseRun.reconCoins, 0);
+  assert.throws(() => run.spendReconCoin(baseRun));
+
+  // エリート撃破は確定+1
+  const eliteRun = { ...baseRun, nodeIndex: 4, currentBattleElite: true };
+  const eliteBattle = run.createBattleForCurrentNode(eliteRun, 1, true);
+  eliteBattle.status = 'won';
+  eliteBattle.enemies.forEach((e) => { e.hp = 0; });
+  const eliteRes = run.applyBattleResult(eliteRun, eliteBattle, 5);
+  assert.equal(eliteRes.coinsDropped, 1);
+  assert.equal(eliteRes.run.reconCoins, 1);
+
+  const afterSpend = run.spendReconCoin(eliteRes.run);
+  assert.equal(afterSpend.reconCoins, 0);
+
+  // 通常戦闘100回シミュレーションでドロップ率が20%前後になることを確認
+  let drops = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const b = run.createBattleForCurrentNode(baseRun, seed);
+    b.status = 'won';
+    b.enemies.forEach((e) => { e.hp = 0; });
+    drops += run.applyBattleResult(baseRun, b, seed * 7).coinsDropped;
+  }
+  assert.ok(drops >= 10 && drops <= 35, `expected ~20 drops out of 100, got ${drops}`);
+});

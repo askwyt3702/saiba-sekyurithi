@@ -4,7 +4,7 @@ import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityL
 import { createBattle, getCardDefinition } from './battle';
 import { RARE_CARD_IDS, REWARD_CARD_IDS, STARTER_DECK_IDS } from './cards';
 import { ALL_RELIC_IDS } from './relics';
-import { shuffled } from './rng';
+import { nextRandom, shuffled } from './rng';
 import type {
   BattleState,
   CardInstance,
@@ -25,6 +25,7 @@ export const BATTLE_WIN_HEAL_RATIO = 0.1;
 export const VULN_EVENT_FAIL_DAMAGE = 5;
 export const PATCH_EVENT_HEAL = 15;
 export const MAX_EVENT_STREAK = 3;
+export const RECON_COIN_DROP_RATE = 0.2;
 
 /** 1回のランのマスの並び(戦闘3では通常/エリートの2択が可能) */
 export const DEFAULT_RUN_NODES: RunNode[] = [
@@ -50,6 +51,7 @@ export function createRun(options: { fastGrowth?: boolean } = {}): RunState {
     nodes: DEFAULT_RUN_NODES.map((n) => ({ ...n })),
     nodeIndex: 0,
     relics: [],
+    reconCoins: 0,
     currentBattleElite: false,
     pendingEvolutions: [],
     askedQuestionIds: [],
@@ -138,9 +140,10 @@ export interface BattleResolutionResult {
   xpGains: XpGainEntry[];
   rewardChoices: string[];
   healed: number;
+  coinsDropped: number;
 }
 
-/** 戦闘終了時(勝利/敗北)に HP・経験値・進化待ち・報酬3択を反映する */
+/** 戦闘終了時(勝利/敗北)に HP・経験値・進化待ち・報酬3択・解析コインドロップを反映する */
 export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed: number): BattleResolutionResult {
   if (battle.status === 'lost') {
     return {
@@ -148,6 +151,7 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
       xpGains: [],
       rewardChoices: [],
       healed: 0,
+      coinsDropped: 0,
     };
   }
   if (battle.status !== 'won') {
@@ -187,18 +191,49 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
     }
   }
 
+  // 倒した敵1体ごとに20%で解析コインがドロップ(エリート敵は確定1枚)
+  let coinsDropped = 0;
+  if (!isBoss) {
+    if (run.currentBattleElite) {
+      coinsDropped = 1;
+    } else {
+      let rng = rewardSeed + 97;
+      for (const enemy of battle.enemies) {
+        if (enemy.hp > 0) continue;
+        const roll = nextRandom(rng);
+        rng = roll.state;
+        if (roll.value < RECON_COIN_DROP_RATE) {
+          coinsDropped += 1;
+        }
+      }
+    }
+  }
+
   return {
     run: {
       ...run,
       status: isBoss ? 'won' : run.status,
       hp: nextHp,
       deck,
+      reconCoins: run.reconCoins + coinsDropped,
       currentBattleElite: false,
       pendingEvolutions,
     },
     xpGains,
     rewardChoices,
     healed,
+    coinsDropped,
+  };
+}
+
+/** 解析コインを1枚消費してイベントの事前調査を実行する */
+export function spendReconCoin(run: RunState): RunState {
+  if (run.reconCoins <= 0) {
+    throw new Error('解析コインが足りません');
+  }
+  return {
+    ...run,
+    reconCoins: run.reconCoins - 1,
   };
 }
 
