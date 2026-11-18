@@ -17,6 +17,7 @@ import { StageMechanicsStatus } from './components/StageMechanics/StageMechanics
 import { TutorialBanner } from './components/TutorialBanner/TutorialBanner';
 import { ToolPanel } from './components/ToolPanel/ToolPanel';
 import { TerritoryGame } from './components/TerritoryGame/TerritoryGame';
+import { DeckBattle } from './components/DeckBattle/DeckBattle';
 import { DEFAULT_STAGE_ID, MAX_ANALYSIS_RESOURCE, getStageData } from './game/data/stageData';
 import { playSound } from './game/sound/soundEffects';
 import './App.css';
@@ -45,7 +46,7 @@ interface Notice {
   message: string;
 }
 
-type Screen = 'title' | 'mission' | 'game' | 'territory';
+type Screen = 'title' | 'mission' | 'game' | 'territory' | 'deckbattle';
 
 function App() {
   // タイトル画面・ミッション選択画面
@@ -219,6 +220,12 @@ function App() {
             setScreen('territory');
             return;
           }
+          if (id === 6) {
+            setSelectedNodeId(null);
+            setNotice(null);
+            setScreen('deckbattle');
+            return;
+          }
           if (id === 0 || id === 1 || id === 2 || id === 4) {
             setStageId(id);
             setHardcore(Boolean(options?.hardcore));
@@ -237,6 +244,15 @@ function App() {
     return (
       <div className="app-shell">
         <TerritoryGame onBackToMissions={() => setScreen('mission')} />
+      </div>
+    );
+  }
+
+  // デッキ構築ローグライトの戦闘画面(試作)
+  if (screen === 'deckbattle') {
+    return (
+      <div className="app-shell">
+        <DeckBattle onBackToMissions={() => setScreen('mission')} />
       </div>
     );
   }

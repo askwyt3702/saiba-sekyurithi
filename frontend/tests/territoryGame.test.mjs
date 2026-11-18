@@ -120,7 +120,9 @@ test('MissionScreen includes Sector 05 Card x Territory War card', () => {
   let picked;
   const tree = MissionScreen({ onSelectMission: (id) => { picked = id; }, onBack() {} });
   const cards = elements(tree, 'article');
-  assert.equal(cards.length, 6);
+  assert.equal(cards.length, 7);
   cards[5].props.onClick();
   assert.equal(picked, 5);
+  cards[6].props.onClick();
+  assert.equal(picked, 6);
 });

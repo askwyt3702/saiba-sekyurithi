@@ -116,6 +116,21 @@ const MISSIONS: MissionItem[] = [
     theme: 'cyan',
     actionText: 'ENTER TERRITORY WAR',
   },
+  {
+    id: 6,
+    code: 'SECTOR 06 // DECK BREACH',
+    badge: 'PROTOTYPE M1',
+    hazardTag: 'ROGUELIKE DECKBUILDER',
+    title: 'デッキ構築ローグライト(試作)',
+    description:
+      '新しいゲームの試作。攻撃・防御・補助のカードを組み合わせて防御システムと戦う。今は1回の戦闘だけ遊べる(カードの成長・ランの流れはこれから)。',
+    targetNode: 'ARGUS (BOSS)',
+    idsStatus: 'TURN-BASED',
+    difficultyLabel: '試作 / PROTOTYPE',
+    difficultyLevel: 2,
+    theme: 'amber',
+    actionText: 'START BATTLE',
+  },
 ];
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
