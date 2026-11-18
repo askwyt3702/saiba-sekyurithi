@@ -21,6 +21,8 @@ export interface CardDef {
   pierceShield?: boolean;
   weakRoles?: NodeVisualRole[];
   rarity: 'starter' | 'common' | 'rare';
+  /** カードの絵柄として大きく出す記号 */
+  icon?: string;
   description: string;
 }
 

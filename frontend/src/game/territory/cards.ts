@@ -3,6 +3,7 @@ import type { CardDef } from './territoryTypes';
 export const CARD_CATALOG: Record<string, CardDef> = {
   ssh_bruteforce: {
     id: 'ssh_bruteforce',
+    icon: '🔑',
     name: 'SSH辞書攻撃',
     cost: 1,
     kind: 'attack',
@@ -14,6 +15,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   port_probe: {
     id: 'port_probe',
+    icon: '📡',
     name: '脆弱性スキャン',
     cost: 0,
     kind: 'utility',
@@ -25,6 +27,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   log_scrub: {
     id: 'log_scrub',
+    icon: '🧹',
     name: 'ログ改ざん防御',
     cost: 1,
     kind: 'defense',
@@ -36,6 +39,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   web_traversal: {
     id: 'web_traversal',
+    icon: '🌐',
     name: 'パストラバーサル',
     cost: 1,
     kind: 'attack',
@@ -47,6 +51,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   dns_axfr: {
     id: 'dns_axfr',
+    icon: '🗺️',
     name: 'DNSゾーン転送',
     cost: 1,
     kind: 'utility',
@@ -58,6 +63,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   null_session: {
     id: 'null_session',
+    icon: '🗝️',
     name: 'Null Session奪取',
     cost: 1,
     kind: 'attack',
@@ -70,6 +76,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   union_sqli: {
     id: 'union_sqli',
+    icon: '💉',
     name: 'UNION SQLインジェクション',
     cost: 2,
     kind: 'attack',
@@ -81,6 +88,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   fw_bypass: {
     id: 'fw_bypass',
+    icon: '🧱',
     name: 'SNMPルール改ざん',
     cost: 2,
     kind: 'attack',
@@ -93,6 +101,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   ddos_flood: {
     id: 'ddos_flood',
+    icon: '🌊',
     name: 'DDoSフラッド波',
     cost: 2,
     kind: 'attack',
@@ -105,6 +114,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   argus_blind: {
     id: 'argus_blind',
+    icon: '🙈',
     name: '監視AIブラインド',
     cost: 1,
     kind: 'defense',
@@ -116,6 +126,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   token_hijack: {
     id: 'token_hijack',
+    icon: '🎫',
     name: '特権トークン奪取',
     cost: 0,
     kind: 'utility',
@@ -127,6 +138,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
   },
   zero_day: {
     id: 'zero_day',
+    icon: '☠️',
     name: 'ゼロデイ・エクスプロイト',
     cost: 3,
     kind: 'attack',

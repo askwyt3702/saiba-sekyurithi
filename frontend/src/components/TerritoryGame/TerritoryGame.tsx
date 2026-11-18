@@ -19,7 +19,7 @@ import {
   playTerritoryCard,
   skipRewardCard,
 } from '../../game/territory/territoryEngine';
-import type { EnemyActionEvent, TerritoryGameState } from '../../game/territory/territoryTypes';
+import type { CardDef, EnemyActionEvent, TerritoryGameState } from '../../game/territory/territoryTypes';
 import { TerritoryNodeView, type TerritoryFlowNode, type TerritoryNodeFx } from './TerritoryNodeView';
 import { TerritoryThreatEdge, type ThreatFlowEdge } from './TerritoryThreatEdge';
 import { useUiScale } from '../../useUiScale';
@@ -122,6 +122,24 @@ function fxForPlayerCard(before: TerritoryGameState, after: TerritoryGameState, 
 
 // カードの演出を表示しておく時間(ミリ秒)。演出専用で、ゲームのルールには関係しない
 const PLAYER_FX_MS = 1000;
+
+const KIND_LABELS = { attack: 'ATTACK', defense: 'DEFENSE', utility: 'UTILITY' } as const;
+const KIND_ICONS = { attack: '⚔️', defense: '🛡️', utility: '✦' } as const;
+const RARITY_LABELS = { starter: '基本', common: 'コモン', rare: 'レア' } as const;
+
+/** カード1枚の見た目(手札と報酬の両方で使う) */
+function CardFace({ def }: { def: CardDef }) {
+  return (
+    <>
+      <span className="tw-card__cost" title="使うのに必要な帯域(コスト)">{def.cost}</span>
+      <span className="tw-card__band">{KIND_LABELS[def.kind]}</span>
+      <span className="tw-card__art" aria-hidden="true">{def.icon ?? KIND_ICONS[def.kind]}</span>
+      <span className="tw-card__name">{def.name}</span>
+      <span className="tw-card__desc">{def.description}</span>
+      <span className="tw-card__rarity">{RARITY_LABELS[def.rarity]}</span>
+    </>
+  );
+}
 
 function samePair(edge: { source: string; target: string }, a: string, b: string): boolean {
   return (edge.source === a && edge.target === b) || (edge.source === b && edge.target === a);
@@ -459,6 +477,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
                 className={[
                   'tw-card',
                   `tw-card--${def.kind}`,
+                  `tw-card--${def.rarity}`,
                   isSelected ? 'tw-card--selected' : '',
                   !affordable ? 'tw-card--unaffordable' : '',
                 ]
@@ -466,14 +485,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
                   .join(' ')}
                 onClick={() => handleSelectCard(item.uid, item.defId)}
               >
-                <div className="tw-card__top">
-                  <span className="tw-card__cost">{def.cost}</span>
-                  <span className="tw-card__kind">
-                    {def.kind === 'attack' ? 'ATTACK' : def.kind === 'defense' ? 'DEFENSE' : 'UTILITY'}
-                  </span>
-                </div>
-                <div className="tw-card__name">{def.name}</div>
-                <div className="tw-card__desc">{def.description}</div>
+                <CardFace def={def} />
               </button>
             );
           })}
@@ -510,15 +522,10 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
                 <button
                   key={card.id}
                   type="button"
-                  className={`tw-card tw-card--${card.kind} tw-card--reward`}
+                  className={`tw-card tw-card--${card.kind} tw-card--${card.rarity} tw-card--reward`}
                   onClick={() => setGame((prev) => pickRewardCard(prev, card.id))}
                 >
-                  <div className="tw-card__top">
-                    <span className="tw-card__cost">{card.cost}</span>
-                    <span className="tw-card__kind">{card.rarity.toUpperCase()}</span>
-                  </div>
-                  <div className="tw-card__name">{card.name}</div>
-                  <div className="tw-card__desc">{card.description}</div>
+                  <CardFace def={card} />
                 </button>
               ))}
             </div>
