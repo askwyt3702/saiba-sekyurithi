@@ -3,6 +3,7 @@
 import { CARD_DEFINITIONS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
 import { shuffled } from './rng';
+import { TOOL_DEFINITIONS } from './tools';
 import type {
   BattleState,
   CardDefinition,
@@ -13,6 +14,7 @@ import type {
   EnemyMove,
   EnemyState,
   RelicId,
+  ToolId,
 } from './types';
 
 // ---------- 設定(4章) ----------
@@ -59,12 +61,29 @@ function currentPattern(enemy: EnemyState): EnemyMove[] {
   return enemy.phase === 2 && def.phase2 ? def.phase2.pattern : def.pattern;
 }
 
-/** 敵が次のターンに行う行動(予告)。攻撃力の上乗せも反映した値 */
+/** カードが指定した敵の弱点を突くか判定する(画面表示とダメージ計算で共通利用) */
+export function doesCardHitWeakness(stats: Pick<CardStats, 'effects'>, enemy: Pick<EnemyState, 'weakness'>): boolean {
+  return stats.effects.some((e) => {
+    if (e.type !== 'damage') return false;
+    if (enemy.weakness === 'pierce') return Boolean(e.pierce);
+    if (enemy.weakness === 'multi') return (e.hits ?? 1) >= 2;
+    if (enemy.weakness === 'all') return e.target === 'all';
+    if (enemy.weakness === 'burn') return stats.effects.some((x) => x.type === 'burn');
+    return false;
+  });
+}
+
+/** 敵が次のターンに行う行動(予告)。攻撃力の上乗せ・ジャミングも反映した値 */
 export function getEnemyIntent(enemy: EnemyState): EnemyMove {
   const pattern = currentPattern(enemy);
   const move = pattern[enemy.moveIndex % pattern.length];
-  if (move.type === 'attack') return { ...move, amount: move.amount + enemy.attackBonus };
-  if (move.type === 'blockAttack') return { ...move, amount: move.amount + enemy.attackBonus };
+  const factor = enemy.jammed && enemy.jammed > 0 ? 0.7 : 1;
+  if (move.type === 'attack') {
+    return { ...move, amount: Math.floor((move.amount + enemy.attackBonus) * factor) };
+  }
+  if (move.type === 'blockAttack') {
+    return { ...move, amount: Math.floor((move.amount + enemy.attackBonus) * factor) };
+  }
   return move;
 }
 
@@ -81,9 +100,10 @@ export interface CreateBattleOptions {
   enemyIds: string[];
   seed: number;
   relics?: RelicId[];
+  tools?: ToolId[];
 }
 
-export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, relics = [] }: CreateBattleOptions): BattleState {
+export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, relics = [], tools = [] }: CreateBattleOptions): BattleState {
   const seen: Record<string, number> = {};
   const total = (id: string) => enemyIds.filter((x) => x === id).length;
   const enemies: EnemyState[] = enemyIds.map((id, index) => {
@@ -100,6 +120,7 @@ export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, reli
       hp: def.maxHp,
       maxHp: def.maxHp,
       block: 0,
+      weakness: def.weakness,
       attackBonus: 0,
       moveIndex: offset % def.pattern.length,
       phase: 1,
@@ -133,6 +154,7 @@ export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, reli
     modifiers: { nextAttackBonus: 0, repeatNextAttack: false, nextCardDiscount: 0, reconCombo: 'none' },
     usesThisBattle: {},
     relics: [...relics],
+    tools: [...tools],
     log: [],
     lastEnemyActions: [],
     nextUid: 1,
@@ -182,9 +204,9 @@ function startPlayerTurn(state: BattleState): void {
   drawCards(state, DRAW_PER_TURN + state.player.turnDrawBonus);
 }
 
-/** 敵にダメージ(FW から先に削る)。実際に HP が減った量を返す */
+/** 敵にダメージ(脆弱1.5倍・FW から先に削る)。実際に HP が減った量を返す */
 function damageEnemy(enemy: EnemyState, amount: number, ignoreBlock = false): number {
-  let rest = amount;
+  let rest = enemy.vulnerable && enemy.vulnerable > 0 ? Math.floor(amount * 1.5) : amount;
   if (!ignoreBlock) {
     const absorbed = Math.min(enemy.block, rest);
     enemy.block -= absorbed;
@@ -214,13 +236,23 @@ function checkVictory(state: BattleState): void {
   }
 }
 
-function applyEffect(state: BattleState, effect: CardEffect, target: EnemyState | undefined, attackBonus: number): void {
+function applyEffect(
+  state: BattleState,
+  effect: CardEffect,
+  target: EnemyState | undefined,
+  attackBonus: number,
+  cardEffects: CardEffect[],
+): void {
   switch (effect.type) {
     case 'damage': {
       const hits = effect.hits ?? 1;
       for (let i = 0; i < hits; i++) {
         const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
-        for (const enemy of targets) damageEnemy(enemy, effect.amount + attackBonus, Boolean(effect.pierce));
+        for (const enemy of targets) {
+          const baseDmg = effect.amount + attackBonus;
+          const weakDmg = doesCardHitWeakness({ effects: cardEffects }, enemy) ? Math.floor(baseDmg * 1.5) : baseDmg;
+          damageEnemy(enemy, weakDmg, Boolean(effect.pierce));
+        }
       }
       break;
     }
@@ -254,6 +286,20 @@ function applyEffect(state: BattleState, effect: CardEffect, target: EnemyState 
     case 'retaliate':
       state.player.retaliate += effect.amount;
       break;
+    case 'vulnerable': {
+      const targets = target && target.hp > 0 ? [target] : livingEnemies(state);
+      for (const enemy of targets) {
+        enemy.vulnerable = (enemy.vulnerable ?? 0) + effect.amount;
+      }
+      break;
+    }
+    case 'jam': {
+      const targets = target && target.hp > 0 ? [target] : livingEnemies(state);
+      for (const enemy of targets) {
+        enemy.jammed = (enemy.jammed ?? 0) + effect.amount;
+      }
+      break;
+    }
     case 'persistent':
       if (effect.stat === 'turnBlock') state.player.turnBlockBonus += effect.amount;
       else if (effect.stat === 'turnDraw') state.player.turnDrawBonus += effect.amount;
@@ -309,7 +355,7 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
 
   const hpBefore = Object.fromEntries(state.enemies.map((e) => [e.uid, e.hp + e.block]));
   for (let t = 0; t < times; t++) {
-    for (const effect of stats.effects) applyEffect(state, effect, target, bonus);
+    for (const effect of stats.effects) applyEffect(state, effect, target, bonus, stats.effects);
   }
   state.discard.push(uid);
 
@@ -359,12 +405,21 @@ export function endTurn(prev: BattleState): BattleState {
   if (state.status === 'playing') {
     // 過熱:敵のターンの終わりにダメージ(FW 無視)、3ターンで消える
     for (const enemy of livingEnemies(state)) {
-      if (!enemy.burn) continue;
-      const dealt = damageEnemy(enemy, enemy.burn.amount, true);
-      recordAction(state, { kind: 'burn', enemyUid: enemy.uid, damage: dealt });
-      addLog(state, `過熱で ${enemy.name} に${dealt}ダメージ。`, 'good');
-      enemy.burn.turns -= 1;
-      if (enemy.burn.turns <= 0) delete enemy.burn;
+      if (enemy.burn) {
+        const dealt = damageEnemy(enemy, enemy.burn.amount, true);
+        recordAction(state, { kind: 'burn', enemyUid: enemy.uid, damage: dealt });
+        addLog(state, `過熱で ${enemy.name} に${dealt}ダメージ。`, 'good');
+        enemy.burn.turns -= 1;
+        if (enemy.burn.turns <= 0) delete enemy.burn;
+      }
+      if (enemy.vulnerable) {
+        enemy.vulnerable -= 1;
+        if (enemy.vulnerable <= 0) delete enemy.vulnerable;
+      }
+      if (enemy.jammed) {
+        enemy.jammed -= 1;
+        if (enemy.jammed <= 0) delete enemy.jammed;
+      }
     }
     updatePhases(state);
     checkVictory(state);
@@ -447,6 +502,42 @@ function enemyAttack(state: BattleState, enemy: EnemyState, amount: number, hits
     updatePhases(state);
     checkVictory(state);
   }
+}
+
+/** 戦闘中に帯域0で緊急ツールを使う */
+export function activateBattleTool(prev: BattleState, toolIndex: number): PlayResult {
+  if (prev.status !== 'playing') return { state: prev, accepted: false, reason: '戦闘は終わっています。' };
+  const toolId = prev.tools[toolIndex];
+  if (!toolId) return { state: prev, accepted: false, reason: 'ツールがありません。' };
+  const def = TOOL_DEFINITIONS[toolId];
+  const state = clone(prev);
+  state.tools.splice(toolIndex, 1);
+
+  switch (toolId) {
+    case 'hotfix':
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + 12);
+      addLog(state, `[ツール:${def.name}] 回線耐久 +12 回復`, 'good');
+      break;
+    case 'overclock':
+      state.player.energy += 2;
+      addLog(state, `[ツール:${def.name}] 帯域 +2`, 'good');
+      break;
+    case 'packet_purge': {
+      const removed = state.hand.filter((uid) => state.cards[uid]?.defId === 'noise').length;
+      state.hand = state.hand.filter((uid) => state.cards[uid]?.defId !== 'noise');
+      drawCards(state, 2);
+      addLog(state, `[ツール:${def.name}] ノイズ${removed}枚破棄＋2枚ドロー`, 'good');
+      break;
+    }
+    case 'jammer_pulse':
+      for (const enemy of livingEnemies(state)) {
+        enemy.vulnerable = (enemy.vulnerable ?? 0) + 2;
+        enemy.jammed = (enemy.jammed ?? 0) + 2;
+      }
+      addLog(state, `[ツール:${def.name}] 敵全体に脆弱(2T)＋ジャミング(2T)`, 'good');
+      break;
+  }
+  return { state, accepted: true };
 }
 
 /** 戦闘が終わった後のデッキ(戦闘中に入ったノイズは消える) */

@@ -555,3 +555,43 @@ test('カード基地プロフィール:図鑑・弱点ノート復習・ボー�
   assert.equal(consumed.coins, 1);
   assert.equal(consumed.profile.bonusStartCoins, 0);
 });
+
+
+test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%・コイン闇市ショップが動く', () => {
+  // 1. 弱点1.5倍: firewall_ai の弱点は pierce -> sql_injection(5) は 7 ダメージ
+  let s = setup([{ defId: 'sql_injection' }], ['firewall_ai'], ['c1']);
+  s = play(s, 'c1');
+  assert.equal(s.enemies[0].hp, 40 - 7);
+
+  // 2. 常備ツール: jammer_pulse で敵全体に脆弱2T + ジャミング2T
+  s.tools = ['jammer_pulse', 'overclock'];
+  const afterPulse = battle.activateBattleTool(s, 0);
+  assert.equal(afterPulse.accepted, true);
+  assert.equal(afterPulse.state.tools.length, 1);
+  assert.equal(afterPulse.state.enemies[0].vulnerable, 2);
+  assert.equal(afterPulse.state.enemies[0].jammed, 2);
+  // ジャミングで攻撃5 -> Math.floor(5 * 0.7) = 3
+  assert.equal(battle.getEnemyIntent(afterPulse.state.enemies[0]).amount, 3);
+
+  // 脆弱中はダメージ1.5倍
+  let s2 = setup([{ defId: 'ssh_brute' }], ['scanner_bot'], ['c1']);
+  s2.enemies[0].vulnerable = 2;
+  s2 = play(s2, 'c1');
+  assert.equal(s2.enemies[0].hp, 28 - 9);
+
+  // 3. コイン闇市ショップ: 回復(1)・ツール補充(1)・削除(2)・レリック(3)
+  let r = run.createRun({ fastGrowth: false });
+  r = { ...r, hp: 40, reconCoins: 7, tools: [] };
+  r = run.spendCoinShop(r, { type: 'heal' });
+  assert.equal(r.hp, 52);
+  assert.equal(r.reconCoins, 6);
+  r = run.spendCoinShop(r, { type: 'tool', toolId: 'overclock' });
+  assert.equal(r.tools.length, 1);
+  assert.equal(r.reconCoins, 5);
+  r = run.spendCoinShop(r, { type: 'remove', cardUid: 'c1' });
+  assert.equal(r.deck.length, 9);
+  assert.equal(r.reconCoins, 3);
+  r = run.spendCoinShop(r, { type: 'relic', relicId: 'encrypted_vpn' });
+  assert.ok(r.relics.includes('encrypted_vpn'));
+  assert.equal(r.reconCoins, 0);
+});

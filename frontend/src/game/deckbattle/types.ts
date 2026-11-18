@@ -27,6 +27,10 @@ export type CardEffect =
   | { type: 'burn'; amount: number }
   /** 反撃:次に受ける攻撃1回で、攻撃してきた敵にダメージ */
   | { type: 'retaliate'; amount: number }
+  /** 脆弱:敵が受けるダメージ1.5倍(amount ターン) */
+  | { type: 'vulnerable'; amount: number }
+  /** ジャミング:敵が与える攻撃ダメージ-30%(amount ターン) */
+  | { type: 'jam'; amount: number }
   /** 常駐効果:戦闘中ずっと毎ターン開始時に自動で発動 */
   | { type: 'persistent'; stat: 'turnBlock' | 'turnDraw' | 'turnEnergy' | 'turnAttackBonus'; amount: number };
 
@@ -84,11 +88,15 @@ export type EnemyMove =
   /** ノイズのカードをプレイヤーの捨て札に入れる */
   | { type: 'noise'; count: number };
 
+export type EnemyWeakness = 'multi' | 'pierce' | 'burn' | 'all';
+
 export interface EnemyDefinition {
   id: string;
   name: string;
   icon: string;
   maxHp: number;
+  /** 弱点タイプ(一致する攻撃は1.5倍) */
+  weakness: EnemyWeakness;
   /** 行動の順番(くり返す) */
   pattern: EnemyMove[];
   /** HP がこの割合以下になったら phase2Pattern に切り替える(ボス用) */
@@ -108,18 +116,32 @@ export interface EnemyState {
   hp: number;
   maxHp: number;
   block: number;
+  weakness: EnemyWeakness;
   /** 戦闘中ずっと乗る攻撃力の上乗せ */
   attackBonus: number;
   /** pattern の何番目を次に行うか */
   moveIndex: number;
   phase: 1 | 2;
   burn?: BurnStatus;
+  /** 脆弱(受けるダメージ1.5倍)の残りターン */
+  vulnerable?: number;
+  /** ジャミング(与えるダメージ-30%)の残りターン */
+  jammed?: number;
 }
 
 export type RelicId = 'encrypted_vpn' | 'auto_scraper' | 'packet_cache' | 'zero_trust_key';
 
 export interface RelicDefinition {
   id: RelicId;
+  name: string;
+  icon: string;
+  description: string;
+}
+
+export type ToolId = 'hotfix' | 'overclock' | 'packet_purge' | 'jammer_pulse';
+
+export interface ToolDefinition {
+  id: ToolId;
   name: string;
   icon: string;
   description: string;
@@ -193,6 +215,8 @@ export interface BattleState {
   usesThisBattle: Record<string, number>;
   /** 装備中のパッシブ装備 */
   relics: RelicId[];
+  /** 戦闘中に帯域0で使える使い捨てツール(最大2個) */
+  tools: ToolId[];
   log: BattleLog[];
   lastEnemyActions: EnemyActionEvent[];
   nextUid: number;
@@ -228,6 +252,8 @@ export interface RunState {
   nodeIndex: number;
   /** 装備中のパッシブ装備(常駐ツール) */
   relics: RelicId[];
+  /** 使い捨て緊急ツール(最大2個) */
+  tools: ToolId[];
   /** イベントの事前調査に使う解析コイン(敵撃破で確率ドロップ) */
   reconCoins: number;
   /** 現在の戦闘でエリートルートを選んだか(報酬レア確定＆EXP2倍) */

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeckQuizQuestion } from '../../game/data/securityLearningData';
 import {
   cardNeedsTarget,
+  doesCardHitWeakness,
   endTurn,
   getCardDefinition,
   getCardStats,
@@ -11,8 +12,9 @@ import {
   getPlayCost,
   livingEnemies,
   playCard,
+  activateBattleTool,
 } from '../../game/deckbattle/battle';
-import { ENEMY_DEFINITIONS } from '../../game/deckbattle/enemies';
+import { ENEMY_DEFINITIONS, WEAKNESS_LABEL } from '../../game/deckbattle/enemies';
 import {
   type DeckProfile,
   consumeBonusStartCoins,
@@ -27,6 +29,7 @@ import {
 import { RELIC_DEFINITIONS } from '../../game/deckbattle/relics';
 import { randomSeed } from '../../game/deckbattle/rng';
 import {
+  type CoinShopAction,
   MAX_EVENT_STREAK,
   advanceToNextNode,
   applyBattleResult,
@@ -43,11 +46,14 @@ import {
   pickRarePool,
   pickRewardCard,
   pickRewardPool,
+  pickShopTools,
   previewQuizXpReward,
   removeCardFromDeck,
   resolveEventQuiz,
+  spendCoinShop,
   spendReconCoin,
 } from '../../game/deckbattle/run';
+import { MAX_TOOLS, TOOL_DEFINITIONS } from '../../game/deckbattle/tools';
 import type {
   BattleState,
   CardInstance,
@@ -59,6 +65,7 @@ import type {
   RunEventId,
   RunNode,
   RunState,
+  ToolId,
   XpGainEntry,
 } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
@@ -246,6 +253,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const [evolveOrigin, setEvolveOrigin] = useState<'post_battle' | 'event'>('post_battle');
   const [eventView, setEventView] = useState<EventViewState | null>(null);
   const [showDeckModal, setShowDeckModal] = useState(false);
+  const [showCoinShop, setShowCoinShop] = useState(false);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -442,6 +450,39 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     setPlayback({ base, events: final.lastEnemyActions, index: -1, final });
   };
 
+  const onUseTool = (toolIndex: number) => {
+    if (busy) return;
+    const res = activateBattleTool(battle, toolIndex);
+    if (!res.accepted) {
+      setNotice(res.reason ?? 'ツールを使えません。');
+      playSound('alert');
+      return;
+    }
+    playSound('recover');
+    pushFx(fxForPlay(battle, res.state));
+    setBattle(res.state);
+    setRun((prev) => ({ ...prev, tools: [...res.state.tools] }));
+  };
+
+  const onBuyCoinShop = (action: CoinShopAction) => {
+    try {
+      const next = spendCoinShop(run, action);
+      playSound('extract');
+      setRun(next);
+      if (phase === 'battle') {
+        setBattle((prev) => ({
+          ...prev,
+          player: { ...prev.player, hp: next.hp },
+          tools: [...next.tools],
+          relics: [...next.relics],
+        }));
+      }
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : '交換できませんでした。');
+      playSound('alert');
+    }
+  };
+
   const proceedAfterPostBattle = () => {
     playSound('click');
     if (run.pendingEvolutions.length > 0) {
@@ -621,9 +662,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         </nav>
 
         <div className="db-topbar__right">
-          <span className="db-chip db-chip--buff" title="イベントの事前調査(ダミー1択除外)に使う。敵撃破時20%でドロップ">
-            🪙 解析コイン: {run.reconCoins}
-          </span>
+          <button
+            type="button"
+            className="db-btn db-fast-toggle db-fast-toggle--on"
+            onClick={() => setShowCoinShop(true)}
+            title="解析コインを使って回復・ツール補充・カード削除・パッシブ装備購入ができます"
+          >
+            🪙 闇市 ({run.reconCoins})
+          </button>
           <button
             type="button"
             className={`db-btn db-fast-toggle ${run.fastGrowth ? 'db-fast-toggle--on' : ''}`}
@@ -713,8 +759,26 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       </span>
                     </span>
                     <span className="db-enemy__status">
+                      {!dead && (
+                        <span className="db-chip db-chip--weak" title={`弱点:${WEAKNESS_LABEL[enemy.weakness]}(1.5倍ダメージ)`}>
+                          🎯 弱点:{WEAKNESS_LABEL[enemy.weakness]}
+                        </span>
+                      )}
+                      {!dead && selectedUid && battle.cards[selectedUid] && doesCardHitWeakness(getCardStats(battle.cards[selectedUid]), enemy) && (
+                        <span className="db-chip db-chip--burn">💥 WEAK ×1.5</span>
+                      )}
                       {enemy.block > 0 && <span className="db-chip db-chip--shield">🛡 {enemy.block}</span>}
                       {enemy.attackBonus > 0 && <span className="db-chip db-chip--bad">⬆ +{enemy.attackBonus}</span>}
+                      {enemy.vulnerable && enemy.vulnerable > 0 && (
+                        <span className="db-chip db-chip--burn" title="受けるダメージ1.5倍">
+                          💔 脆弱 {enemy.vulnerable}T
+                        </span>
+                      )}
+                      {enemy.jammed && enemy.jammed > 0 && (
+                        <span className="db-chip db-chip--shield" title="与えるダメージ-30%">
+                          📶 ジャム {enemy.jammed}T
+                        </span>
+                      )}
                       {enemy.burn && (
                         <span className="db-chip db-chip--burn">
                           🔥 {enemy.burn.amount}・{enemy.burn.turns}T
@@ -753,6 +817,25 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 {modifiers.repeatNextAttack && <span className="db-chip db-chip--buff">⏩ 次の攻撃×2</span>}
                 {modifiers.nextCardDiscount > 0 && <span className="db-chip db-chip--buff">📜 次のカード−{modifiers.nextCardDiscount}EN</span>}
                 {player.energyPenalty > 0 && <span className="db-chip db-chip--bad">👁 検知 −{player.energyPenalty}</span>}
+                {shown.tools.length > 0 && (
+                  <span className="db-tool-bar">
+                    {shown.tools.map((toolId, idx) => {
+                      const t = TOOL_DEFINITIONS[toolId];
+                      return (
+                        <button
+                          key={`${toolId}-${idx}`}
+                          type="button"
+                          className="db-tool-btn"
+                          disabled={busy}
+                          onClick={() => onUseTool(idx)}
+                          title={`帯域0で使用: ${t.description}`}
+                        >
+                          {t.icon} {t.name}
+                        </button>
+                      );
+                    })}
+                  </span>
+                )}
                 <span className="db-fx db-fx--player">
                   {fxAt('player').map((f) => (
                     <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}`}>
@@ -864,6 +947,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       )}
 
       {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
+      {showCoinShop && (
+        <CoinShopModal
+          run={run}
+          inBattle={phase === 'battle'}
+          onBuy={onBuyCoinShop}
+          onClose={() => setShowCoinShop(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1488,6 +1579,122 @@ function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => voi
           <button type="button" className="db-btn db-btn--ghost" onClick={onClose}>
             閉じる
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function CoinShopModal({
+  run,
+  inBattle,
+  onBuy,
+  onClose,
+}: {
+  run: RunState;
+  inBattle: boolean;
+  onBuy: (action: CoinShopAction) => void;
+  onClose: () => void;
+}) {
+  const [shopTools] = useState<ToolId[]>(() => pickShopTools(run.nodeIndex * 31 + run.reconCoins + 7));
+  const offeredRelic = pickAvailableRelic(run, run.nodeIndex * 17 + 5);
+
+  return (
+    <div className="db-overlay" role="dialog" aria-modal="true" aria-label="解析コイン闇市" onClick={onClose}>
+      <div className="db-result db-result--wide db-hub" onClick={(e) => e.stopPropagation()}>
+        <div className="db-hub__head">
+          <div>
+            <div className="db-result__title" style={{ fontSize: 18 }}>
+              BLACK MARKET // 解析コイン闇市
+            </div>
+            <p className="db-muted" style={{ margin: '2px 0 0' }}>
+              所持コイン: 🪙 {run.reconCoins} 枚（イベントの事前調査にも使えます）
+            </p>
+          </div>
+          <button type="button" className="db-btn db-btn--ghost" onClick={onClose}>
+            閉じる
+          </button>
+        </div>
+
+        <div className="db-codex-grid" style={{ marginBottom: 14 }}>
+          <button
+            type="button"
+            className="db-evo-card"
+            disabled={run.reconCoins < 1 || run.hp >= run.maxHp}
+            onClick={() => onBuy({ type: 'heal' })}
+          >
+            <div className="db-evo-card__head">
+              <span className="db-evo-card__icon">💚</span>
+              <span className="db-evo-card__cost">🪙 1枚</span>
+            </div>
+            <div className="db-evo-card__name">緊急回線修復 (HP +12)</div>
+            <div className="db-evo-card__text">
+              現在 HP {run.hp} / {run.maxHp}
+            </div>
+          </button>
+
+          {shopTools.map((toolId) => {
+            const t = TOOL_DEFINITIONS[toolId];
+            return (
+              <button
+                key={toolId}
+                type="button"
+                className="db-evo-card"
+                disabled={run.reconCoins < 1 || run.tools.length >= MAX_TOOLS}
+                onClick={() => onBuy({ type: 'tool', toolId })}
+              >
+                <div className="db-evo-card__head">
+                  <span className="db-evo-card__icon">{t.icon}</span>
+                  <span className="db-evo-card__cost">🪙 1枚</span>
+                </div>
+                <div className="db-evo-card__name">{t.name}（常備ツール）</div>
+                <div className="db-evo-card__text">
+                  {t.description}（所持 {run.tools.length}/{MAX_TOOLS}）
+                </div>
+              </button>
+            );
+          })}
+
+          {offeredRelic && (
+            <button
+              type="button"
+              className="db-evo-card db-evo-card--elite"
+              disabled={run.reconCoins < 3 || inBattle}
+              onClick={() => onBuy({ type: 'relic', relicId: offeredRelic })}
+            >
+              <div className="db-evo-card__head">
+                <span className="db-evo-card__icon">{RELIC_DEFINITIONS[offeredRelic].icon}</span>
+                <span className="db-evo-card__cost">🪙 3枚</span>
+              </div>
+              <div className="db-evo-card__name">{RELIC_DEFINITIONS[offeredRelic].name}</div>
+              <div className="db-evo-card__text">
+                {RELIC_DEFINITIONS[offeredRelic].description}
+                {inBattle ? '（戦闘中は購入不可）' : ''}
+              </div>
+            </button>
+          )}
+        </div>
+
+        <h3 className="db-hub__sub">🪙 2枚で不要カードを1枚削除（現在デッキ {run.deck.length} 枚）</h3>
+        <div className="db-deck-grid">
+          {run.deck.map((card) => {
+            const stats = getCardStats(card);
+            return (
+              <button
+                key={card.uid}
+                type="button"
+                className="db-deck-pill db-deck-pill--danger"
+                disabled={run.reconCoins < 2 || run.deck.length <= 1 || inBattle}
+                onClick={() => onBuy({ type: 'remove', cardUid: card.uid })}
+              >
+                <span>
+                  🗑 {stats.icon} {stats.name} ({card.uid})
+                </span>
+                <span className="db-muted">{inBattle ? '戦闘中は削除不可' : '🪙 2枚で削除'}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

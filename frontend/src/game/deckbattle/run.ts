@@ -5,6 +5,7 @@ import { createBattle, getCardDefinition } from './battle';
 import { RARE_CARD_IDS, REWARD_CARD_IDS, STARTER_DECK_IDS } from './cards';
 import { ALL_RELIC_IDS } from './relics';
 import { nextRandom, shuffled } from './rng';
+import { ALL_TOOL_IDS, MAX_TOOLS } from './tools';
 import type {
   BattleState,
   CardInstance,
@@ -13,6 +14,7 @@ import type {
   RunEventId,
   RunNode,
   RunState,
+  ToolId,
   XpGainEntry,
 } from './types';
 
@@ -51,6 +53,7 @@ export function createRun(options: { fastGrowth?: boolean } = {}): RunState {
     nodes: DEFAULT_RUN_NODES.map((n) => ({ ...n })),
     nodeIndex: 0,
     relics: [],
+    tools: ['hotfix'],
     reconCoins: 0,
     currentBattleElite: false,
     pendingEvolutions: [],
@@ -95,6 +98,7 @@ export function createBattleForCurrentNode(run: RunState, seed: number, useElite
     enemyIds,
     seed,
     relics: run.relics,
+    tools: run.tools,
   });
 }
 
@@ -215,6 +219,7 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
       status: isBoss ? 'won' : run.status,
       hp: nextHp,
       deck,
+      tools: [...battle.tools],
       reconCoins: run.reconCoins + coinsDropped,
       currentBattleElite: false,
       pendingEvolutions,
@@ -235,6 +240,51 @@ export function spendReconCoin(run: RunState): RunState {
     ...run,
     reconCoins: run.reconCoins - 1,
   };
+}
+
+export type CoinShopAction =
+  | { type: 'heal' }
+  | { type: 'tool'; toolId: ToolId }
+  | { type: 'remove'; cardUid: string }
+  | { type: 'relic'; relicId: RelicId };
+
+/** 解析コインの闇市ショップで交換する */
+export function spendCoinShop(run: RunState, action: CoinShopAction): RunState {
+  switch (action.type) {
+    case 'heal':
+      if (run.reconCoins < 1) throw new Error('解析コインが足りません');
+      return {
+        ...run,
+        reconCoins: run.reconCoins - 1,
+        hp: Math.min(run.maxHp, run.hp + 12),
+      };
+    case 'tool':
+      if (run.reconCoins < 1) throw new Error('解析コインが足りません');
+      if (run.tools.length >= MAX_TOOLS) throw new Error('ツール枠がいっぱいです');
+      return {
+        ...run,
+        reconCoins: run.reconCoins - 1,
+        tools: [...run.tools, action.toolId],
+      };
+    case 'remove':
+      if (run.reconCoins < 2) throw new Error('解析コインが足りません');
+      if (run.deck.length <= 1) throw new Error('これ以上カードを削除できません');
+      return {
+        ...removeCardFromDeck(run, action.cardUid),
+        reconCoins: run.reconCoins - 2,
+      };
+    case 'relic':
+      if (run.reconCoins < 3) throw new Error('解析コインが足りません');
+      if (run.relics.includes(action.relicId)) throw new Error('すでに所持しています');
+      return {
+        ...grantRelic(run, action.relicId),
+        reconCoins: run.reconCoins - 3,
+      };
+  }
+}
+
+export function pickShopTools(seed: number): ToolId[] {
+  return shuffled(ALL_TOOL_IDS, seed).items.slice(0, 2);
 }
 
 /** Lv.3 に到達したカードの進化先を1つ選ぶ */

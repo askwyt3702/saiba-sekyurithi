@@ -108,11 +108,11 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     lore: '入力欄に不正なSQL文を紛れ込ませ、防御壁の裏側のDBへ直接命令を通す。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single', pierce: true }], text: 'FW貫通5ダメージ。' },
-      2: { cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }], text: 'FW貫通8ダメージ。' },
+      2: { cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋脆弱2T。' },
     },
     branches: [
-      { id: 'sqli_union', name: 'UNION抽出', icon: '🧲', cost: 1, effects: [{ type: 'damage', amount: 6, hits: 2, target: 'single', pierce: true }], text: 'FW貫通6ダメージを2回。' },
-      { id: 'sqli_blind', name: 'ブラインドSQLi', icon: '🕶️', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }], text: 'FW貫通8＋過熱3。' },
+      { id: 'sqli_union', name: 'UNION抽出', icon: '🧲', cost: 1, effects: [{ type: 'damage', amount: 6, hits: 2, target: 'single', pierce: true }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通6×2＋脆弱2T。' },
+      { id: 'sqli_blind', name: 'ブラインドSQLi', icon: '🕶️', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋過熱3＋脆弱2T。' },
     ],
   },
   waf_rule: {
@@ -139,8 +139,8 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     icon: '🕸️',
     lore: '偽の宛先情報を流してネットワーク全体の通信経路を乗っ取る。',
     levels: {
-      1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'all' }, { type: 'nextAttackBonus', amount: 3 }], text: '敵全体4＋次の攻撃＋3。' },
-      2: { cost: 1, effects: [{ type: 'damage', amount: 6, target: 'all' }, { type: 'nextAttackBonus', amount: 4 }], text: '敵全体6＋次の攻撃＋4。' },
+      1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'all' }, { type: 'nextAttackBonus', amount: 3 }, { type: 'jam', amount: 1 }], text: '敵全体4＋次攻撃+3＋ジャミング1T。' },
+      2: { cost: 1, effects: [{ type: 'damage', amount: 6, target: 'all' }, { type: 'nextAttackBonus', amount: 4 }, { type: 'jam', amount: 2 }], text: '敵全体6＋次攻撃+4＋ジャミング2T。' },
     },
     branches: [
       { id: 'arp_mitm', name: '中間者攻撃', icon: '🕵️', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'all' }, { type: 'nextAttackBonus', amount: 6 }], text: '敵全体8＋次の攻撃＋6。' },
