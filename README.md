@@ -24,6 +24,20 @@ cd C:\dev
 git clone git@github.com:askwyt3702/saiba-sekyurithi.git
 ```
 
+### コミットメッセージのチェックを有効にする(cloneしたら1回だけ)
+
+リポジトリのフォルダで次を実行します。
+
+```bash
+git config core.hooksPath .githooks
+```
+
+これで、コミットするたびに [`.githooks/commit-msg`](.githooks/commit-msg) がメッセージの形を確認します。
+1行目が `feat: クリア画面に効果音を追加` のような「種類: 何をどう変えたか」の形になっていない場合や、
+「なんか変えた」「修正」のような中身の分からない言葉だけの場合は、コミットが止まって理由が表示されます。
+Antigravity などのAIやエディタのボタンからコミットしたときも同じように確認されます。
+止まったときは、表示された例のとおりにメッセージを直して、もう一度コミットしてください。
+
 ### Docker Composeでまとめて起動(推奨)
 
 リポジトリのフォルダで実行します。
