@@ -381,6 +381,36 @@ test('イベントマスでTYPE A/Bから重複せずに出題し、正解EXP+2�
   assert.equal(trimmed.deck.length, 9);
 });
 
+test('イベントの事前調査で除外される選択肢は必ず不正解であり、進化プレビューとLv.3 MAX保護が機能する', () => {
+  let r = run.createRun({ fastGrowth: false });
+  const q1 = run.pickEventQuestion(r, 'vuln_check', 15);
+  assert.ok(q1.scanTerminalLog.length > 0);
+  const filteredId = run.getFilteredOutQuizChoiceId(q1);
+  assert.ok(filteredId);
+  const filteredChoice = q1.choices.find((c) => c.id === filteredId);
+  assert.equal(filteredChoice.isCorrect, false);
+
+  // c1 (Lv.1, xp 0) -> +2 EXP で Lv.2 にレベルアップ予測
+  const p1 = run.previewQuizXpReward(r, 'c1');
+  assert.equal(p1.isMaxed, false);
+  assert.equal(p1.willLevelUp, true);
+  assert.equal(p1.willEvolve, false);
+  assert.equal(p1.nextLevel, 2);
+
+  // c2 を Lv.2 (xp 3) にすると、+2 EXP で Lv.3 進化予測
+  r.deck[1] = { ...r.deck[1], xp: 3, level: 2 };
+  const p2 = run.previewQuizXpReward(r, 'c2');
+  assert.equal(p2.willLevelUp, true);
+  assert.equal(p2.willEvolve, true);
+  assert.equal(p2.nextLevel, 3);
+
+  // c3 を Lv.3 MAX (branchId 設定済み) にすると、選択不可(isMaxed)になり誤付与がブロックされる
+  r.deck[2] = { ...r.deck[2], xp: 5, level: 3, branchId: 'ssh_rapid' };
+  const p3 = run.previewQuizXpReward(r, 'c3');
+  assert.equal(p3.isMaxed, true);
+  assert.throws(() => run.applyQuizXpReward(r, 'c3'));
+});
+
 test('6マス目のボス(ARGUS)に勝つとラン勝利になる', () => {
   const r = run.createRun({ fastGrowth: false });
   r.nodeIndex = 5;

@@ -22,9 +22,11 @@ import {
   chooseEvolution,
   createBattleForCurrentNode,
   createRun,
+  getFilteredOutQuizChoiceId,
   getXpProgress,
   pickEventQuestion,
   pickRewardCard,
+  previewQuizXpReward,
   resolveEventQuiz,
 } from '../../game/deckbattle/run';
 import type {
@@ -73,11 +75,13 @@ interface PostBattleSummary {
 interface EventViewState {
   eventId: RunEventId;
   question: DeckQuizQuestion;
+  reconUsed: boolean;
   selectedChoiceId: string | null;
   isCorrect: boolean | null;
   hpLost: number;
   xpChosen: boolean;
   patchBonusDone: boolean;
+  patchBonusSummary: string | null;
   xpGain: XpGainEntry | null;
 }
 
@@ -297,11 +301,13 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       setEventView({
         eventId: node.eventId,
         question,
+        reconUsed: false,
         selectedChoiceId: null,
         isCorrect: null,
         hpLost: 0,
         xpChosen: false,
         patchBonusDone: false,
+        patchBonusSummary: null,
         xpGain: null,
       });
       setPhase('event');
@@ -419,8 +425,16 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     enterNode(nextRun);
   };
 
+  const onUseEventRecon = () => {
+    if (!eventView || eventView.reconUsed || eventView.selectedChoiceId) return;
+    playSound('scan');
+    setEventView({ ...eventView, reconUsed: true });
+  };
+
   const onAnswerQuiz = (choiceId: string) => {
     if (!eventView || eventView.selectedChoiceId) return;
+    const filteredOutId = eventView.reconUsed ? getFilteredOutQuizChoiceId(eventView.question) : null;
+    if (filteredOutId === choiceId) return;
     const choice = eventView.question.choices.find((c) => c.id === choiceId);
     if (!choice) return;
     const resolved = resolveEventQuiz(run, eventView.eventId, eventView.question.id, choice.isCorrect);
@@ -439,6 +453,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const onPickEventXpCard = (cardUid: string) => {
     if (!eventView || eventView.xpChosen) return;
+    const preview = previewQuizXpReward(run, cardUid);
+    const allMaxed = run.deck.every((c) => c.level === 3 && Boolean(c.branchId));
+    if (preview.isMaxed && !allMaxed) return;
     playSound('recover');
     const res = applyQuizXpReward(run, cardUid);
     setRun(res.run);
@@ -451,9 +468,17 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const onPatchBonus = (choice: { type: 'heal' } | { type: 'remove'; cardUid: string }) => {
     if (!eventView || eventView.patchBonusDone) return;
+    if (choice.type === 'remove' && run.deck.length <= 1) return;
     playSound('recover');
+    const removedCard = choice.type === 'remove' ? run.deck.find((c) => c.uid === choice.cardUid) : null;
+    const removedStats = removedCard ? getCardStats(removedCard) : null;
+    const nextHp = Math.min(run.maxHp, run.hp + 15);
+    const summaryText =
+      choice.type === 'heal'
+        ? `✔ パッチ適用ボーナス：回線耐久を回復しました (${run.hp} → ${nextHp})`
+        : `✔ パッチ適用ボーナス：デッキから「${removedStats?.name ?? choice.cardUid} (${choice.cardUid})」を削除しました`;
     setRun((prev) => applyPatchBonus(prev, choice));
-    setEventView({ ...eventView, patchBonusDone: true });
+    setEventView({ ...eventView, patchBonusDone: true, patchBonusSummary: summaryText });
   };
 
   const onFinishEvent = () => {
@@ -517,6 +542,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <EventScreen
           run={run}
           eventView={eventView}
+          onUseRecon={onUseEventRecon}
           onAnswer={onAnswerQuiz}
           onPickXpCard={onPickEventXpCard}
           onPatchBonus={onPatchBonus}
@@ -835,6 +861,7 @@ function RewardOverlay({ rewardDefIds, onPick }: { rewardDefIds: string[]; onPic
 function EventScreen({
   run,
   eventView,
+  onUseRecon,
   onAnswer,
   onPickXpCard,
   onPatchBonus,
@@ -842,13 +869,28 @@ function EventScreen({
 }: {
   run: RunState;
   eventView: EventViewState;
+  onUseRecon: () => void;
   onAnswer: (choiceId: string) => void;
   onPickXpCard: (cardUid: string) => void;
   onPatchBonus: (choice: { type: 'heal' } | { type: 'remove'; cardUid: string }) => void;
   onContinue: () => void;
 }) {
-  const { eventId, question, selectedChoiceId, isCorrect, hpLost, xpChosen, patchBonusDone, xpGain } = eventView;
+  const {
+    eventId,
+    question,
+    reconUsed,
+    selectedChoiceId,
+    isCorrect,
+    hpLost,
+    xpChosen,
+    patchBonusDone,
+    patchBonusSummary,
+    xpGain,
+  } = eventView;
   const selectedChoice = question.choices.find((c) => c.id === selectedChoiceId);
+  const correctChoice = question.choices.find((c) => c.isCorrect);
+  const filteredOutChoiceId = reconUsed ? getFilteredOutQuizChoiceId(question) : null;
+  const allDeckMaxed = run.deck.every((c) => c.level === 3 && Boolean(c.branchId));
   const needsPatchBonus = eventId === 'patch' && isCorrect === true && !patchBonusDone;
   const needsXpPick = isCorrect === true && !xpChosen;
   const canContinue = selectedChoiceId !== null && run.status === 'playing' && !needsXpPick && !needsPatchBonus;
@@ -857,32 +899,89 @@ function EventScreen({
     <main className="db-event-wrap">
       <section className="db-event-card">
         <div className="db-event-head">
-          <span className="db-brand__tag">{eventId === 'vuln_check' ? 'EVENT 1 // 脆弱性診断' : 'EVENT 2 // パッチ適用'}</span>
+          <div className="db-event-head__left">
+            <span className="db-brand__tag">
+              {eventId === 'vuln_check' ? 'EVENT 1 // 脆弱性診断 (TYPE A)' : 'EVENT 2 // パッチ適用 (TYPE B)'}
+            </span>
+            {question.mitreId && <span className="db-event-tag db-event-tag--attck">ATT&amp;CK: {question.mitreId}</span>}
+            {question.cweId && <span className="db-event-tag db-event-tag--cwe">{question.cweId}</span>}
+          </div>
           <span className="db-event-hp">
             現在 HP {run.hp} / {run.maxHp}
           </span>
         </div>
+
         <h2 className="db-event-cat">{question.category}</h2>
-        <p className="db-event-prompt">{question.prompt}</p>
+        <div className="db-event-scanlog">{question.scanTerminalLog}</div>
+
+        {reconUsed ? (
+          <div className="db-event-recon db-event-recon--done">
+            <div className="db-event-recon__head">
+              <span className="db-event-recon__badge">RECON INTEL ✓</span>
+              <strong>事前調査完了 — 無関係なダミー選択肢を1つ除外し、2択に絞り込みました！</strong>
+            </div>
+            <p className="db-event-recon__text">
+              💡 <strong>診断ヒント：</strong>{question.whyDangerous}
+            </p>
+          </div>
+        ) : selectedChoiceId === null ? (
+          <div className="db-event-recon">
+            <span className="db-event-recon__prompt">
+              💡 回答に迷ったら、無料の「事前調査（ディープスキャン）」でセキュリティヒント開示＆ダミー選択肢を1つ除外（2択化）できます
+            </span>
+            <button type="button" className="db-event-recon__btn" onClick={onUseRecon}>
+              📡 事前調査を実行（ダミー1択カット）
+            </button>
+          </div>
+        ) : null}
+
+        <p className="db-event-prompt">
+          &gt; {question.prompt}
+          <span className="db-event-prompt__rule">
+            {eventId === 'vuln_check'
+              ? `（正解：好きなカードに EXP +${run.fastGrowth ? 5 : 2} ／ 不正解：HP -5）`
+              : `（正解：好きなカードに EXP +${run.fastGrowth ? 5 : 2} ＋ HP15回復またはカード削除 ／ 不正解：ペナルティなし）`}
+          </span>
+        </p>
         {question.codeSnippet && <pre className="db-event-code">{question.codeSnippet}</pre>}
 
-        <div className="db-event-choices">
-          {question.choices.map((choice) => {
+        <div className="db-event-choices" role="radiogroup" aria-label="イベント問題の選択肢">
+          {question.choices.map((choice, idx) => {
             const picked = selectedChoiceId === choice.id;
+            const isFilteredOut = filteredOutChoiceId === choice.id && selectedChoiceId === null;
             return (
               <button
                 key={choice.id}
                 type="button"
-                disabled={selectedChoiceId !== null}
+                disabled={selectedChoiceId !== null || isFilteredOut}
                 onClick={() => onAnswer(choice.id)}
                 className={[
                   'db-event-choice',
                   picked && choice.isCorrect ? 'db-event-choice--ok' : '',
                   picked && !choice.isCorrect ? 'db-event-choice--ng' : '',
                   selectedChoiceId && choice.isCorrect ? 'db-event-choice--reveal-ok' : '',
-                ].join(' ')}
+                  isFilteredOut ? 'db-event-choice--filtered' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               >
-                <div className="db-event-choice__title">{choice.title}</div>
+                <div className="db-event-choice__head">
+                  <div className="db-event-choice__title">
+                    [{idx + 1}] {choice.title}
+                  </div>
+                  {isFilteredOut && (
+                    <span className="db-event-choice__badge db-event-choice__badge--filtered">
+                      調査により除外済（対象外）
+                    </span>
+                  )}
+                  {selectedChoiceId !== null && choice.isCorrect && (
+                    <span className="db-event-choice__badge db-event-choice__badge--ok">✔ 正解</span>
+                  )}
+                  {picked && !choice.isCorrect && (
+                    <span className="db-event-choice__badge db-event-choice__badge--ng">✖ 選択した回答</span>
+                  )}
+                </div>
+                {choice.command && <code className="db-event-choice__cmd">{choice.command}</code>}
                 <div className="db-event-choice__desc">{choice.description}</div>
               </button>
             );
@@ -895,6 +994,12 @@ function EventScreen({
               {isCorrect ? '✔ 正解！カードの経験値を獲得できます' : `✖ 不正解${hpLost > 0 ? `（HP -${hpLost}）` : '（ペナルティなし）'}`}
             </div>
             <p>{selectedChoice.feedback}</p>
+            {!isCorrect && correctChoice && (
+              <div className="db-event-feedback__correct-box">
+                <strong>💡 正解の選択肢：「{correctChoice.title}」</strong>
+                <p style={{ margin: '4px 0 0' }}>{correctChoice.feedback}</p>
+              </div>
+            )}
             <p className="db-event-feedback__sub">
               <strong>なぜ危険か:</strong> {question.whyDangerous}
             </p>
@@ -910,12 +1015,44 @@ function EventScreen({
             <div className="db-deck-grid">
               {run.deck.map((card) => {
                 const stats = getCardStats(card);
+                const preview = previewQuizXpReward(run, card.uid);
+                const disabled = preview.isMaxed && !allDeckMaxed;
                 return (
-                  <button key={card.uid} type="button" className="db-deck-pill" onClick={() => onPickXpCard(card.uid)}>
-                    <span>
+                  <button
+                    key={card.uid}
+                    type="button"
+                    disabled={disabled}
+                    className={[
+                      'db-deck-pill',
+                      preview.willEvolve ? 'db-deck-pill--evolve' : '',
+                      preview.willLevelUp && !preview.willEvolve ? 'db-deck-pill--levelup' : '',
+                      disabled ? 'db-deck-pill--maxed' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={() => onPickXpCard(card.uid)}
+                  >
+                    <span className="db-deck-pill__title">
                       {stats.icon} {stats.name} ({card.uid})
                     </span>
                     <span className="db-muted">{getXpProgress(card).label}</span>
+                    {preview.isMaxed ? (
+                      <span className="db-deck-pill__preview db-deck-pill__preview--max">
+                        🔒 Lv.3 MAX（最大進化済）
+                      </span>
+                    ) : preview.willEvolve ? (
+                      <span className="db-deck-pill__preview db-deck-pill__preview--evolve">
+                        🌟 選ぶと Lv.3 分岐進化！ (EXP {preview.currentXp}→{preview.nextXp})
+                      </span>
+                    ) : preview.willLevelUp ? (
+                      <span className="db-deck-pill__preview db-deck-pill__preview--levelup">
+                        🎉 選ぶと Lv.2 に強化！ (EXP {preview.currentXp}→{preview.nextXp})
+                      </span>
+                    ) : (
+                      <span className="db-deck-pill__preview">
+                        EXP {preview.currentXp} → {preview.nextXp}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -941,7 +1078,7 @@ function EventScreen({
               </button>
             </div>
             <div className="db-muted" style={{ margin: '10px 0 6px' }}>
-              または不要なカードを 1 枚削除する:
+              または不要なカードを 1 枚削除する{run.deck.length <= 1 ? '（デッキが1枚のため削除不可）' : ':'}
             </div>
             <div className="db-deck-grid">
               {run.deck.map((card) => {
@@ -950,6 +1087,7 @@ function EventScreen({
                   <button
                     key={card.uid}
                     type="button"
+                    disabled={run.deck.length <= 1}
                     className="db-deck-pill db-deck-pill--danger"
                     onClick={() => onPatchBonus({ type: 'remove', cardUid: card.uid })}
                   >
@@ -961,6 +1099,12 @@ function EventScreen({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {patchBonusSummary && (
+          <div className="db-xp-row db-xp-row--levelup" style={{ marginTop: 10 }}>
+            <span>{patchBonusSummary}</span>
           </div>
         )}
 

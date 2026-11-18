@@ -255,8 +255,62 @@ export function resolveEventQuiz(
   };
 }
 
+/** イベントの事前調査(ディープスキャン)で除外されるダミー選択肢IDを1つ返す */
+export function getFilteredOutQuizChoiceId(question: DeckQuizQuestion): string | null {
+  return [...question.choices].reverse().find((c) => !c.isCorrect)?.id ?? null;
+}
+
+export interface QuizXpPreview {
+  isMaxed: boolean;
+  currentLevel: CardLevel;
+  nextLevel: CardLevel;
+  currentXp: number;
+  nextXp: number;
+  xpDelta: number;
+  willLevelUp: boolean;
+  willEvolve: boolean;
+}
+
+/** クイズ正解報酬のEXPをカードに与えた場合の変化(進化・強化プレビューおよびLv.3 MAX判定)を返す */
+export function previewQuizXpReward(run: RunState, cardUid: string): QuizXpPreview {
+  const card = run.deck.find((c) => c.uid === cardUid);
+  if (!card) throw new Error(`card not found: ${cardUid}`);
+  const xpDelta = run.fastGrowth ? XP_TO_LV3 : QUIZ_XP_REWARD;
+  const isMaxed = card.level === 3 && Boolean(card.branchId);
+  if (isMaxed) {
+    return {
+      isMaxed: true,
+      currentLevel: 3,
+      nextLevel: 3,
+      currentXp: card.xp,
+      nextXp: card.xp,
+      xpDelta: 0,
+      willLevelUp: false,
+      willEvolve: false,
+    };
+  }
+  const nextXp = card.xp + xpDelta;
+  const nextLevel = levelForXp(nextXp);
+  return {
+    isMaxed: false,
+    currentLevel: card.level,
+    nextLevel,
+    currentXp: card.xp,
+    nextXp,
+    xpDelta,
+    willLevelUp: nextLevel > card.level,
+    willEvolve: nextLevel === 3 && !card.branchId,
+  };
+}
+
 /** クイズ正解報酬:好きなカード1枚に経験値 +2(試用ブースト時は+5) */
 export function applyQuizXpReward(run: RunState, cardUid: string): { run: RunState; gain: XpGainEntry | null } {
+  const target = run.deck.find((c) => c.uid === cardUid);
+  if (!target) throw new Error(`card not found: ${cardUid}`);
+  const hasNonMaxedCard = run.deck.some((c) => !(c.level === 3 && Boolean(c.branchId)));
+  if (target.level === 3 && Boolean(target.branchId) && hasNonMaxedCard) {
+    throw new Error('すでに最終進化(Lv.3 MAX)済みのカードには経験値を付与できません');
+  }
   const delta = run.fastGrowth ? XP_TO_LV3 : QUIZ_XP_REWARD;
   const res = addXp(run.deck, run.pendingEvolutions, cardUid, delta);
   return {
