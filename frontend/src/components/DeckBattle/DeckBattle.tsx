@@ -1214,15 +1214,21 @@ function EventScreen({
             <span className="db-step db-step--current">
               連続チャレンジ {step} / {MAX_EVENT_STREAK} 問目
             </span>
-            {question.mitreId && <span className="db-event-tag db-event-tag--attck">ATT&amp;CK: {question.mitreId}</span>}
-            {question.cweId && <span className="db-event-tag db-event-tag--cwe">{question.cweId}</span>}
+            {selectedChoiceId !== null && question.mitreId && (
+              <span className="db-event-tag db-event-tag--attck">ATT&amp;CK: {question.mitreId}</span>
+            )}
+            {selectedChoiceId !== null && question.cweId && (
+              <span className="db-event-tag db-event-tag--cwe">{question.cweId}</span>
+            )}
           </div>
           <span className="db-event-hp">
             現在 HP {run.hp} / {run.maxHp}
           </span>
         </div>
 
-        <h2 className="db-event-cat">{question.category}</h2>
+        <h2 className="db-event-cat">
+          {selectedChoiceId !== null ? question.category : 'セキュリティ診断 // 状況と選択肢から正しいものを特定せよ'}
+        </h2>
         <div className="db-event-scanlog">{question.scanTerminalLog}</div>
 
         {reconUsed ? (

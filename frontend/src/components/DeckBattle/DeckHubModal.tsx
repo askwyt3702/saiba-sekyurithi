@@ -163,7 +163,9 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                   ← 問題一覧に戻る
                 </button>
                 <div className="db-event-card" style={{ padding: 14 }}>
-                  <h3 style={{ margin: '0 0 8px', color: '#67e8f9', fontSize: 14 }}>{activeReview.category}</h3>
+                  <h3 style={{ margin: '0 0 8px', color: '#67e8f9', fontSize: 14 }}>
+                    {selectedChoiceId !== null ? activeReview.category : '弱点復習クイズ'}
+                  </h3>
                   <p className="db-event-prompt">{activeReview.prompt}</p>
                   {activeReview.codeSnippet && <pre className="db-event-code">{activeReview.codeSnippet}</pre>}
                   <div className="db-event-choices">
