@@ -173,6 +173,61 @@ test('capturing a node that announced an attack removes its stale announcement i
   state.nodes.find((n) => n.id === 'D03').shield = 0;
   state.hand.push({ uid: 'kill', defId: 'zero_day' });
   const res = playTerritoryCard(state, 'kill', 'D03', () => 0.1);
-  assert.equal(res.state.nodes.find((n) => n.id === 'D03').owner, 'player');
-  assert.ok(!res.state.intents.some((i) => i.sourceNodeId === 'D03'), 'a captured node can no longer act, so its announcement must go');
+  // ARGUS のノードはまず無力化(中立)される
+  assert.equal(res.state.nodes.find((n) => n.id === 'D03').owner, 'neutral');
+  assert.ok(!res.state.intents.some((i) => i.sourceNodeId === 'D03'), 'a disabled node can no longer act, so its announcement must go');
+});
+
+test('ARGUS nodes are taken in two steps: first disabled (neutral), then captured', () => {
+  const { createInitialTerritoryState, playTerritoryCard } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+  let state = createInitialTerritoryState(() => 0.1);
+  const d03 = () => state.nodes.find((n) => n.id === 'D03');
+  d03().hp = 1;
+  d03().shield = 0;
+  state.hand.push({ uid: 'a', defId: 'zero_day' }, { uid: 'b', defId: 'zero_day' });
+  state.bandwidth = 10;
+
+  let res = playTerritoryCard(state, 'a', 'D03', () => 0.1);
+  state = res.state;
+  assert.equal(d03().owner, 'neutral');
+  assert.ok(d03().hp > 0, 'a disabled node keeps some HP, so it takes another attack to own it');
+  assert.equal(state.rewardChoices, null, 'no reward for only disabling a node');
+  assert.ok(state.logs.some((l) => l.message.includes('無力化')));
+
+  res = playTerritoryCard(state, 'b', 'D03', () => 0.1);
+  state = res.state;
+  assert.equal(d03().owner, 'player');
+  assert.equal(state.rewardChoices.length, 3);
+});
+
+test('the node in front of the enemy base is an ARGUS outpost, not an unclaimed node', () => {
+  const { createInitialTerritoryState } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+  const state = createInitialTerritoryState(() => 0.1);
+  assert.equal(state.nodes.find((n) => n.id === 'I10').owner, 'argus');
+});
+
+test('ARGUS spreads into neutral nodes next to it', () => {
+  const { createInitialTerritoryState, endTerritoryTurn } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+  const state = createInitialTerritoryState(() => 0.1);
+  const expand = state.intents.find((i) => i.action === 'expand');
+  assert.ok(expand, 'ARGUS should announce spreading into a neutral neighbour');
+  assert.equal(state.nodes.find((n) => n.id === expand.targetNodeId).owner, 'neutral');
+  const before = state.nodes.find((n) => n.id === expand.targetNodeId);
+  const next = endTerritoryTurn(state, () => 0.1);
+  const after = next.nodes.find((n) => n.id === expand.targetNodeId);
+  assert.ok(after.hp + after.shield < before.hp + before.shield || after.owner === 'argus');
+  assert.ok(next.lastEnemyActions.some((e) => e.kind === 'expand' && e.targetNodeId === expand.targetNodeId));
+});
+
+test('ARGUS attacks the weakest player node it can reach', () => {
+  const { createInitialTerritoryState, generateEnemyIntents } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+  const state = createInitialTerritoryState(() => 0.1);
+  // E01 と E02 を自陣にして、E02 を弱らせる。D03 は E01 にしか隣接していないので、I04 側から E02 を狙わせる
+  const e02 = state.nodes.find((n) => n.id === 'E02');
+  e02.owner = 'player';
+  e02.hp = 2;
+  e02.shield = 0;
+  const intents = generateEnemyIntents(state, () => 0.1);
+  const fromI04 = intents.find((i) => i.sourceNodeId === 'I04' && i.action === 'attack');
+  assert.equal(fromI04.targetNodeId, 'E02');
 });

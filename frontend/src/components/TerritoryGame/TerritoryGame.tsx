@@ -58,6 +58,10 @@ function describeEnemyAction(event: EnemyActionEvent, state: TerritoryGameState)
       return event.captured
         ? `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} を攻撃し、奪還した！`
         : `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} に ${event.damage} ダメージ`;
+    case 'expand':
+      return event.captured
+        ? `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} を侵食し、ARGUS の陣地にした！`
+        : `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} を侵食中(${event.damage} ダメージ)`;
     case 'fortify':
       return `${nodeName(state, event.nodeId)} がシールドを +${event.value} 強化`;
     case 'alert':
@@ -75,6 +79,12 @@ function fxForEvent(event: EnemyActionEvent, key: string): Map<string, Territory
       fx.set(event.sourceNodeId, { kind: 'attacker', key });
       fx.set(event.targetNodeId, event.captured
         ? { kind: 'captured', text: '奪還された!', key }
+        : { kind: 'hit', text: `-${event.damage}`, key });
+      break;
+    case 'expand':
+      fx.set(event.sourceNodeId, { kind: 'attacker', key });
+      fx.set(event.targetNodeId, event.captured
+        ? { kind: 'captured', text: '侵食された!', key }
         : { kind: 'hit', text: `-${event.damage}`, key });
       break;
     case 'fortify':
@@ -98,6 +108,10 @@ function fxForPlayerCard(before: TerritoryGameState, after: TerritoryGameState, 
     if (!prev) continue;
     if (prev.owner !== 'player' && node.owner === 'player') {
       fx.set(node.id, { kind: 'seized', text: '制圧!', key });
+      continue;
+    }
+    if (prev.owner === 'argus' && node.owner === 'neutral') {
+      fx.set(node.id, { kind: 'strike', text: '無力化!', key });
       continue;
     }
     const lost = prev.hp + prev.shield - (node.hp + node.shield);
@@ -199,7 +213,8 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
       const frontier = (s === 'player' && t !== 'player') || (t === 'player' && s !== 'player');
 
       // 演出中:今まさに攻撃している線には、パケットを飛ばす
-      if (currentEvent?.kind === 'attack' && samePair(edge, currentEvent.sourceNodeId, currentEvent.targetNodeId)) {
+      if ((currentEvent?.kind === 'attack' || currentEvent?.kind === 'expand')
+        && samePair(edge, currentEvent.sourceNodeId, currentEvent.targetNodeId)) {
         return {
           id: edge.id,
           source: edge.source,
@@ -212,7 +227,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
       }
       // 自分のターン:次の ARGUS の攻撃先を、赤い点線の矢印で予告する
       const threat = busy ? undefined : game.intents.find(
-        (i) => i.action === 'attack' && samePair(edge, i.sourceNodeId, i.targetNodeId),
+        (i) => (i.action === 'attack' || i.action === 'expand') && samePair(edge, i.sourceNodeId, i.targetNodeId),
       );
       if (threat) {
         return {

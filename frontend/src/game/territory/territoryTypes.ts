@@ -31,7 +31,8 @@ export interface CardInstance {
 
 export interface EnemyIntent {
   sourceNodeId: string;
-  action: 'attack' | 'fortify' | 'alert';
+  /** expand: 隣の中立ノードを侵食する(HP を 0 にすると ARGUS のものになる) */
+  action: 'attack' | 'expand' | 'fortify' | 'alert';
   targetNodeId: string;
   value: number;
   label: string;
@@ -65,6 +66,7 @@ export interface TerritoryLog {
  */
 export type EnemyActionEvent =
   | { kind: 'attack'; sourceNodeId: string; targetNodeId: string; damage: number; captured: boolean }
+  | { kind: 'expand'; sourceNodeId: string; targetNodeId: string; damage: number; captured: boolean }
   | { kind: 'fortify'; nodeId: string; value: number }
   | { kind: 'alert'; nodeId: string; value: number }
   /** 予告していたノードを先に制圧されたため、行動できなかった */

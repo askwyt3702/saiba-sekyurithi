@@ -66,8 +66,8 @@ function createInitialNodes(): TerritoryNode[] {
     { id: 'I04', name: 'ARGUS 監視制御AI', layer: 'Internal', role: 'eye', position: { x: 530, y: 280 }, owner: 'argus', hp: 15, maxHp: 15, shield: 4, exposed: false },
     { id: 'I09', name: '内部ファイアウォール', layer: 'Internal', role: 'fw', position: { x: 530, y: 440 }, owner: 'argus', hp: 16, maxHp: 16, shield: 5, exposed: false },
     { id: 'C01', name: 'Core防衛ゲート', layer: 'Core', role: 'fw', position: { x: 795, y: 120 }, owner: 'argus', hp: 18, maxHp: 18, shield: 6, exposed: false },
-    { id: 'I10', name: '研究APIプロキシ', layer: 'Core', role: 'web', position: { x: 795, y: 280 }, owner: 'neutral', hp: 14, maxHp: 14, shield: 2, exposed: false },
-    { id: 'C03', name: '極秘研究DB (本陣)', layer: 'Core', role: 'db', position: { x: 1060, y: 200 }, owner: 'argus', hp: 26, maxHp: 26, shield: 8, exposed: false, isCoreTarget: true },
+    { id: 'I10', name: '研究APIプロキシ(前線拠点)', layer: 'Core', role: 'web', position: { x: 795, y: 280 }, owner: 'argus', hp: 14, maxHp: 14, shield: 4, exposed: false },
+    { id: 'C03', name: '極秘研究DB (本陣)', layer: 'Core', role: 'db', position: { x: 1060, y: 200 }, owner: 'argus', hp: 32, maxHp: 32, shield: 8, exposed: false, isCoreTarget: true },
   ];
 }
 
@@ -122,6 +122,19 @@ function drawCards(state: TerritoryGameState, count: number, rng: () => number =
   }
 }
 
+// ARGUS の強さの設定(プレイの指摘「敵が弱すぎる」を受けて強化)
+const MAX_ATTACKS_PER_TURN = 3;
+/** 攻撃力がこのターン数ごとに +1 される */
+const ATTACK_GROWTH_TURNS = 3;
+/** 本陣の HP がこの割合を下回ると、本陣が怒って攻撃が強くなり、毎ターン守りを固める */
+const CORE_RAGE_HP_RATIO = 0.5;
+const CORE_RAGE_BONUS = 4;
+
+function isCoreEnraged(state: TerritoryGameState): boolean {
+  const core = state.nodes.find((n) => n.isCoreTarget);
+  return Boolean(core && core.owner === 'argus' && core.hp < core.maxHp * CORE_RAGE_HP_RATIO);
+}
+
 export function generateEnemyIntents(
   state: TerritoryGameState,
   rng: () => number = Math.random,
@@ -130,33 +143,65 @@ export function generateEnemyIntents(
   const argusNodes = state.nodes.filter((n) => n.owner === 'argus');
   if (argusNodes.length === 0) return intents;
 
-  const eyeDisabled = state.nodes.some((n) => n.id === 'I04' && n.owner === 'player');
-  const baseAttack = (eyeDisabled ? 4 : 6) + Math.floor((state.turn - 1) / 3);
+  const nodeById = (id: string) => state.nodes.find((n) => n.id === id);
+  const eyeDisabled = state.nodes.some((n) => n.id === 'I04' && n.owner !== 'argus');
+  const enraged = isCoreEnraged(state);
+  const baseAttack = (eyeDisabled ? 5 : 6) + Math.floor((state.turn - 1) / ATTACK_GROWTH_TURNS);
+  const attackPower = (attacker: TerritoryNode) =>
+    baseAttack
+    + (attacker.role === 'fw' || attacker.role === 'db' ? 2 : 0)
+    + (enraged && attacker.isCoreTarget ? CORE_RAGE_BONUS : 0);
 
-  // 1. 自陣ノードに隣接するARGUSノードがいれば最大2つまで奪還攻撃を予告
+  // 1. 自陣に隣接する ARGUS ノードが、いちばん弱っている自陣ノードを狙って攻撃する(最大3つ)
   const frontline = argusNodes.filter((an) =>
-    getNeighbors(an.id, state.edges).some(
-      (nid) => state.nodes.find((n) => n.id === nid)?.owner === 'player',
-    ),
+    getNeighbors(an.id, state.edges).some((nid) => nodeById(nid)?.owner === 'player'),
   );
-  for (const attacker of frontline.slice(0, 2)) {
+  for (const attacker of frontline.slice(0, MAX_ATTACKS_PER_TURN)) {
     const playerTargets = getNeighbors(attacker.id, state.edges)
-      .map((nid) => state.nodes.find((n) => n.id === nid))
-      .filter((n): n is TerritoryNode => Boolean(n && n.owner === 'player'));
-    if (playerTargets.length > 0) {
-      const target = playerTargets[Math.floor(rng() * playerTargets.length)];
-      const dmg = baseAttack + (attacker.role === 'fw' || attacker.role === 'db' ? 2 : 0);
-      intents.push({
-        sourceNodeId: attacker.id,
-        action: 'attack',
-        targetNodeId: target.id,
-        value: dmg,
-        label: `⚔ ${target.id}へ ${dmg}dmg`,
-      });
-    }
+      .map(nodeById)
+      .filter((n): n is TerritoryNode => Boolean(n && n.owner === 'player'))
+      .sort((a, b) => a.hp + a.shield - (b.hp + b.shield));
+    const target = playerTargets[0];
+    if (!target) continue;
+    const dmg = attackPower(attacker);
+    intents.push({
+      sourceNodeId: attacker.id,
+      action: 'attack',
+      targetNodeId: target.id,
+      value: dmg,
+      label: `⚔ ${target.id}へ ${dmg}dmg`,
+    });
   }
 
-  // 2. 前線がいなければ防御強化または警戒度上昇を予告
+  // 2. 中立ノードへの侵食(陣地を広げてくる)。序盤は1か所、6ターン目からは2か所
+  const maxExpands = state.turn >= 6 ? 2 : 1;
+  const targeted = new Set(intents.map((i) => i.targetNodeId));
+  const expanders = shuffle(argusNodes, rng).filter((n) => !intents.some((i) => i.sourceNodeId === n.id));
+  for (const expander of expanders) {
+    if (intents.filter((i) => i.action === 'expand').length >= maxExpands) break;
+    const neutral = getNeighbors(expander.id, state.edges)
+      .map(nodeById)
+      .filter((n): n is TerritoryNode => Boolean(n && n.owner === 'neutral' && !targeted.has(n.id)))
+      .sort((a, b) => a.hp - b.hp)[0];
+    if (!neutral) continue;
+    targeted.add(neutral.id);
+    const dmg = Math.max(3, baseAttack - 1);
+    intents.push({
+      sourceNodeId: expander.id,
+      action: 'expand',
+      targetNodeId: neutral.id,
+      value: dmg,
+      label: `☣ ${neutral.id}を侵食 ${dmg}`,
+    });
+  }
+
+  // 3. 本陣が怒っていたら、本陣自身の守りを毎ターン固める
+  const core = argusNodes.find((n) => n.isCoreTarget);
+  if (enraged && core && !intents.some((i) => i.sourceNodeId === core.id)) {
+    intents.push({ sourceNodeId: core.id, action: 'fortify', targetNodeId: core.id, value: 5, label: '🛡 本陣シールド+5' });
+  }
+
+  // 4. 何もしないターンは作らない(守りを固める)。監視アイが生きていれば2ターンに1回警戒度を上げる
   if (intents.length === 0) {
     const target = argusNodes[Math.floor(rng() * argusNodes.length)];
     intents.push({
@@ -166,9 +211,10 @@ export function generateEnemyIntents(
       value: eyeDisabled ? 2 : 4,
       label: `🛡 シールド+${eyeDisabled ? 2 : 4}`,
     });
-  } else if (!eyeDisabled && state.turn % 2 === 0) {
+  }
+  if (!eyeDisabled && state.turn % 2 === 0) {
     const eyeNode = state.nodes.find((n) => n.id === 'I04' && n.owner === 'argus');
-    if (eyeNode) {
+    if (eyeNode && !intents.some((i) => i.sourceNodeId === eyeNode.id)) {
       intents.push({
         sourceNodeId: eyeNode.id,
         action: 'alert',
@@ -221,6 +267,29 @@ function dropStaleIntents(state: TerritoryGameState): void {
   state.intents = state.intents.filter(
     (intent) => state.nodes.find((n) => n.id === intent.sourceNodeId)?.owner === 'argus',
   );
+}
+
+/**
+ * HP が 0 になったノードの持ち主を変える。
+ * ARGUS のノードはいきなり自陣にはならず、まず「無力化」されて中立に戻る(もう一度攻めると自陣になる)。
+ * 中立のノードと敵の本陣は、そのまま自陣になる(本陣を落とせば勝利)。
+ */
+function resolveKnockout(state: TerritoryGameState, target: TerritoryNode, cardName: string, label: string): 'neutralized' | 'captured' {
+  if (target.owner === 'argus' && !target.isCoreTarget) {
+    target.owner = 'neutral';
+    target.hp = Math.max(4, Math.ceil(target.maxHp * 0.4));
+    target.shield = 0;
+    target.exposed = false;
+    addLog(state, 'success', `🔓 [${cardName}] ${label}${target.name} を無力化しました。中立になったので、もう一度攻撃すると自陣にできます。`);
+    return 'neutralized';
+  }
+  target.owner = 'player';
+  // 取った直後は立て直し中なので弱い(取り返されやすい)
+  target.hp = Math.max(6, Math.ceil(target.maxHp * 0.55));
+  target.shield = target.role === 'fw' ? 3 : 1;
+  target.exposed = false;
+  addLog(state, 'success', `⚡ [${cardName}] ${label}${target.name} を制圧しました！`);
+  return 'captured';
 }
 
 function applyDamageToNode(
@@ -340,17 +409,11 @@ export function playTerritoryCard(
     }
 
     let capturedAny = false;
+    let ownershipChanged = false;
     if (captured) {
-      target.owner = 'player';
-      target.hp = Math.max(8, Math.ceil(target.maxHp * 0.65));
-      target.shield = target.role === 'fw' ? 4 : 2;
-      target.exposed = false;
-      capturedAny = true;
-      addLog(
-        state,
-        'success',
-        `⚡ [${def.name}] ${isWeak ? 'WEAKNESS! ' : ''}${target.name} に${dealt}ダメージを与え、制圧しました！`,
-      );
+      ownershipChanged = true;
+      const outcome = resolveKnockout(state, target, def.name, `${isWeak ? 'WEAKNESS! ' : ''}${dealt}ダメージで `);
+      if (outcome === 'captured') capturedAny = true;
     } else {
       addLog(
         state,
@@ -366,11 +429,8 @@ export function playTerritoryCard(
         if (!nb || nb.owner === 'player') continue;
         const splashRes = applyDamageToNode(nb, def.splashDamage, false);
         if (splashRes.captured) {
-          nb.owner = 'player';
-          nb.hp = Math.max(8, Math.ceil(nb.maxHp * 0.65));
-          nb.shield = 2;
-          capturedAny = true;
-          addLog(state, 'success', `💥 余波で ${nb.name} も制圧しました！`);
+          ownershipChanged = true;
+          if (resolveKnockout(state, nb, def.name, '余波で ') === 'captured') capturedAny = true;
         } else {
           addLog(state, 'info', `💥 余波で ${nb.name} に${splashRes.dealt}ダメージ（残HP ${nb.hp}）。`);
         }
@@ -378,7 +438,7 @@ export function playTerritoryCard(
     }
 
     state.maxBandwidth = computeMaxBandwidth(state.nodes);
-    if (capturedAny) dropStaleIntents(state);
+    if (ownershipChanged) dropStaleIntents(state);
     checkEndConditions(state);
     if (state.status === 'playing' && capturedAny) {
       state.rewardChoices = buildRewardChoices(rng);
@@ -459,6 +519,25 @@ export function endTerritoryTurn(
         } else {
           addLog(state, 'warning', `🤖 ARGUS (${src.id}) が ${target.name} に ${res.dealt} ダメージ！`);
         }
+      }
+    } else if (intent.action === 'expand') {
+      const target = state.nodes.find((n) => n.id === intent.targetNodeId);
+      if (target && target.owner === 'neutral') {
+        const res = applyDamageToNode(target, intent.value, false);
+        state.lastEnemyActions.push({
+          kind: 'expand', sourceNodeId: src.id, targetNodeId: target.id, damage: res.dealt, captured: res.captured,
+        });
+        if (res.captured) {
+          target.owner = 'argus';
+          target.hp = Math.max(6, Math.ceil(target.maxHp * 0.55));
+          target.shield = 1;
+          addLog(state, 'danger', `☣ ARGUS (${src.id}) が ${target.name} を侵食し、自分の陣地にしました！`);
+        } else {
+          addLog(state, 'warning', `☣ ARGUS (${src.id}) が ${target.name} を侵食中（${res.dealt} ダメージ、残HP ${target.hp}）。`);
+        }
+      } else {
+        // その間にプレイヤーが取った・中立でなくなった場合は不発
+        state.lastEnemyActions.push({ kind: 'fizzle', sourceNodeId: src.id });
       }
     } else if (intent.action === 'fortify') {
       const target = state.nodes.find((n) => n.id === intent.targetNodeId);
