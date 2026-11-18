@@ -287,14 +287,16 @@ function applyEffect(
       state.player.retaliate += effect.amount;
       break;
     case 'vulnerable': {
-      const targets = target && target.hp > 0 ? [target] : livingEnemies(state);
+      // 対象を選ぶカードはその敵だけ(先に倒していたら付けない)。対象のないカードは敵全体
+      const targets = target ? (target.hp > 0 ? [target] : []) : livingEnemies(state);
       for (const enemy of targets) {
         enemy.vulnerable = (enemy.vulnerable ?? 0) + effect.amount;
       }
       break;
     }
     case 'jam': {
-      const targets = target && target.hp > 0 ? [target] : livingEnemies(state);
+      // 対象を選ぶカードはその敵だけ(先に倒していたら付けない)。対象のないカードは敵全体
+      const targets = target ? (target.hp > 0 ? [target] : []) : livingEnemies(state);
       for (const enemy of targets) {
         enemy.jammed = (enemy.jammed ?? 0) + effect.amount;
       }
