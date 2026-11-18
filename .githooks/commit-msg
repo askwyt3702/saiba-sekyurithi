@@ -1,0 +1,58 @@
+#!/bin/sh
+# コミットメッセージの形を確認する(AGENTS.md の「コミットメッセージ」)。
+# 有効にする:リポジトリのフォルダで1回だけ  git config core.hooksPath .githooks
+# 形が違うとコミットは作られない(打ったメッセージは .git/COMMIT_EDITMSG に残る)。
+
+msg_file="$1"
+
+# コメント行(#)を除いた、最初の空でない行(1行目)
+subject=$(grep -v '^#' "$msg_file" | tr -d '\r' | sed -n '/[^[:space:]]/{p;q;}')
+
+# git が自動で作るメッセージ(マージ・取り消し・fixup)はそのまま通す
+case "$subject" in
+  "Merge "* | "Revert \""* | "fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+esac
+
+fail() {
+  echo "" >&2
+  echo "✖ コミットメッセージの形が AGENTS.md のルールと違うため、コミットを止めました。" >&2
+  echo "  理由: $1" >&2
+  echo "  1行目: ${subject:-(空)}" >&2
+  echo "" >&2
+  echo "  1行目は「種類: 何をどう変えたか」の形で、日本語で具体的に書いてください。" >&2
+  echo "  種類は feat / fix / test / docs / refactor のどれか(コロンは半角、後ろに半角スペース)。" >&2
+  echo "    例) feat: クリア画面に効果音と最高ランク記録を追加" >&2
+  echo "    例) fix: 敗北画面が拡大時に画面外へはみ出す問題を修正" >&2
+  echo "  変更が複数あるときは、2行目を空けて、3行目以降に箇条書きで内容を書きます。" >&2
+  echo "" >&2
+  echo "  AI(Antigravity など)が作ったメッセージで止まった場合は、上の形に直してもう一度コミットしてください。" >&2
+  echo "  打ったメッセージを直して使う: git commit -e -F .git/COMMIT_EDITMSG" >&2
+  echo "" >&2
+  exit 1
+}
+
+if ! printf '%s\n' "$subject" | grep -Eq '^(feat|fix|test|docs|refactor): '; then
+  if printf '%s\n' "$subject" | grep -Eq '^(feat|fix|test|docs|refactor)(：| ：|:[^ ])'; then
+    fail "種類の後ろは「半角コロン + 半角スペース」にしてください(例: feat: )。"
+  fi
+  fail "先頭に種類(feat: / fix: / test: / docs: / refactor: )がありません。"
+fi
+
+# 種類の後ろの説明(前後の空白を除く)
+summary=$(printf '%s\n' "$subject" | sed -e 's/^[a-z]*: *//' -e 's/[[:space:]]*$//')
+
+if [ -z "$summary" ]; then
+  fail "種類の後ろに、何をどう変えたかを書いてください。"
+fi
+
+# 中身の分からない言葉だけのメッセージは止める
+lower=$(printf '%s' "$summary" | tr '[:upper:]' '[:lower:]')
+case "$lower" in
+  更新 | 修正 | 変更 | 追加 | 削除 | 調整 | 対応 | 改善 | 問題変更 | 色々 | いろいろ | 色々変更 | いろいろ変更 | 色々修正 | \
+  なんか | なんか変えた | なんか直した | 変えた | 直した | 作業 | 作業中 | とりあえず | テスト | test | update | updates | \
+  fix | fixes | fixed | change | changes | wip | tmp | temp | misc | minor | . | ..)
+    fail "「$summary」だけでは、何をどう変えたのか分かりません。"
+    ;;
+esac
+
+exit 0

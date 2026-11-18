@@ -1,0 +1,2 @@
+# git のフック(シェルスクリプト)は、Windows でも改行を LF のままにする(CRLF だと Mac/Linux で動かない)
+.githooks/* text eol=lf
