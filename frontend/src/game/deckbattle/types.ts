@@ -181,10 +181,23 @@ export interface BattleState {
 }
 
 /** ランのマス(分岐マップを足すときは next を複数にする) */
+export type RunEventId = 'vuln_check' | 'patch';
+
 export type RunNode =
   | { kind: 'battle'; enemyIds: string[] }
-  | { kind: 'event'; eventId: 'vuln_check' | 'patch' }
+  | { kind: 'event'; eventId: RunEventId }
   | { kind: 'boss'; enemyIds: string[] };
+
+/** 戦闘後やイベントでカードが得た経験値の記録(画面の演出用) */
+export interface XpGainEntry {
+  uid: string;
+  defId: string;
+  xpAdded: number;
+  previousLevel: CardLevel;
+  newLevel: CardLevel;
+  previousXp: number;
+  newXp: number;
+}
 
 export interface RunState {
   status: 'playing' | 'won' | 'lost';
@@ -197,5 +210,7 @@ export interface RunState {
   pendingEvolutions: string[];
   /** このランで出題した問題(同じ問題を出さない。M3) */
   askedQuestionIds: string[];
+  /** 試作用:true にすると経験値が多く入り、すぐ Lv.2/Lv.3 を試せる */
+  fastGrowth: boolean;
   nextUid: number;
 }

@@ -1622,3 +1622,35 @@ export function getSecurityChallenge(
     choices: fallbackChoices,
   };
 }
+
+export interface DeckQuizQuestion {
+  id: string;
+  category: string;
+  questionType: QuestionTypeLabel;
+  prompt: string;
+  codeSnippet?: string;
+  choices: ExploitChoice[];
+  whyDangerous: string;
+  defenseMeasure: string;
+}
+
+/** 問題集(135問)から指定タイプ(TYPE A / TYPE B 等)の問題を抽出して返す */
+export function getQuizQuestionsByType(typePrefix: 'TYPE A' | 'TYPE B' | 'TYPE C'): DeckQuizQuestion[] {
+  const result: DeckQuizQuestion[] = [];
+  for (const group of CHALLENGE_GROUPS) {
+    for (const q of group.questions) {
+      if (!q.questionType.startsWith(typePrefix)) continue;
+      result.push({
+        id: q.id,
+        category: group.category,
+        questionType: q.questionType,
+        prompt: q.prompt,
+        codeSnippet: q.codeSnippet,
+        choices: rotateChoices(q.choices, q.id),
+        whyDangerous: group.whyDangerous,
+        defenseMeasure: group.defenseMeasure,
+      });
+    }
+  }
+  return result;
+}

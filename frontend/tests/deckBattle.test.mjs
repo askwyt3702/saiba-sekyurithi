@@ -272,3 +272,121 @@ test('山札が尽きたら捨て札をシャッフルして引き直す', () =>
   assert.equal(after.hand.length, 3);
   assert.equal(after.discard.length, 0);
 });
+
+
+// ---------- M2 / M3 テスト ----------
+
+test('経験値は1枚ごとに増え、1回の戦闘で3を超えない(通常モード)', () => {
+  const r = run.createRun({ fastGrowth: false });
+  const b = battle.createBattle({
+    deck: r.deck,
+    playerHp: 50,
+    playerMaxHp: 65,
+    enemyIds: ['scanner_bot'],
+    seed: 1,
+  });
+  b.status = 'won';
+  b.usesThisBattle = { c1: 5, c2: 1 }; // c1を5回使っても上限3、c2は1+1=2
+  const res = run.applyBattleResult(r, b, 10);
+  const c1 = res.run.deck.find((c) => c.uid === 'c1');
+  const c2 = res.run.deck.find((c) => c.uid === 'c2');
+  const c3 = res.run.deck.find((c) => c.uid === 'c3');
+  assert.equal(c1.xp, 3);
+  assert.equal(c1.level, 2);
+  assert.equal(c2.xp, 2);
+  assert.equal(c2.level, 2);
+  assert.equal(c3.xp, 0);
+  assert.equal(c3.level, 1);
+  assert.equal(res.healed, 6);
+  assert.equal(res.run.hp, 56);
+  assert.equal(res.rewardChoices.length, 3);
+  assert.equal(new Set(res.rewardChoices).size, 3);
+});
+
+test('試用高速成長モードでは1回使うだけで即Lv.3になり進化先を選べる', () => {
+  const r = run.createRun({ fastGrowth: true });
+  const b = battle.createBattle({
+    deck: r.deck,
+    playerHp: 65,
+    playerMaxHp: 65,
+    enemyIds: ['scanner_bot'],
+    seed: 2,
+  });
+  b.status = 'won';
+  b.usesThisBattle = { c1: 1 };
+  const res = run.applyBattleResult(r, b, 20);
+  const c1 = res.run.deck.find((c) => c.uid === 'c1');
+  assert.equal(c1.level, 3);
+  assert.equal(res.run.pendingEvolutions.length, 1);
+  assert.equal(res.run.pendingEvolutions[0], 'c1');
+});
+
+test('同じSSH辞書攻撃2枚を別々の進化先にでき、進化を選び終わるまで次のマスに進めない', () => {
+  let r = run.createRun({ fastGrowth: false });
+  // c1, c2 に経験値+5を付与してどちらもLv.3にする
+  r.deck[0] = { ...r.deck[0], xp: 5, level: 3 };
+  r.deck[1] = { ...r.deck[1], xp: 5, level: 3 };
+  r.pendingEvolutions = ['c1', 'c2'];
+
+  assert.throws(() => run.advanceToNextNode(r));
+  r = run.chooseEvolution(r, 'c1', 'ssh_rapid');
+  assert.throws(() => run.advanceToNextNode(r));
+  r = run.chooseEvolution(r, 'c2', 'ssh_breaker');
+  assert.equal(r.pendingEvolutions.length, 0);
+
+  const next = run.advanceToNextNode(r);
+  assert.equal(next.nodeIndex, 1);
+  assert.equal(next.deck[0].branchId, 'ssh_rapid');
+  assert.equal(next.deck[1].branchId, 'ssh_breaker');
+
+  const nextBattle = battle.createBattle({
+    deck: next.deck,
+    playerHp: next.hp,
+    playerMaxHp: next.maxHp,
+    enemyIds: ['scanner_bot'],
+    seed: 3,
+  });
+  assert.equal(battle.getCardStats(nextBattle.cards.c1).name, '総当たり連打');
+  assert.equal(battle.getCardStats(nextBattle.cards.c2).name, '認証突破');
+});
+
+test('イベントマスでTYPE A/Bから重複せずに出題し、正解EXP+2・不正解罰・パッチボーナスが動く', () => {
+  let r = run.createRun({ fastGrowth: false });
+  const q1 = run.pickEventQuestion(r, 'vuln_check', 7);
+  assert.ok(q1.questionType.startsWith('TYPE A'));
+
+  const fail1 = run.resolveEventQuiz(r, 'vuln_check', q1.id, false);
+  assert.equal(fail1.hpLost, 5);
+  assert.equal(fail1.run.hp, 60);
+  assert.ok(fail1.run.askedQuestionIds.includes(q1.id));
+
+  const q1b = run.pickEventQuestion(fail1.run, 'vuln_check', 7);
+  assert.notEqual(q1b.id, q1.id);
+
+  const q2 = run.pickEventQuestion(fail1.run, 'patch', 9);
+  assert.ok(q2.questionType.startsWith('TYPE B'));
+
+  const fail2 = run.resolveEventQuiz(fail1.run, 'patch', q2.id, false);
+  assert.equal(fail2.hpLost, 0);
+
+  const ok2 = run.resolveEventQuiz(fail1.run, 'patch', q2.id, true);
+  const xpRes = run.applyEventXp ? null : run.applyQuizXpReward(ok2.run, 'c1');
+  assert.equal(xpRes.run.deck[0].xp, 2);
+  assert.equal(xpRes.run.deck[0].level, 2);
+
+  const healed = run.applyPatchBonus(xpRes.run, { type: 'heal' });
+  assert.equal(healed.hp, 65);
+
+  const trimmed = run.applyPatchBonus(xpRes.run, { type: 'remove', cardUid: 'c2' });
+  assert.equal(trimmed.deck.length, 9);
+});
+
+test('6マス目のボス(ARGUS)に勝つとラン勝利になる', () => {
+  const r = run.createRun({ fastGrowth: false });
+  r.nodeIndex = 5;
+  const b = run.createBattleForCurrentNode(r, 11);
+  b.status = 'won';
+  const res = run.applyBattleResult(r, b, 12);
+  assert.equal(res.run.status, 'won');
+  assert.equal(res.rewardChoices.length, 0);
+});
