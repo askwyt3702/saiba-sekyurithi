@@ -1626,6 +1626,9 @@ export function getSecurityChallenge(
 export interface DeckQuizQuestion {
   id: string;
   category: string;
+  mitreId?: string;
+  cweId?: string;
+  scanTerminalLog: string;
   questionType: QuestionTypeLabel;
   prompt: string;
   codeSnippet?: string;
@@ -1643,6 +1646,9 @@ export function getQuizQuestionsByType(typePrefix: 'TYPE A' | 'TYPE B' | 'TYPE C
       result.push({
         id: q.id,
         category: group.category,
+        mitreId: group.mitreId,
+        cweId: group.cweId,
+        scanTerminalLog: group.scanTerminalLog,
         questionType: q.questionType,
         prompt: q.prompt,
         codeSnippet: q.codeSnippet,

@@ -1129,3 +1129,224 @@
 .db-deck-pill--danger:hover {
   border-color: #f43f5e;
 }
+
+/* ========================================
+   イベント(クイズ)拡張: 事前調査・コマンド・進化プレビュー
+======================================== */
+.db-event-head__left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.db-event-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.db-event-tag--attck {
+  background: rgba(59, 130, 246, 0.18);
+  border: 1px solid #3b82f6;
+  color: #93c5fd;
+}
+
+.db-event-tag--cwe {
+  background: rgba(234, 179, 8, 0.18);
+  border: 1px solid #eab308;
+  color: #fde047;
+}
+
+.db-event-scanlog {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: rgba(2, 18, 14, 0.85);
+  border: 1px solid rgba(20, 184, 166, 0.35);
+  border-left: 3px solid #14b8a6;
+  border-radius: 6px;
+  color: #5eead4;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.db-event-recon {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px dashed #38bdf8;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.db-event-recon--done {
+  border-style: solid;
+  border-color: #10b981;
+  border-left: 4px solid #10b981;
+  background: rgba(6, 78, 59, 0.28);
+  display: block;
+}
+
+.db-event-recon__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #6ee7b7;
+}
+
+.db-event-recon__badge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #10b981;
+  color: #022c22;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.db-event-recon__text {
+  margin: 0;
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
+.db-event-recon__prompt {
+  font-size: 12px;
+  color: #bae6fd;
+}
+
+.db-event-recon__btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #38bdf8;
+  background: rgba(56, 189, 248, 0.2);
+  color: #e0f2fe;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.db-event-recon__btn:hover {
+  background: rgba(56, 189, 248, 0.35);
+}
+
+.db-event-prompt__rule {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.db-event-choice__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.db-event-choice__cmd {
+  display: block;
+  padding: 5px 8px;
+  margin: 4px 0 6px;
+  background: #020617;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 5px;
+  color: #67e8f9;
+  font-family: monospace;
+  font-size: 11.5px;
+  overflow-x: auto;
+}
+
+.db-event-choice--filtered {
+  opacity: 0.45;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.db-event-choice--filtered .db-event-choice__title {
+  text-decoration: line-through;
+  color: #64748b;
+}
+
+.db-event-choice__badge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.db-event-choice__badge--filtered {
+  background: rgba(100, 116, 139, 0.25);
+  border: 1px solid #64748b;
+  color: #cbd5e1;
+}
+
+.db-event-choice__badge--ok {
+  background: rgba(16, 185, 129, 0.22);
+  border: 1px solid #10b981;
+  color: #6ee7b7;
+}
+
+.db-event-choice__badge--ng {
+  background: rgba(244, 63, 94, 0.22);
+  border: 1px solid #f43f5e;
+  color: #fda4af;
+}
+
+.db-event-feedback__correct-box {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(6, 78, 59, 0.35);
+  border: 1px solid rgba(16, 185, 129, 0.55);
+  color: #d1fae5;
+}
+
+.db-deck-pill__title {
+  font-weight: 700;
+}
+
+.db-deck-pill--evolve {
+  border-color: #f59e0b;
+  background: rgba(120, 53, 15, 0.28);
+}
+
+.db-deck-pill--levelup {
+  border-color: #10b981;
+  background: rgba(6, 78, 59, 0.28);
+}
+
+.db-deck-pill--maxed {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.db-deck-pill__preview {
+  font-size: 11px;
+  font-weight: 700;
+  color: #93c5fd;
+}
+
+.db-deck-pill__preview--evolve {
+  color: #fde047;
+}
+
+.db-deck-pill__preview--levelup {
+  color: #6ee7b7;
+}
+
+.db-deck-pill__preview--max {
+  color: #94a3b8;
+}
