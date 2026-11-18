@@ -1,4 +1,4 @@
-// ローグライク・カードバトル(試作)の型。docs/deckbattle-plan-v0.2.md の10章「データの形」に合わせている。
+// ローグライク・カードバトル(試作)の型。ルールの中身は docs/deckbattle-plan-v0.3.md を参照。
 // ルールは画面に依存しない純粋な関数で扱い、この型だけを受け渡しする。
 
 export type CardKind = 'attack' | 'defense' | 'utility';

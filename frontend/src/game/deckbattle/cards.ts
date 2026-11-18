@@ -1,4 +1,4 @@
-// MVP のカード6種類(docs/deckbattle-plan-v0.2.md の6章)と、敵が入れてくるノイズ。
+// カード12種類(docs/deckbattle-plan-v0.3.md の6章)と、敵が入れてくるノイズ。
 // 数値は試作用の仮の値。
 import type { CardDefinition } from './types';
 

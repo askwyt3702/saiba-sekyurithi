@@ -1,4 +1,4 @@
-// 1回のラン・成長・進化・報酬・イベント(docs/deckbattle-plan-v0.2.md の3章・5章・9章)。
+// 1回のラン・成長・進化・報酬・イベント・闇市(docs/deckbattle-plan-v0.3.md の3章・5章・9章・10章)。
 // 画面に依存しない純粋な関数で実装し、node --test と画面の両方から使う。
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
 import { createBattle, getCardDefinition } from './battle';

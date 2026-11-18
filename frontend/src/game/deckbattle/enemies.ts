@@ -1,4 +1,4 @@
-// MVP の敵(docs/deckbattle-plan-v0.2.md の8章)。行動は pattern の順にくり返す(ランダムにしない)。
+// 敵(docs/deckbattle-plan-v0.3.md の8章)。行動は pattern の順にくり返す(ランダムにしない)。
 import type { EnemyDefinition, EnemyWeakness } from './types';
 
 export const WEAKNESS_LABEL: Record<EnemyWeakness, string> = {

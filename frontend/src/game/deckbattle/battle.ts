@@ -1,4 +1,4 @@
-// 戦闘のルール(docs/deckbattle-plan-v0.2.md の4章・7章・8章)。
+// 戦闘のルール(docs/deckbattle-plan-v0.3.md の4章・7章・8章)。
 // すべて「今の状態を受け取って、新しい状態を返す」純粋な関数。画面からもテストからも同じように呼ぶ。
 import { CARD_DEFINITIONS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
