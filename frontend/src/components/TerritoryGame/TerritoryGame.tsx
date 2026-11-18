@@ -5,6 +5,7 @@ import {
   PanOnScrollMode,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
   type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -21,6 +22,7 @@ import {
 import type { EnemyActionEvent, TerritoryGameState } from '../../game/territory/territoryTypes';
 import { TerritoryNodeView, type TerritoryFlowNode, type TerritoryNodeFx } from './TerritoryNodeView';
 import { TerritoryThreatEdge, type ThreatFlowEdge } from './TerritoryThreatEdge';
+import { useUiScale } from '../../useUiScale';
 import './TerritoryGame.css';
 
 interface TerritoryGameProps {
@@ -88,6 +90,25 @@ function fxForEvent(event: EnemyActionEvent, key: string): Map<string, Territory
   return fx;
 }
 
+/** カードを使った前後を比べて、ダメージを受けた・制圧したノードに出す演出を作る(余波ダメージも見えるように) */
+function fxForPlayerCard(before: TerritoryGameState, after: TerritoryGameState, key: string): Map<string, TerritoryNodeFx> {
+  const fx = new Map<string, TerritoryNodeFx>();
+  for (const node of after.nodes) {
+    const prev = before.nodes.find((n) => n.id === node.id);
+    if (!prev) continue;
+    if (prev.owner !== 'player' && node.owner === 'player') {
+      fx.set(node.id, { kind: 'seized', text: '制圧!', key });
+      continue;
+    }
+    const lost = prev.hp + prev.shield - (node.hp + node.shield);
+    if (lost > 0) fx.set(node.id, { kind: 'strike', text: `-${lost}`, key });
+  }
+  return fx;
+}
+
+// カードの演出を表示しておく時間(ミリ秒)。演出専用で、ゲームのルールには関係しない
+const PLAYER_FX_MS = 1000;
+
 function samePair(edge: { source: string; target: string }, a: string, b: string): boolean {
   return (edge.source === a && edge.target === b) || (edge.source === b && edge.target === a);
 }
@@ -96,6 +117,22 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
   const [game, setGame] = useState<TerritoryGameState>(() => createInitialTerritoryState());
   const [notice, setNotice] = useState<string | null>(null);
   const [playback, setPlayback] = useState<EnemyPlayback | null>(null);
+  const [playerFx, setPlayerFx] = useState<{ map: Map<string, TerritoryNodeFx>; key: string } | null>(null);
+  const uiScale = useUiScale();
+  const { fitView } = useReactFlow();
+
+  // カードの演出は少し見せたら消す
+  useEffect(() => {
+    if (!playerFx) return;
+    const timer = setTimeout(() => setPlayerFx(null), PLAYER_FX_MS);
+    return () => clearTimeout(timer);
+  }, [playerFx]);
+
+  // 画面の倍率が変わったら(ウィンドウの大きさを変えたら)、マップ全体が収まるように合わせ直す
+  useEffect(() => {
+    const timer = setTimeout(() => void fitView({ padding: 0.12 }), 60);
+    return () => clearTimeout(timer);
+  }, [uiScale, fitView]);
   const busy = playback !== null;
   const currentEvent = playback ? playback.events[playback.index] : null;
   const playKey = playback ? `${playback.next.turn}-${playback.index}` : '';
@@ -120,8 +157,10 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
   const attackableIds = useMemo(() => getAttackableNodeIds(game), [game]);
 
   const fxMap = useMemo(
-    () => (currentEvent ? fxForEvent(currentEvent, playKey) : new Map<string, TerritoryNodeFx>()),
-    [currentEvent, playKey],
+    () => (currentEvent
+      ? fxForEvent(currentEvent, playKey)
+      : playerFx?.map ?? new Map<string, TerritoryNodeFx>()),
+    [currentEvent, playKey, playerFx],
   );
 
   const flowNodes: TerritoryFlowNode[] = useMemo(
@@ -226,7 +265,10 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
     }
     if (def.targetType === 'none') {
       const res = playTerritoryCard(game, uid);
-      if (res.accepted) setGame(res.state);
+      if (res.accepted) {
+        setPlayerFx({ map: fxForPlayerCard(game, res.state, `p-${res.state.logs.length}`), key: `p-${res.state.logs.length}` });
+        setGame(res.state);
+      }
       else if (res.reason) setNotice(res.reason);
       return;
     }
@@ -240,6 +282,8 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
     if (busy || game.status !== 'playing' || game.rewardChoices || !game.selectedCardUid) return;
     const res = playTerritoryCard(game, game.selectedCardUid, nodeId);
     if (res.accepted) {
+      const key = `p-${res.state.logs.length}`;
+      setPlayerFx({ map: fxForPlayerCard(game, res.state, key), key });
       setNotice(null);
       setGame(res.state);
     } else if (res.reason) {
@@ -340,9 +384,9 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
             edgeTypes={edgeTypes}
             onNodeClick={(_, node) => handleNodeClick(node.id)}
             fitView
-            fitViewOptions={{ padding: 0.16 }}
-            minZoom={0.45}
-            maxZoom={1.5}
+            fitViewOptions={{ padding: 0.12 }}
+            minZoom={0.35 * uiScale}
+            maxZoom={1.6 * uiScale}
             panOnScroll
             panOnScrollMode={PanOnScrollMode.Vertical}
             nodesDraggable={false}

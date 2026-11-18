@@ -101,7 +101,7 @@ export const CARD_CATALOG: Record<string, CardDef> = {
     splashDamage: 5,
     alertDelta: 6,
     rarity: 'rare',
-    description: '対象に8ダメージ＋周囲の全敵/中立ノードにも5ダメージ（警戒度+6%）。',
+    description: '対象に8ダメージ＋対象と線でつながった敵/中立ノードにも5ダメージ（警戒度+6%）。',
   },
   argus_blind: {
     id: 'argus_blind',

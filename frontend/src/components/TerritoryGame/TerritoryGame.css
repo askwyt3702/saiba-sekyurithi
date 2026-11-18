@@ -846,3 +846,146 @@
     animation-delay: 0s !important;
   }
 }
+
+/* ========================================
+   見やすさの改善(プレイしての指摘 6・7・11)
+======================================== */
+
+/* 画面全体の zoom(src/uiScale.ts)を打ち消し、React Flow は実際の画面ピクセルで動かす。
+   打ち消さないと、拡大した画面で線とノードの接続点がずれる(MapView と同じ対策)。 */
+.tw-map-area .react-flow {
+  zoom: calc(1 / var(--ui-scale, 1));
+  width: calc(100% * var(--ui-scale, 1));
+  height: calc(100% * var(--ui-scale, 1));
+}
+
+.tw-map-area .react-flow__controls {
+  zoom: var(--ui-scale, 1);
+}
+
+/* ノードは横長のカード(左にアイコン、右に情報)。マップが左→右に進むので、縦に積むより小さく縮まずに済む */
+.tw-node {
+  width: 236px;
+}
+
+.tw-node__body {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.tw-node__symbol {
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+}
+
+.tw-node__plate {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px 8px;
+}
+
+.tw-node__head {
+  font-size: 13px;
+  color: #b6c2d1;
+}
+
+.tw-node__owner {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tw-node__name {
+  font-size: 16px;
+  margin: 2px 0 4px;
+}
+
+.tw-node__hp-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.tw-node__hp-text {
+  font-size: 14px;
+  color: #e2e8f0;
+}
+
+.tw-node__hp-text strong {
+  font-size: 22px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0 1px 0 4px;
+}
+
+.tw-node__hp-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #94a3b8;
+}
+
+.tw-node__hp-max {
+  color: #94a3b8;
+}
+
+.tw-node__shield {
+  padding: 1px 7px;
+  border: 1px solid rgba(125, 211, 252, 0.55);
+  border-radius: 999px;
+  background: rgba(8, 47, 73, 0.8);
+  color: #bae6fd;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tw-node__hp-track {
+  height: 7px;
+}
+
+/* 行動予告はカードの上に浮かせる */
+.tw-node__intent {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 3px 10px;
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.tw-node__weakness,
+.tw-node__exposed {
+  font-size: 10px;
+}
+
+/* 自分のカードが当たったとき(余波ダメージを含む):すぐ揺れて数字が出る */
+.tw-node__body--strike .tw-node__plate {
+  animation: tw-strike 0.4s ease-out both;
+}
+
+.tw-node__body--seized .tw-node__plate {
+  animation: tw-seized 0.8s ease-out both;
+}
+
+.tw-fx--strike .tw-fx__float { color: #fde68a; }
+.tw-fx--seized .tw-fx__float { color: #6ee7b7; }
+
+@keyframes tw-strike {
+  0% { transform: translateX(0); box-shadow: 0 0 0 0 rgba(253, 230, 138, 0); }
+  20% { transform: translateX(-5px); box-shadow: 0 0 18px 3px rgba(253, 230, 138, 0.8); }
+  45% { transform: translateX(4px); }
+  70% { transform: translateX(-2px); }
+  100% { transform: translateX(0); box-shadow: 0 0 0 0 rgba(253, 230, 138, 0); }
+}
+
+@keyframes tw-seized {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.95); }
+  100% { box-shadow: 0 0 0 18px rgba(16, 185, 129, 0); }
+}

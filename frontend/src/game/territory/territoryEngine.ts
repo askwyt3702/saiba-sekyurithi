@@ -54,19 +54,20 @@ export function computeDrawCount(nodes: readonly TerritoryNode[]): number {
   return 4 + Math.min(2, webCount);
 }
 
+// 左から右へ:入口 → DMZ → 社内 → Core → 敵の本陣。横長の画面に収まり、文字が小さくなりすぎない配置。
 function createInitialNodes(): TerritoryNode[] {
   return [
-    { id: 'E01', name: '攻撃拠点SSHゲート', layer: 'External', role: 'rack', position: { x: 480, y: 60 }, owner: 'player', hp: 16, maxHp: 16, shield: 4, exposed: false, isEntry: true },
-    { id: 'D01', name: '公開Webサーバー', layer: 'DMZ', role: 'web', position: { x: 180, y: 260 }, owner: 'neutral', hp: 10, maxHp: 10, shield: 0, exposed: false },
-    { id: 'E02', name: 'DNS情報リレー', layer: 'External', role: 'dns', position: { x: 480, y: 260 }, owner: 'neutral', hp: 9, maxHp: 9, shield: 0, exposed: false },
-    { id: 'D03', name: 'VPNゲートウェイ', layer: 'DMZ', role: 'auth', position: { x: 780, y: 260 }, owner: 'argus', hp: 12, maxHp: 12, shield: 2, exposed: false },
-    { id: 'I06', name: '機密ファイル共有', layer: 'Internal', role: 'vault', position: { x: 100, y: 500 }, owner: 'neutral', hp: 12, maxHp: 12, shield: 0, exposed: false },
-    { id: 'I02', name: '開発環境サーバー', layer: 'Internal', role: 'rack', position: { x: 350, y: 500 }, owner: 'argus', hp: 13, maxHp: 13, shield: 2, exposed: false },
-    { id: 'I04', name: 'ARGUS 監視制御AI', layer: 'Internal', role: 'eye', position: { x: 610, y: 500 }, owner: 'argus', hp: 15, maxHp: 15, shield: 4, exposed: false },
-    { id: 'I09', name: '内部ファイアウォール', layer: 'Internal', role: 'fw', position: { x: 860, y: 500 }, owner: 'argus', hp: 16, maxHp: 16, shield: 5, exposed: false },
-    { id: 'C01', name: 'Core防衛ゲート', layer: 'Core', role: 'fw', position: { x: 310, y: 740 }, owner: 'argus', hp: 18, maxHp: 18, shield: 6, exposed: false },
-    { id: 'I10', name: '研究APIプロキシ', layer: 'Core', role: 'web', position: { x: 650, y: 740 }, owner: 'neutral', hp: 14, maxHp: 14, shield: 2, exposed: false },
-    { id: 'C03', name: '極秘研究DB (本陣)', layer: 'Core', role: 'db', position: { x: 480, y: 950 }, owner: 'argus', hp: 26, maxHp: 26, shield: 8, exposed: false, isCoreTarget: true },
+    { id: 'E01', name: '攻撃拠点SSHゲート', layer: 'External', role: 'rack', position: { x: 0, y: 200 }, owner: 'player', hp: 16, maxHp: 16, shield: 4, exposed: false, isEntry: true },
+    { id: 'D01', name: '公開Webサーバー', layer: 'DMZ', role: 'web', position: { x: 265, y: 40 }, owner: 'neutral', hp: 10, maxHp: 10, shield: 0, exposed: false },
+    { id: 'E02', name: 'DNS情報リレー', layer: 'External', role: 'dns', position: { x: 265, y: 200 }, owner: 'neutral', hp: 9, maxHp: 9, shield: 0, exposed: false },
+    { id: 'D03', name: 'VPNゲートウェイ', layer: 'DMZ', role: 'auth', position: { x: 265, y: 360 }, owner: 'argus', hp: 12, maxHp: 12, shield: 2, exposed: false },
+    { id: 'I06', name: '機密ファイル共有', layer: 'Internal', role: 'vault', position: { x: 530, y: -40 }, owner: 'neutral', hp: 12, maxHp: 12, shield: 0, exposed: false },
+    { id: 'I02', name: '開発環境サーバー', layer: 'Internal', role: 'rack', position: { x: 530, y: 120 }, owner: 'argus', hp: 13, maxHp: 13, shield: 2, exposed: false },
+    { id: 'I04', name: 'ARGUS 監視制御AI', layer: 'Internal', role: 'eye', position: { x: 530, y: 280 }, owner: 'argus', hp: 15, maxHp: 15, shield: 4, exposed: false },
+    { id: 'I09', name: '内部ファイアウォール', layer: 'Internal', role: 'fw', position: { x: 530, y: 440 }, owner: 'argus', hp: 16, maxHp: 16, shield: 5, exposed: false },
+    { id: 'C01', name: 'Core防衛ゲート', layer: 'Core', role: 'fw', position: { x: 795, y: 120 }, owner: 'argus', hp: 18, maxHp: 18, shield: 6, exposed: false },
+    { id: 'I10', name: '研究APIプロキシ', layer: 'Core', role: 'web', position: { x: 795, y: 280 }, owner: 'neutral', hp: 14, maxHp: 14, shield: 2, exposed: false },
+    { id: 'C03', name: '極秘研究DB (本陣)', layer: 'Core', role: 'db', position: { x: 1060, y: 200 }, owner: 'argus', hp: 26, maxHp: 26, shield: 8, exposed: false, isCoreTarget: true },
   ];
 }
 
@@ -213,6 +214,13 @@ export function createInitialTerritoryState(rng: () => number = Math.random): Te
   state.intents = generateEnemyIntents(state, rng);
   addLog(state, 'info', 'サイバー陣取りバトル開始！カードで隣接ノードを攻略し、最深部 C03（極秘研究DB）を制圧せよ。');
   return state;
+}
+
+/** 制圧されてもう ARGUS のものではないノードの行動予告を取り除く */
+function dropStaleIntents(state: TerritoryGameState): void {
+  state.intents = state.intents.filter(
+    (intent) => state.nodes.find((n) => n.id === intent.sourceNodeId)?.owner === 'argus',
+  );
 }
 
 function applyDamageToNode(
@@ -363,11 +371,14 @@ export function playTerritoryCard(
           nb.shield = 2;
           capturedAny = true;
           addLog(state, 'success', `💥 余波で ${nb.name} も制圧しました！`);
+        } else {
+          addLog(state, 'info', `💥 余波で ${nb.name} に${splashRes.dealt}ダメージ（残HP ${nb.hp}）。`);
         }
       }
     }
 
     state.maxBandwidth = computeMaxBandwidth(state.nodes);
+    if (capturedAny) dropStaleIntents(state);
     checkEndConditions(state);
     if (state.status === 'playing' && capturedAny) {
       state.rewardChoices = buildRewardChoices(rng);

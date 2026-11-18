@@ -151,3 +151,28 @@ test('enemy turn records what ARGUS actually did so the screen can replay it', (
   assert.ok(fizzled.lastEnemyActions.some((e) => e.kind === 'fizzle' && e.sourceNodeId === attack.sourceNodeId));
   assert.ok(!fizzled.lastEnemyActions.some((e) => e.kind === 'attack' && e.sourceNodeId === attack.sourceNodeId));
 });
+
+test('splash damage from DDoS is applied to connected nodes and shows up in the log', () => {
+  const { createInitialTerritoryState, playTerritoryCard } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+  const state = createInitialTerritoryState(() => 0.1);
+  state.hand.push({ uid: 'dd', defId: 'ddos_flood' });
+  const hp = (s, id) => s.nodes.find((n) => n.id === id).hp;
+  const res = playTerritoryCard(state, 'dd', 'D01', () => 0.1);
+  assert.equal(res.accepted, true);
+  // D01 と線でつながった I06(中立)と I02(ARGUS)が余波を受ける
+  assert.ok(hp(res.state, 'I06') < hp(state, 'I06'));
+  assert.ok(res.state.logs.some((l) => l.message.includes('余波で 機密ファイル共有 に')), 'splash damage must be logged, not silent');
+});
+
+test('capturing a node that announced an attack removes its stale announcement immediately', () => {
+  const { createInitialTerritoryState, playTerritoryCard } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+  const state = createInitialTerritoryState(() => 0.1);
+  const attack = state.intents.find((i) => i.action === 'attack');
+  assert.equal(attack.sourceNodeId, 'D03');
+  state.nodes.find((n) => n.id === 'D03').hp = 1;
+  state.nodes.find((n) => n.id === 'D03').shield = 0;
+  state.hand.push({ uid: 'kill', defId: 'zero_day' });
+  const res = playTerritoryCard(state, 'kill', 'D03', () => 0.1);
+  assert.equal(res.state.nodes.find((n) => n.id === 'D03').owner, 'player');
+  assert.ok(!res.state.intents.some((i) => i.sourceNodeId === 'D03'), 'a captured node can no longer act, so its announcement must go');
+});

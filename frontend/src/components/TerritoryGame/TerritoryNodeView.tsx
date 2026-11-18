@@ -4,7 +4,7 @@ import type { EnemyIntent, TerritoryNode } from '../../game/territory/territoryT
 
 /** ARGUS のターンの演出で、このノードに起きていること */
 export interface TerritoryNodeFx {
-  kind: 'attacker' | 'hit' | 'captured' | 'fortify' | 'alert' | 'fizzle';
+  kind: 'attacker' | 'hit' | 'captured' | 'fortify' | 'alert' | 'fizzle' | 'strike' | 'seized';
   /** ノードの上に浮かぶ文字(例: -6、奪還!) */
   text?: string;
   /** 同じノードに続けて起きても、演出を最初から再生し直すためのキー */
@@ -48,16 +48,17 @@ export function TerritoryNodeView({ data }: NodeProps<TerritoryFlowNode>) {
         .filter(Boolean)
         .join(' ')}
     >
-      <Handle type="target" position={Position.Top} className="tw-node__handle" />
+      {/* マップは左(入口)から右(敵の本陣)へ進むので、線は左右から出す */}
+      <Handle type="target" position={Position.Left} className="tw-node__handle" />
+
+      {intent && !fx && (
+        <div className="tw-node__intent" title="次のARGUSターンに行う行動予告">
+          {intent.label}
+        </div>
+      )}
 
       {/* key を変えると中身を作り直すので、揺れなどの演出が毎回最初から再生される */}
       <div key={fx?.key ?? 'idle'} className={`tw-node__body ${fx ? `tw-node__body--${fx.kind}` : ''}`}>
-        {intent && !fx && (
-          <div className="tw-node__intent" title="次のARGUSターンに行う行動予告">
-            {intent.label}
-          </div>
-        )}
-
         <div className="tw-node__symbol">
           <NodeHologramSymbol
             role={node.role}
@@ -80,13 +81,15 @@ export function TerritoryNodeView({ data }: NodeProps<TerritoryFlowNode>) {
           </div>
           <div className="tw-node__name">{node.name}</div>
           <div className="tw-node__hp-row">
-            <div className="tw-node__hp-track">
-              <div className="tw-node__hp-fill" style={{ width: `${hpPct}%` }} />
-            </div>
             <span className="tw-node__hp-text">
-              {node.hp}/{node.maxHp}
-              {node.shield > 0 ? ` 🛡${node.shield}` : ''}
+              <span className="tw-node__hp-label">HP</span>
+              <strong>{node.hp}</strong>
+              <span className="tw-node__hp-max">/{node.maxHp}</span>
             </span>
+            {node.shield > 0 && <span className="tw-node__shield" title="シールド(先にこちらが削られる)">🛡{node.shield}</span>}
+          </div>
+          <div className="tw-node__hp-track">
+            <div className="tw-node__hp-fill" style={{ width: `${hpPct}%` }} />
           </div>
         </div>
 
@@ -97,7 +100,7 @@ export function TerritoryNodeView({ data }: NodeProps<TerritoryFlowNode>) {
         )}
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="tw-node__handle" />
+      <Handle type="source" position={Position.Right} className="tw-node__handle" />
     </div>
   );
 }
