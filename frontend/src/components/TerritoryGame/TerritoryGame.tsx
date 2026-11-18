@@ -23,6 +23,7 @@ import type { CardDef, EnemyActionEvent, TerritoryGameState } from '../../game/t
 import { TerritoryNodeView, type TerritoryFlowNode, type TerritoryNodeFx } from './TerritoryNodeView';
 import { TerritoryThreatEdge, type ThreatFlowEdge } from './TerritoryThreatEdge';
 import { useUiScale } from '../../useUiScale';
+import { playSound, type SoundEffectType } from '../../game/sound/soundEffects';
 import './TerritoryGame.css';
 
 interface TerritoryGameProps {
@@ -169,6 +170,25 @@ function CardFace({ def }: { def: CardDef }) {
   );
 }
 
+/** ARGUS の行動ごとの効果音 */
+const ENEMY_ACTION_SOUNDS: Record<EnemyActionEvent['kind'], SoundEffectType> = {
+  attack: 'alert',
+  expand: 'alert',
+  reflect: 'breach',
+  fortify: 'click',
+  alert: 'alert',
+  fizzle: 'click',
+};
+
+/** カードを使った結果に合った効果音(制圧 > 攻撃が当たった > 回復・防御 > その他) */
+function soundForPlayerFx(fx: Map<string, TerritoryNodeFx>): SoundEffectType {
+  const kinds = [...fx.values()].map((f) => f.kind);
+  if (kinds.includes('seized')) return 'breach';
+  if (kinds.includes('strike')) return 'scan';
+  if (kinds.includes('fortify')) return 'recover';
+  return 'click';
+}
+
 function samePair(edge: { source: string; target: string }, a: string, b: string): boolean {
   return (edge.source === a && edge.target === b) || (edge.source === b && edge.target === a);
 }
@@ -196,6 +216,19 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
   const busy = playback !== null;
   const currentEvent = playback ? playback.events[playback.index] : null;
   const playKey = playback ? `${playback.next.turn}-${playback.index}` : '';
+
+  // ARGUS の行動の演出に合わせて効果音を鳴らす
+  useEffect(() => {
+    if (currentEvent) playSound(ENEMY_ACTION_SOUNDS[currentEvent.kind]);
+    // playKey が変わったとき(=次の行動に進んだとき)だけ鳴らす
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playKey]);
+
+  // 勝敗が決まったとき
+  useEffect(() => {
+    if (game.status === 'won') playSound('extract');
+    else if (game.status === 'lost') playSound('alert');
+  }, [game.status]);
 
   // ARGUS の行動を1つずつ見せ、全部見せ終わったら、ターン終了後の状態に切り替える
   useEffect(() => {
@@ -319,6 +352,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
     if (busy || game.status !== 'playing' || game.rewardChoices) return;
     const def = CARD_CATALOG[defId];
     if (!def) return;
+    playSound('click');
     setNotice(null);
     if (game.bandwidth < def.cost) {
       setNotice(`帯域(コスト)が不足しています（必要: ${def.cost} / 残り: ${game.bandwidth}）。`);
@@ -327,7 +361,9 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
     if (def.targetType === 'none') {
       const res = playTerritoryCard(game, uid);
       if (res.accepted) {
-        setPlayerFx({ map: fxForPlayerCard(game, res.state, `p-${res.state.logs.length}`), key: `p-${res.state.logs.length}` });
+        const map = fxForPlayerCard(game, res.state, `p-${res.state.logs.length}`);
+        playSound(soundForPlayerFx(map));
+        setPlayerFx({ map, key: `p-${res.state.logs.length}` });
         setGame(res.state);
       }
       else if (res.reason) setNotice(res.reason);
@@ -344,7 +380,9 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
     const res = playTerritoryCard(game, game.selectedCardUid, nodeId);
     if (res.accepted) {
       const key = `p-${res.state.logs.length}`;
-      setPlayerFx({ map: fxForPlayerCard(game, res.state, key), key });
+      const map = fxForPlayerCard(game, res.state, key);
+      playSound(soundForPlayerFx(map));
+      setPlayerFx({ map, key });
       setNotice(null);
       setGame(res.state);
     } else if (res.reason) {
