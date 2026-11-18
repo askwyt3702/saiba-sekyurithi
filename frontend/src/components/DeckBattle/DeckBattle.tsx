@@ -514,7 +514,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       return;
     }
     if (updated.status === 'won') {
-      updateProfile((p) => recordRunResult(p, updated));
+      // ラン結果の記録は handleBattleFinished で済んでいるので、ここでは画面だけ進める
       setPhase('run_result');
       return;
     }
@@ -1254,9 +1254,13 @@ function EventScreen({
         <p className="db-event-prompt">
           &gt; {question.prompt}
           <span className="db-event-prompt__rule">
-            {eventId === 'vuln_check'
-              ? `（正解：好きなカードに EXP +${run.fastGrowth ? 5 : 2} ／ 不正解：HP -5）`
-              : `（正解：好きなカードに EXP +${run.fastGrowth ? 5 : 2} ＋ HP15回復またはカード削除 ／ 不正解：ペナルティなし）`}
+            {`（正解：${
+              step === 1
+                ? `好きなカードに EXP +${run.fastGrowth ? 5 : 2}`
+                : step === 2
+                  ? 'HP10回復・カード1枚追加・カード1枚削除から1つ'
+                  : '常駐ツールかレアカード'
+            } ／ 不正解：${eventId === 'vuln_check' ? 'HP -5' : 'ペナルティなし'}）`}
           </span>
         </p>
         {question.codeSnippet && <pre className="db-event-code">{question.codeSnippet}</pre>}

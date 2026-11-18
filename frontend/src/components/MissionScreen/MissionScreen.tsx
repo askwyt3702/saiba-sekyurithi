@@ -159,7 +159,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
             <button
               type="button"
               className="db-btn db-btn--end"
-              style={{ marginRight: 10 }}
+              style={{ margin: '0 10px 0 0' }}
               onClick={() => {
                 playSound('click');
                 setHubOpen(true);
