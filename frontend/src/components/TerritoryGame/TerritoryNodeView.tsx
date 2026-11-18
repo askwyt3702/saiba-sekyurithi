@@ -72,6 +72,14 @@ export function TerritoryNodeView({ data }: NodeProps<TerritoryFlowNode>) {
           {node.exposed && (
             <span className="tw-node__exposed">脆弱性露出</span>
           )}
+          {node.infection && (
+            <span className="tw-node__status-badge tw-node__status-badge--infected" title={`マルウェア感染:あと${node.infection.turns}ターン、毎ターン${node.infection.damage}ダメージ`}>
+              🦠{node.infection.turns}
+            </span>
+          )}
+          {node.trapped && (
+            <span className="tw-node__status-badge tw-node__status-badge--trap" title="罠:次に受ける攻撃を跳ね返す">🍯</span>
+          )}
         </div>
 
         <div className="tw-node__plate">

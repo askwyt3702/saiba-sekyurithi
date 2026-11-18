@@ -391,21 +391,60 @@ export function playTerritoryCard(
     drawCards(state, def.drawCount, rng);
   }
 
+  if (def.exposeAllAttackable) {
+    for (const id of getAttackableNodeIds(state)) {
+      const node = state.nodes.find((n) => n.id === id);
+      if (node) node.exposed = true;
+    }
+    addLog(state, 'info', `👂 [${def.name}] 攻撃できるノードすべての脆弱性を露出させました。`);
+  }
+
   if (def.targetType === 'player' && targetNodeId) {
     const target = state.nodes.find((n) => n.id === targetNodeId)!;
-    if (def.shieldGain) target.shield += def.shieldGain;
-    addLog(state, 'success', `🛡 [${def.name}] ${target.name} にシールド+${def.shieldGain ?? 0}。`);
+    const parts: string[] = [];
+    if (def.heal) {
+      const before = target.hp;
+      target.hp = Math.min(target.maxHp, target.hp + def.heal);
+      parts.push(`HP+${target.hp - before}`);
+    }
+    if (def.shieldGain) {
+      target.shield += def.shieldGain;
+      parts.push(`シールド+${def.shieldGain}`);
+    }
+    if (def.trap) {
+      target.trapped = true;
+      parts.push('罠を設置');
+    }
+    addLog(state, 'success', `🛡 [${def.name}] ${target.name} に${parts.join('・')}。`);
   }
 
   if (def.targetType === 'hostile' && targetNodeId) {
     const target = state.nodes.find((n) => n.id === targetNodeId)!;
     const isWeak = Boolean(def.weakRoles?.includes(target.role));
-    const baseDmg = def.damage ?? 0;
+    let baseDmg = def.damage ?? 0;
+    if (def.perAdjacentPlayerDamage) {
+      const surrounding = getNeighbors(target.id, state.edges)
+        .filter((id) => state.nodes.find((n) => n.id === id)?.owner === 'player').length;
+      baseDmg += def.perAdjacentPlayerDamage * Math.max(1, surrounding);
+    }
+    if (def.neutralMultiplier && target.owner === 'neutral') baseDmg = Math.ceil(baseDmg * def.neutralMultiplier);
     const scaledDmg = isWeak ? Math.ceil(baseDmg * 1.5) : baseDmg;
-    const { dealt, captured } = applyDamageToNode(target, scaledDmg, Boolean(def.pierceShield));
+    if (def.cancelIntent) {
+      const cancelled = state.intents.filter((i) => i.sourceNodeId === target.id);
+      state.intents = state.intents.filter((i) => i.sourceNodeId !== target.id);
+      addLog(state, 'success', cancelled.length
+        ? `🚫 [${def.name}] ${target.name} の行動予告（${cancelled.map((i) => i.label).join('・')}）を取り消しました。`
+        : `🚫 [${def.name}] ${target.name} の通信を遮断しました（今ターンの予告はありませんでした）。`);
+    }
+    const { dealt, captured } = scaledDmg > 0
+      ? applyDamageToNode(target, scaledDmg, Boolean(def.pierceShield))
+      : { dealt: 0, captured: false };
 
     if (def.applyExpose && !captured) {
       target.exposed = true;
+    }
+    if (def.infect && !captured) {
+      target.infection = { ...def.infect };
     }
 
     let capturedAny = false;
@@ -414,12 +453,29 @@ export function playTerritoryCard(
       ownershipChanged = true;
       const outcome = resolveKnockout(state, target, def.name, `${isWeak ? 'WEAKNESS! ' : ''}${dealt}ダメージで `);
       if (outcome === 'captured') capturedAny = true;
-    } else {
+    } else if (dealt > 0) {
       addLog(
         state,
         'info',
-        `▶ [${def.name}] ${isWeak ? 'WEAKNESS! ' : ''}${target.name} に${dealt}ダメージ（残HP ${target.hp}）。`,
+        `▶ [${def.name}] ${isWeak ? 'WEAKNESS! ' : ''}${target.name} に${dealt}ダメージ（残HP ${target.hp}）${def.infect ? '。マルウェアに感染させました' : ''}。`,
       );
+    }
+
+    // 連鎖:倒したら、攻撃できる別のノード(いちばん弱っているもの)にも追加ダメージ
+    if (captured && def.chainDamage) {
+      const next = [...getAttackableNodeIds(state)]
+        .map((id) => state.nodes.find((n) => n.id === id))
+        .filter((n): n is TerritoryNode => Boolean(n && n.id !== target.id && n.owner !== 'player'))
+        .sort((a, b) => a.hp + a.shield - (b.hp + b.shield))[0];
+      if (next) {
+        const chainRes = applyDamageToNode(next, def.chainDamage, false);
+        if (chainRes.captured) {
+          ownershipChanged = true;
+          if (resolveKnockout(state, next, def.name, '連鎖で ') === 'captured') capturedAny = true;
+        } else {
+          addLog(state, 'info', `⛓️ 連鎖で ${next.name} に${chainRes.dealt}ダメージ（残HP ${next.hp}）。`);
+        }
+      }
     }
 
     if (def.splashDamage) {
@@ -494,6 +550,32 @@ export function endTerritoryTurn(
     }
   }
 
+  // マルウェアの感染:プレイヤーのターンの終わりにダメージ(倒せば無力化・制圧になる)
+  let infectionChangedOwner = false;
+  for (const node of state.nodes) {
+    if (!node.infection || node.owner === 'player') {
+      delete node.infection;
+      continue;
+    }
+    const { damage } = node.infection;
+    node.infection.turns -= 1;
+    if (node.infection.turns <= 0) delete node.infection;
+    const res = applyDamageToNode(node, damage, true);
+    if (res.captured) {
+      delete node.infection;
+      infectionChangedOwner = true;
+      resolveKnockout(state, node, 'マルウェア潜伏', '感染で ');
+    } else {
+      addLog(state, 'info', `🦠 マルウェアが ${node.name} に${res.dealt}ダメージ（残HP ${node.hp}）。`);
+    }
+  }
+  if (infectionChangedOwner) {
+    dropStaleIntents(state);
+    state.maxBandwidth = computeMaxBandwidth(state.nodes);
+    checkEndConditions(state);
+    if (state.status !== 'playing') return state;
+  }
+
   // ARGUS ターン：予告していた行動を実行(画面で演出するため、起きたことを記録する)
   state.lastEnemyActions = [];
   for (const intent of state.intents) {
@@ -506,7 +588,18 @@ export function endTerritoryTurn(
 
     if (intent.action === 'attack') {
       const target = state.nodes.find((n) => n.id === intent.targetNodeId);
-      if (target && target.owner === 'player') {
+      if (target && target.owner === 'player' && target.trapped) {
+        target.trapped = false;
+        const back = applyDamageToNode(src, intent.value, true);
+        state.lastEnemyActions.push({
+          kind: 'reflect', sourceNodeId: src.id, targetNodeId: target.id, damage: back.dealt, knockedOut: back.captured,
+        });
+        addLog(state, 'success', `🍯 ${target.name} の罠が ARGUS (${src.id}) の攻撃を跳ね返し、${back.dealt} ダメージ！`);
+        if (back.captured) {
+          resolveKnockout(state, src, 'ハニーポット設置', '罠で ');
+          dropStaleIntents(state);
+        }
+      } else if (target && target.owner === 'player') {
         const res = applyDamageToNode(target, intent.value, false);
         state.lastEnemyActions.push({
           kind: 'attack', sourceNodeId: src.id, targetNodeId: target.id, damage: res.dealt, captured: res.captured,

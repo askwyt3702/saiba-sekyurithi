@@ -62,6 +62,10 @@ function describeEnemyAction(event: EnemyActionEvent, state: TerritoryGameState)
       return event.captured
         ? `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} を侵食し、ARGUS の陣地にした！`
         : `${event.sourceNodeId} が ${nodeName(state, event.targetNodeId)} を侵食中(${event.damage} ダメージ)`;
+    case 'reflect':
+      return event.knockedOut
+        ? `${nodeName(state, event.targetNodeId)} の罠が攻撃を跳ね返し、${event.sourceNodeId} を無力化した！`
+        : `${nodeName(state, event.targetNodeId)} の罠が ${event.sourceNodeId} の攻撃を跳ね返した(${event.damage} ダメージ)`;
     case 'fortify':
       return `${nodeName(state, event.nodeId)} がシールドを +${event.value} 強化`;
     case 'alert':
@@ -86,6 +90,10 @@ function fxForEvent(event: EnemyActionEvent, key: string): Map<string, Territory
       fx.set(event.targetNodeId, event.captured
         ? { kind: 'captured', text: '侵食された!', key }
         : { kind: 'hit', text: `-${event.damage}`, key });
+      break;
+    case 'reflect':
+      fx.set(event.targetNodeId, { kind: 'fortify', text: '🍯 反射!', key });
+      fx.set(event.sourceNodeId, { kind: 'hit', text: `-${event.damage}`, key });
       break;
     case 'fortify':
       fx.set(event.nodeId, { kind: 'fortify', text: `🛡+${event.value}`, key });
@@ -115,7 +123,27 @@ function fxForPlayerCard(before: TerritoryGameState, after: TerritoryGameState, 
       continue;
     }
     const lost = prev.hp + prev.shield - (node.hp + node.shield);
-    if (lost > 0) fx.set(node.id, { kind: 'strike', text: `-${lost}`, key });
+    if (lost > 0) {
+      fx.set(node.id, { kind: 'strike', text: `-${lost}`, key });
+      continue;
+    }
+    if (node.owner === 'player' && node.hp > prev.hp) {
+      fx.set(node.id, { kind: 'fortify', text: `+${node.hp - prev.hp}`, key });
+      continue;
+    }
+    if (node.trapped && !prev.trapped) {
+      fx.set(node.id, { kind: 'fortify', text: '🍯 罠', key });
+      continue;
+    }
+    if (node.infection && !prev.infection) {
+      fx.set(node.id, { kind: 'strike', text: '🦠 感染', key });
+      continue;
+    }
+    const hadIntent = before.intents.some((i) => i.sourceNodeId === node.id);
+    const hasIntent = after.intents.some((i) => i.sourceNodeId === node.id);
+    if (hadIntent && !hasIntent && node.owner === 'argus') {
+      fx.set(node.id, { kind: 'fizzle', text: '🚫 遮断', key });
+    }
   }
   return fx;
 }
@@ -231,7 +259,7 @@ function TerritoryBoard({ onBackToMissions }: TerritoryGameProps) {
       const frontier = (s === 'player' && t !== 'player') || (t === 'player' && s !== 'player');
 
       // 演出中:今まさに攻撃している線には、パケットを飛ばす
-      if ((currentEvent?.kind === 'attack' || currentEvent?.kind === 'expand')
+      if ((currentEvent?.kind === 'attack' || currentEvent?.kind === 'expand' || currentEvent?.kind === 'reflect')
         && samePair(edge, currentEvent.sourceNodeId, currentEvent.targetNodeId)) {
         return {
           id: edge.id,

@@ -20,6 +20,22 @@ export interface CardDef {
   applyExpose?: boolean;
   pierceShield?: boolean;
   weakRoles?: NodeVisualRole[];
+  /** マルウェア:毎ターン終了時に damage ダメージを turns ターン与え続ける */
+  infect?: { damage: number; turns: number };
+  /** 連鎖:対象を倒したら、別の攻撃できるノード1つにもこのダメージ */
+  chainDamage?: number;
+  /** 対象の ARGUS ノードの今ターンの行動予告を取り消す */
+  cancelIntent?: boolean;
+  /** 自陣ノードに罠を仕掛ける:次に受ける攻撃を跳ね返す */
+  trap?: boolean;
+  /** 自陣ノードの HP を回復する */
+  heal?: number;
+  /** 対象に隣接する自陣ノード1つにつき、このダメージを与える */
+  perAdjacentPlayerDamage?: number;
+  /** 攻撃できるノードすべてを「脆弱性露出」にする */
+  exposeAllAttackable?: boolean;
+  /** 中立ノードへのダメージ倍率 */
+  neutralMultiplier?: number;
   rarity: 'starter' | 'common' | 'rare';
   /** カードの絵柄として大きく出す記号 */
   icon?: string;
@@ -51,6 +67,10 @@ export interface TerritoryNode {
   maxHp: number;
   shield: number;
   exposed: boolean;
+  /** マルウェアに感染中(毎ターン終了時にダメージ) */
+  infection?: { damage: number; turns: number };
+  /** 罠が仕掛けてある(次に受ける攻撃を跳ね返す) */
+  trapped?: boolean;
   isEntry?: boolean;
   isCoreTarget?: boolean;
 }
@@ -69,6 +89,8 @@ export interface TerritoryLog {
 export type EnemyActionEvent =
   | { kind: 'attack'; sourceNodeId: string; targetNodeId: string; damage: number; captured: boolean }
   | { kind: 'expand'; sourceNodeId: string; targetNodeId: string; damage: number; captured: boolean }
+  /** 罠で攻撃を跳ね返した(攻撃した側がダメージを受ける) */
+  | { kind: 'reflect'; sourceNodeId: string; targetNodeId: string; damage: number; knockedOut: boolean }
   | { kind: 'fortify'; nodeId: string; value: number }
   | { kind: 'alert'; nodeId: string; value: number }
   /** 予告していたノードを先に制圧されたため、行動できなかった */

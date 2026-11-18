@@ -231,3 +231,58 @@ test('ARGUS attacks the weakest player node it can reach', () => {
   const fromI04 = intents.find((i) => i.sourceNodeId === 'I04' && i.action === 'attack');
   assert.equal(fromI04.targetNodeId, 'E02');
 });
+
+test('new cards: malware, chain, route cut, trap, patch, botnet, sniffer and phishing work as described', () => {
+  const { createInitialTerritoryState, playTerritoryCard, endTerritoryTurn } = load(new URL('../src/game/territory/territoryEngine.ts', import.meta.url));
+  const fresh = () => { const s = createInitialTerritoryState(() => 0.1); s.bandwidth = 20; return s; };
+  const node = (s, id) => s.nodes.find((n) => n.id === id);
+  const play = (s, defId, target) => { s.hand.push({ uid: defId, defId }); const r = playTerritoryCard(s, defId, target, () => 0.1); assert.equal(r.accepted, true, `${defId}: ${r.reason}`); return r.state; };
+
+  // マルウェア:2ダメージ+感染。ターン終了時にさらに3ダメージ
+  let s = play(fresh(), 'malware_implant', 'E02');
+  assert.equal(node(s, 'E02').hp, 7);
+  assert.equal(node(s, 'E02').infection.turns, 3);
+  s = endTerritoryTurn(s, () => 0.1);
+  // (その後 ARGUS が弱った E02 を侵食して奪うこともあるので、感染のダメージはログで確かめる)
+  assert.ok(s.logs.some((l) => l.message.includes('マルウェアが DNS情報リレー に3ダメージ')), 'infection deals damage at the end of the turn');
+
+  // 標的型メール:中立には2.5倍
+  s = play(fresh(), 'phishing_mail', 'E02');
+  assert.equal(node(s, 'E02').owner, 'player', '4 x 2.5 = 10 >= 9 HP, so the neutral DNS relay is taken');
+
+  // 連鎖:倒したら別のノードにも
+  s = fresh();
+  node(s, 'E02').hp = 1;
+  s = play(s, 'chain_exploit', 'E02');
+  assert.ok(s.logs.some((l) => l.message.includes('連鎖で')), 'chain damage hits another node');
+
+  // ルート遮断:予告を取り消す
+  s = play(fresh(), 'route_blackhole', 'D03');
+  assert.ok(!s.intents.some((i) => i.sourceNodeId === 'D03'));
+
+  // 罠:D03 の攻撃を跳ね返す
+  s = play(fresh(), 'honeypot_trap', 'E01');
+  const e01Before = node(s, 'E01').hp + node(s, 'E01').shield;
+  const d03Before = node(s, 'D03').hp + node(s, 'D03').shield;
+  s = endTerritoryTurn(s, () => 0.1);
+  assert.equal(node(s, 'E01').hp + node(s, 'E01').shield, e01Before, 'the trapped node takes no damage');
+  assert.ok(node(s, 'D03').hp + node(s, 'D03').shield < d03Before || node(s, 'D03').owner !== 'argus');
+  assert.ok(s.lastEnemyActions.some((e) => e.kind === 'reflect'));
+
+  // 緊急パッチ:回復
+  s = fresh();
+  node(s, 'E01').hp = 5;
+  s = play(s, 'emergency_patch', 'E01');
+  assert.equal(node(s, 'E01').hp, 12);
+
+  // ボットネット:隣接する自陣の数だけ強くなる(E01 と D01 が I02… ではなく E02 に隣接)
+  s = fresh();
+  node(s, 'D01').owner = 'player';
+  const before = node(s, 'I02').hp + node(s, 'I02').shield;
+  s = play(s, 'botnet_surge', 'I02');
+  assert.equal(before - (node(s, 'I02').hp + node(s, 'I02').shield), 5, 'only D01 is next to I02, so 5 damage');
+
+  // パケット盗聴:攻撃できるノードすべてが露出
+  s = play(fresh(), 'packet_sniffer');
+  for (const id of ['D01', 'E02', 'D03']) assert.equal(node(s, id).exposed, true);
+});
