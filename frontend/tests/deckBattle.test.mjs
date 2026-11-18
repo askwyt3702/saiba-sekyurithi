@@ -595,3 +595,21 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
   assert.ok(r.relics.includes('encrypted_vpn'));
   assert.equal(r.reconCoins, 0);
 });
+
+test('脆弱は狙った敵だけに付き、その敵を倒したときはほかの敵に移らない', () => {
+  let s = setup([{ defId: 'sql_injection', level: 2 }, { defId: 'sql_injection', level: 2 }], ['ids_sensor', 'ids_sensor'], ['c1', 'c2']);
+  s = play(s, 'c1', 'e1');
+  assert.equal(s.enemies[0].vulnerable, 2);
+  assert.equal(s.enemies[1].vulnerable, undefined);
+  s.enemies[1].hp = 3;
+  s = play(s, 'c2', 'e2');
+  assert.equal(s.enemies[1].hp, 0);
+  assert.equal(s.enemies[0].vulnerable, 2, '倒した敵の分の脆弱が、残った敵に足されない');
+});
+
+test('対象のないカードのジャミングは敵全体に付く', () => {
+  let s = setup([{ defId: 'arp_spoof' }], ['ids_sensor', 'ids_sensor'], ['c1']);
+  s = play(s, 'c1');
+  assert.equal(s.enemies[0].jammed, 1);
+  assert.equal(s.enemies[1].jammed, 1);
+});

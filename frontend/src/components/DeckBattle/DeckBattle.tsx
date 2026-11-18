@@ -245,8 +245,17 @@ function createRunWithProfileCoins(fastGrowth: boolean): RunState {
   return coins > 0 ? { ...fresh, reconCoins: fresh.reconCoins + coins } : fresh;
 }
 
+/** 最初のランの作成用:開始コインを読むだけで、消費(保存)はしない */
+function createInitialRun(): RunState {
+  const fresh = createRun({ fastGrowth: true });
+  const coins = loadDeckProfile().bonusStartCoins;
+  return coins > 0 ? { ...fresh, reconCoins: fresh.reconCoins + coins } : fresh;
+}
+
 export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
-  const [run, setRun] = useState<RunState>(() => createRunWithProfileCoins(true));
+  // useState の初期化は開発時(StrictMode)に2回呼ばれるため、ここで開始コインを消費すると2回目が0枚になる。
+  // 読むのは初期化で、消費は下の useEffect で1回だけ行う
+  const [run, setRun] = useState<RunState>(createInitialRun);
   const [battle, setBattle] = useState<BattleState>(() => createBattleForCurrentNode(run, randomSeed()));
   const [phase, setPhase] = useState<StagePhase>('battle');
   const [postBattle, setPostBattle] = useState<PostBattleSummary | null>(null);
@@ -264,6 +273,12 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const shown = playback ? (playback.index >= 0 ? snapshotState(playback.base, playback.events[playback.index]) : playback.base) : battle;
   const actingUid = playback && playback.index >= 0 ? playback.events[playback.index].enemyUid : null;
   const busy = playback !== null || battle.status !== 'playing' || phase !== 'battle';
+
+  // 最初のランに渡した開始コインを、プロフィールから消費する
+  useEffect(() => {
+    const profile = loadDeckProfile();
+    if (profile.bonusStartCoins > 0) saveDeckProfile(consumeBonusStartCoins(profile).profile);
+  }, []);
 
   const pushFx = useCallback((specs: FxSpec[]) => {
     if (specs.length === 0) return;
@@ -464,9 +479,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     setRun((prev) => ({ ...prev, tools: [...res.state.tools] }));
   };
 
+  // 戦闘中は run.hp が戦闘開始時の値のままなので、戦闘中の HP・ツールを元に交換する
+  const shopRun: RunState = phase === 'battle' ? { ...run, hp: battle.player.hp, tools: [...battle.tools] } : run;
+
   const onBuyCoinShop = (action: CoinShopAction) => {
+    // 敵のターンの再生中に交換すると、再生後の状態で上書きされて消えるため受け付けない
+    if (playback) return;
     try {
-      const next = spendCoinShop(run, action);
+      const next = spendCoinShop(shopRun, action);
       playSound('extract');
       setRun(next);
       if (phase === 'battle') {
@@ -666,6 +686,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
             type="button"
             className="db-btn db-fast-toggle db-fast-toggle--on"
             onClick={() => setShowCoinShop(true)}
+            disabled={playback !== null}
             title="解析コインを使って回復・ツール補充・カード削除・パッシブ装備購入ができます"
           >
             🪙 闇市 ({run.reconCoins})
@@ -949,7 +970,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
       {showCoinShop && (
         <CoinShopModal
-          run={run}
+          run={shopRun}
           inBattle={phase === 'battle'}
           onBuy={onBuyCoinShop}
           onClose={() => setShowCoinShop(false)}
