@@ -1160,13 +1160,19 @@ function EvolutionOverlay({
   );
 }
 
-function FloatingCardPreview({ card, side }: { card: CardInstance; side: 'left' | 'right' }) {
+function CardPreviewPanel({
+  card,
+  className = '',
+}: {
+  card: CardInstance;
+  className?: string;
+}) {
   const def = getCardDefinition(card.defId);
   const stats = getCardStats(card);
   const xpProg = getXpProgress(card);
 
   return (
-    <aside className={`db-card-preview-float db-card-preview-float--${side}`} aria-label="カードプレビュー">
+    <aside className={`db-card-preview-panel ${className}`.trim()} aria-label="カードプレビュー">
       <div className="db-card-preview-float__tag">CARD PREVIEW // {card.uid}</div>
       <div className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--preview-large`}>
         <span className="db-card__cost">{stats.cost}</span>
@@ -1188,10 +1194,18 @@ function FloatingCardPreview({ card, side }: { card: CardInstance; side: 'left' 
             <strong>Lv.3 進化先:</strong> {def.branches.map((b) => `${b.name}(${b.cost}EN)`).join(' / ')}
           </span>
         )}
-        {card.level === 3 && <span><strong>Lv.3 最終進化形態</strong></span>}
+        {card.level === 3 && (
+          <span>
+            <strong>Lv.3 最終進化形態</strong>
+          </span>
+        )}
       </div>
     </aside>
   );
+}
+
+function FloatingCardPreview({ card, side }: { card: CardInstance; side: 'left' | 'right' }) {
+  return <CardPreviewPanel card={card} className={`db-card-preview-float db-card-preview-float--${side}`} />;
 }
 
 function useCardHoverPreview() {
@@ -1704,37 +1718,61 @@ function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: ()
 }
 
 function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => void }) {
-  const { hoverProps, previewNode } = useCardHoverPreview();
+  const [hoveredCard, setHoveredCard] = useState<CardInstance | null>(null);
   return (
     <div className="db-overlay" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className="db-result db-result--wide" onClick={(e) => e.stopPropagation()}>
-        <div className="db-result__title">現在のデッキ ({deck.length}枚)</div>
-        <div className="db-deck-grid" style={{ margin: '14px 0' }}>
-          {deck.map((card) => {
-            const def = getCardDefinition(card.defId);
-            const stats = getCardStats(card);
-            return (
-              <div key={card.uid} className="db-deck-pill" tabIndex={0} {...hoverProps(card)}>
-                <span>
-                  {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
-                </span>
-                <span className="db-muted">
-                  {getXpProgress(card).label} / {stats.text}
-                </span>
-                <span className="db-muted" style={{ fontSize: 10 }}>
-                  {def.lore}
-                </span>
-              </div>
-            );
-          })}
+      <div className="db-deck-stage">
+        <div className="db-result db-result--wide db-result--deck" onClick={(e) => e.stopPropagation()}>
+          <div className="db-result__title">現在のデッキ ({deck.length}枚)</div>
+          <div className="db-deck-grid" style={{ margin: '14px 0' }}>
+            {deck.map((card) => {
+              const def = getCardDefinition(card.defId);
+              const stats = getCardStats(card);
+              const isActive = hoveredCard?.uid === card.uid;
+              return (
+                <div
+                  key={card.uid}
+                  className={`db-deck-pill${isActive ? ' db-deck-pill--active' : ''}`}
+                  tabIndex={0}
+                  onMouseEnter={() => setHoveredCard(card)}
+                  onMouseLeave={() => setHoveredCard((prev) => (prev?.uid === card.uid ? null : prev))}
+                  onFocus={() => setHoveredCard(card)}
+                  onBlur={() => setHoveredCard((prev) => (prev?.uid === card.uid ? null : prev))}
+                >
+                  <span>
+                    {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
+                  </span>
+                  <span className="db-muted">
+                    {getXpProgress(card).label} / {stats.text}
+                  </span>
+                  <span className="db-muted" style={{ fontSize: 10 }}>
+                    {def.lore}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="db-result__actions">
+            <button type="button" className="db-btn db-btn--ghost" onClick={onClose}>
+              閉じる
+            </button>
+          </div>
         </div>
-        <div className="db-result__actions">
-          <button type="button" className="db-btn db-btn--ghost" onClick={onClose}>
-            閉じる
-          </button>
+        <div className="db-deck-preview-dock" onClick={(e) => e.stopPropagation()}>
+          {hoveredCard ? (
+            <CardPreviewPanel card={hoveredCard} className="db-card-preview-panel--dock" />
+          ) : (
+            <div className="db-deck-preview-empty" aria-hidden="true">
+              <div className="db-deck-preview-empty__tag">CARD PREVIEW</div>
+              <div className="db-deck-preview-empty__text">
+                カードにカーソルを合わせると
+                <br />
+                ここに拡大表示されます
+              </div>
+            </div>
+          )}
         </div>
       </div>
-      {previewNode}
     </div>
   );
 }
