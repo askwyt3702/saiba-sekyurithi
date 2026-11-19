@@ -200,13 +200,27 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                   ← 問題一覧に戻る
                 </button>
                 <div className="db-event-card" style={{ padding: 14 }}>
-                  <h3 style={{ margin: '0 0 8px', color: '#67e8f9', fontSize: 14 }}>
-                    {selectedChoiceId !== null ? activeReview.category : '弱点復習クイズ'}
+                  <div className="db-event-head">
+                    <div className="db-event-head__left">
+                      <span className="db-brand__tag">WEAKNESS REVIEW // 弱点復習</span>
+                      {selectedChoiceId !== null && activeReview.mitreId && (
+                        <span className="db-event-tag db-event-tag--attck">ATT&amp;CK: {activeReview.mitreId}</span>
+                      )}
+                      {selectedChoiceId !== null && activeReview.cweId && (
+                        <span className="db-event-tag db-event-tag--cwe">{activeReview.cweId}</span>
+                      )}
+                    </div>
+                  </div>
+                  <h3 className="db-event-cat" style={{ fontSize: 15 }}>
+                    {selectedChoiceId !== null ? activeReview.category : '弱点復習クイズ // 状況と選択肢から正しいものを特定せよ'}
                   </h3>
-                  <p className="db-event-prompt">{activeReview.prompt}</p>
+                  {activeReview.scanTerminalLog && (
+                    <div className="db-event-scanlog">{activeReview.scanTerminalLog}</div>
+                  )}
+                  <p className="db-event-prompt">&gt; {activeReview.prompt}</p>
                   {activeReview.codeSnippet && <pre className="db-event-code">{activeReview.codeSnippet}</pre>}
-                  <div className="db-event-choices">
-                    {activeReview.choices.map((c) => {
+                  <div className="db-event-choices" role="radiogroup" aria-label="弱点復習クイズの選択肢">
+                    {activeReview.choices.map((c, idx) => {
                       const picked = selectedChoiceId === c.id;
                       return (
                         <button
@@ -219,33 +233,64 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                             picked && c.isCorrect ? 'db-event-choice--ok' : '',
                             picked && !c.isCorrect ? 'db-event-choice--ng' : '',
                             selectedChoiceId && c.isCorrect ? 'db-event-choice--reveal-ok' : '',
-                          ].join(' ')}
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                         >
-                          <div className="db-event-choice__title">{c.title}</div>
+                          <div className="db-event-choice__head">
+                            <div className="db-event-choice__title">
+                              [{idx + 1}] {c.title}
+                            </div>
+                            {selectedChoiceId !== null && c.isCorrect && (
+                              <span className="db-event-choice__badge db-event-choice__badge--ok">✔ 正解</span>
+                            )}
+                            {picked && !c.isCorrect && (
+                              <span className="db-event-choice__badge db-event-choice__badge--ng">✖ 選択した回答</span>
+                            )}
+                          </div>
+                          {c.command && <code className="db-event-choice__cmd">{c.command}</code>}
                           <div className="db-event-choice__desc">{c.description}</div>
                         </button>
                       );
                     })}
                   </div>
-                  {selectedChoiceId && (
-                    <div
-                      className={`db-event-feedback ${
-                        activeReview.choices.find((c) => c.id === selectedChoiceId)?.isCorrect
-                          ? 'db-event-feedback--ok'
-                          : 'db-event-feedback--ng'
-                      }`}
-                    >
-                      <div className="db-event-feedback__badge">
-                        {activeReview.choices.find((c) => c.id === selectedChoiceId)?.isCorrect
-                          ? '✔ 復習クリア！次回ラン開始時に 🪙 解析コイン+1 を獲得しました'
-                          : '✖ まだ不正解です。解説を確認して再挑戦できます'}
+                  {selectedChoiceId && (() => {
+                    const pickedChoice = activeReview.choices.find((c) => c.id === selectedChoiceId);
+                    const correctChoice = activeReview.choices.find((c) => c.isCorrect);
+                    const isReviewOk = Boolean(pickedChoice?.isCorrect);
+                    return (
+                      <div className={`db-event-feedback ${isReviewOk ? 'db-event-feedback--ok' : 'db-event-feedback--ng'}`}>
+                        <div className="db-event-feedback__badge">
+                          {isReviewOk
+                            ? '✔ 復習クリア！次回ラン開始時に 🪙 解析コイン+1 を獲得しました'
+                            : '✖ まだ不正解です。解説を確認して再挑戦できます'}
+                        </div>
+                        <p>{pickedChoice?.feedback}</p>
+                        {!isReviewOk && correctChoice && (
+                          <div className="db-event-feedback__correct-box">
+                            <strong>💡 正解の選択肢：「{correctChoice.title}」</strong>
+                            <p style={{ margin: '4px 0 0' }}>{correctChoice.feedback}</p>
+                          </div>
+                        )}
+                        <p className="db-event-feedback__sub">
+                          <strong>なぜ危険か:</strong> {activeReview.whyDangerous}
+                        </p>
+                        <p className="db-event-feedback__sub">
+                          <strong>{activeReview.defenseMeasure}</strong>
+                        </p>
+                        <div className="db-result__actions" style={{ marginTop: 10 }}>
+                          {!isReviewOk && (
+                            <button type="button" className="db-btn db-btn--end" onClick={() => setSelectedChoiceId(null)}>
+                              もう一度この問題に挑戦する
+                            </button>
+                          )}
+                          <button type="button" className="db-btn db-btn--ghost" onClick={() => setActiveReview(null)}>
+                            問題一覧に戻る
+                          </button>
+                        </div>
                       </div>
-                      <p>{activeReview.choices.find((c) => c.id === selectedChoiceId)?.feedback}</p>
-                      <p className="db-event-feedback__sub">
-                        <strong>対策:</strong> {activeReview.defenseMeasure}
-                      </p>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
             ) : weaknessList.length === 0 ? (
