@@ -1,7 +1,7 @@
 // デッキ構築ローグライトの永続プロフィール(図鑑・弱点ノート・戦績・実績)。
 // localStorage が使えない環境(Node テスト等)でも安全に動作する。
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
-import { CARD_DEFINITIONS } from './cards';
+import { CARD_DEFINITIONS, REWARD_CARD_IDS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
 import type { RunState } from './types';
 
@@ -154,6 +154,18 @@ export function recordDiscovery(profile: DeckProfile, cardIds: string[], enemyId
     ...profile,
     seenCardIds: uniqueAdd(profile.seenCardIds, validCards),
     seenEnemyIds: uniqueAdd(profile.seenEnemyIds, validEnemies),
+  });
+}
+
+/** 試作用: 全カード・全Lv.3進化先・全敵を図鑑に一括登録する */
+export function unlockAllCodexEntries(profile: DeckProfile): DeckProfile {
+  const allBranches = REWARD_CARD_IDS.flatMap((id) => CARD_DEFINITIONS[id].branches.map((b) => b.id));
+  const allEnemies = Object.keys(ENEMY_DEFINITIONS);
+  return evaluateAchievements({
+    ...profile,
+    seenCardIds: uniqueAdd(profile.seenCardIds, REWARD_CARD_IDS),
+    unlockedBranches: uniqueAdd(profile.unlockedBranches, allBranches),
+    seenEnemyIds: uniqueAdd(profile.seenEnemyIds, allEnemies),
   });
 }
 

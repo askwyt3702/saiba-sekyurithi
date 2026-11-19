@@ -12,6 +12,7 @@ import {
   loadDeckProfile,
   resolveWeaknessReview,
   saveDeckProfile,
+  unlockAllCodexEntries,
 } from '../../game/deckbattle/profile';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
@@ -37,6 +38,18 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
       : 0;
 
   const totalBranches = REWARD_CARD_IDS.reduce((acc, id) => acc + CARD_DEFINITIONS[id].branches.length, 0);
+  const allEnemiesCount = Object.keys(ENEMY_DEFINITIONS).length;
+  const allCodexUnlocked =
+    profile.seenCardIds.length >= REWARD_CARD_IDS.length &&
+    profile.unlockedBranches.length >= totalBranches &&
+    profile.seenEnemyIds.length >= allEnemiesCount;
+
+  const onUnlockAllCodex = () => {
+    playSound('extract');
+    const updated = unlockAllCodexEntries(profile);
+    setProfile(updated);
+    saveDeckProfile(updated);
+  };
 
   const onAnswerReview = (choiceId: string) => {
     if (!activeReview || selectedChoiceId) return;
@@ -91,8 +104,28 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
 
         {tab === 'codex' && (
           <div className="db-hub__body">
-            <div className="db-muted" style={{ marginBottom: 8 }}>
-              進化解放数: {profile.unlockedBranches.length} / {totalBranches} 分岐
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginBottom: 8,
+              }}
+            >
+              <div className="db-muted">
+                進化解放数: {profile.unlockedBranches.length} / {totalBranches} 分岐
+              </div>
+              <button
+                type="button"
+                className={`db-btn db-fast-toggle ${allCodexUnlocked ? '' : 'db-fast-toggle--on'}`}
+                disabled={allCodexUnlocked}
+                onClick={onUnlockAllCodex}
+                title="試作用: 全40種のカード・全Lv.3進化先・敵図鑑をすべて解放します"
+              >
+                {allCodexUnlocked ? '✔ 全カード図鑑解放済み' : '🧪 試用：全カード図鑑を埋める'}
+              </button>
             </div>
             <div className="db-codex-grid">
               {REWARD_CARD_IDS.map((id) => {
