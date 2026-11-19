@@ -3,6 +3,8 @@ import { loadDeckProfile } from '../../game/deckbattle/profile';
 import { DEFAULT_RUN_NODES, STARTING_RECON_COINS } from '../../game/deckbattle/run';
 import { playSound } from '../../game/sound/soundEffects';
 import { DeckHubModal } from '../DeckBattle/DeckHubModal';
+import { usePlayerSync } from '../DeckBattle/usePlayerSync';
+import { PlayerPanel } from './PlayerPanel';
 import './MissionScreen.css';
 
 interface MissionScreenProps {
@@ -12,6 +14,8 @@ interface MissionScreenProps {
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
   const [hubOpen, setHubOpen] = useState(false);
+  // サーバーからカード基地を読み込んだら再描画して、最新の戦績を出す
+  usePlayerSync();
   const profile = loadDeckProfile();
 
   return (
@@ -29,10 +33,10 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           </div>
 
           <div className="ms-status">
+            <PlayerPanel />
             <button
               type="button"
-              className="db-btn db-btn--end"
-              style={{ marginRight: 10 }}
+              className="ms-hub-btn"
               onClick={() => {
                 playSound('click');
                 setHubOpen(true);

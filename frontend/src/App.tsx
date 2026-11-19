@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { DeckBattle } from './components/DeckBattle/DeckBattle';
 import { MissionScreen } from './components/MissionScreen/MissionScreen';
 import { TitleScreen } from './components/TitleScreen/TitleScreen';
-import './App.css';
 
 type Screen = 'title' | 'mission' | 'deckbattle';
 

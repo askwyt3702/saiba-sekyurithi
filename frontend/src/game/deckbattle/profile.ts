@@ -99,13 +99,28 @@ export function loadDeckProfile(storage: StorageLike | null = getDefaultStorage(
   }
 }
 
-export function saveDeckProfile(profile: DeckProfile, storage: StorageLike | null = getDefaultStorage()): void {
-  if (!storage) return;
-  try {
-    storage.setItem(DECK_PROFILE_STORAGE_KEY, JSON.stringify(profile));
-  } catch {
-    // ストレージ容量超過や無効環境では無視する
+type ProfileSaveListener = (profile: DeckProfile) => void;
+let profileSaveListener: ProfileSaveListener | null = null;
+
+/** カード基地が保存されたときに呼ばれる関数を登録する(サーバーへの保存 playerSync.ts が使う) */
+export function setProfileSaveListener(listener: ProfileSaveListener | null): void {
+  profileSaveListener = listener;
+}
+
+/** カード基地をブラウザに保存する。silent でなければ、登録した関数にも知らせる(サーバーへ送られる) */
+export function saveDeckProfile(
+  profile: DeckProfile,
+  storage: StorageLike | null = getDefaultStorage(),
+  options: { silent?: boolean } = {},
+): void {
+  if (storage) {
+    try {
+      storage.setItem(DECK_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    } catch {
+      // ストレージ容量超過や無効環境では無視する
+    }
   }
+  if (!options.silent) profileSaveListener?.(profile);
 }
 
 function unlockAchievement(achievements: string[], id: string): string[] {

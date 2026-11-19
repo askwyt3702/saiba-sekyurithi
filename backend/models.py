@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from database import Base
 
 
@@ -9,53 +10,39 @@ def utcnow() -> datetime:
     """UTCの現在時刻(タイムゾーン情報なし)。SQLite/PostgreSQL どちらでも同じ扱いにするため。"""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
-# 1. プレイヤーの現在の状態（1行 = 1ゲーム。id を gameId として扱う）
-class PlayerStatus(Base):
-    __tablename__ = "player_status"
 
-    id = Column(Integer, primary_key=True, index=True)
-    game_time = Column(Integer, default=0)              # 経過時間（秒）
-    alert_level = Column(Float, default=0.0)            # 警戒度（%）
-    analysis_resource = Column(Integer, default=25)     # 解析資源
-    current_privilege = Column(String, default="GUEST") # 所持権限
-    game_status = Column(String, default="playing")     # playing / paused / won / lost
-    stage_id = Column(Integer, default=1)               # プレイ中のステージID（既定=1）
-    key_fragment_a = Column(String, nullable=True)      # ランダム生成された暗号鍵の断片A
-    key_fragment_b = Column(String, nullable=True)      # ランダム生成された暗号鍵の断片B
-    map_snapshot = Column(Text, nullable=True)          # 動的生成ステージ用マップ定義(JSON)
-    last_accessed_at = Column(DateTime, default=utcnow) # 最後にAPIで触られた時刻（古いゲームの掃除に使う）
+# 1. プレイヤー(1行 = 1人)。パスワードは使わず、ブラウザが id を覚えておく
+class Player(Base):
+    __tablename__ = "deck_players"
 
-# 2. ノードの基本設計図（マスターデータ）
-class NodeMaster(Base):
-    __tablename__ = "node_master"
+    id = Column(String(36), primary_key=True)          # ランダムな UUID(推測されにくい文字列)
+    name = Column(String(20), nullable=False)          # 画面に出す名前
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
-    id = Column(String, primary_key=True, index=True)   # 例: "external-1"
-    name = Column(String, index=True)                   # 例: "DMZ (Webサーバー)"
-    layer = Column(String)                              # 例: "DMZ"
-    pos_x = Column(Float)                               # マップX座標
-    pos_y = Column(Float)                               # マップY座標
-    vulnerability = Column(String, nullable=True)       # 例: "SQLインジェクション"
-    info = Column(String, nullable=True)                # 説明文
+    profile = relationship("DeckProfile", uselist=False, back_populates="player", cascade="all, delete-orphan")
 
-# 3. 現在のノード攻略状況
-class NodeState(Base):
-    __tablename__ = "node_state"
 
-    id = Column(Integer, primary_key=True, index=True)
-    player_id = Column(Integer, ForeignKey("player_status.id"))
-    node_id = Column(String, ForeignKey("node_master.id"))
-    status = Column(String, default="unscanned")        # unscanned / scanned / hacked
+# 2. カード基地(図鑑・弱点ノート・戦績・実績)。1人に1行
+class DeckProfile(Base):
+    __tablename__ = "deck_profiles"
 
-    # 他のテーブルとの紐づけ（リレーション）
-    player = relationship("PlayerStatus")
-    node = relationship("NodeMaster")
+    player_id = Column(String(36), ForeignKey("deck_players.id"), primary_key=True)
+    # 図鑑と弱点ノートは ID の一覧なので JSON の配列で持つ
+    seen_card_ids = Column(JSON, nullable=False, default=list)
+    unlocked_branches = Column(JSON, nullable=False, default=list)
+    seen_enemy_ids = Column(JSON, nullable=False, default=list)
+    wrong_question_ids = Column(JSON, nullable=False, default=list)
+    achievements = Column(JSON, nullable=False, default=list)
+    # 次のランの開始時にもらえる解析コイン(弱点ノートの復習で貯まる)
+    bonus_start_coins = Column(Integer, nullable=False, default=0)
+    # 戦績
+    runs_played = Column(Integer, nullable=False, default=0)
+    runs_won = Column(Integer, nullable=False, default=0)
+    elites_defeated = Column(Integer, nullable=False, default=0)
+    max_event_streak = Column(Integer, nullable=False, default=0)
+    total_quiz_correct = Column(Integer, nullable=False, default=0)
+    reviews_cleared = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
-# 4. ゲーム内ログ（画面のイベントログに表示する内容）
-class GameLog(Base):
-    __tablename__ = "game_log"
-
-    id = Column(Integer, primary_key=True, index=True)
-    player_id = Column(Integer, ForeignKey("player_status.id"), index=True)
-    timestamp = Column(Integer, default=0)              # 記録時点の game_time
-    message = Column(String)
-    severity = Column(String, default="info")           # info / success / warning / danger
+    player = relationship("Player", back_populates="profile")

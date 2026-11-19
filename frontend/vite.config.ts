@@ -8,10 +8,9 @@ function splitChunk(id: string): string | undefined {
   const path = id.replace(/\\/g, '/');
   if (path.includes('/node_modules/')) {
     if (/\/node_modules\/(react|react-dom|scheduler)\//.test(path)) return 'react';
-    if (/\/node_modules\/(@xyflow|d3-[^/]+|zustand|classcat)\//.test(path)) return 'react-flow';
     return 'vendor';
   }
-  if (/\/src\/game\/data\/(securityLearningData|stageData)\.ts$/.test(path)) return 'game-data';
+  if (/\/src\/game\/data\/securityLearningData\.ts$/.test(path)) return 'game-data';
   return undefined;
 }
 

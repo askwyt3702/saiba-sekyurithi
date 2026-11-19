@@ -1,391 +1,96 @@
-# NULL ROUTE フロント/バック データ契約 v0.4
+# NULL ROUTE フロント/バック データ契約 v1.0
 
-## 問題機能・誤答ペナルティ
+デッキバトル(デッキ構築ローグライト)用。v0.x(古いノード侵入ゲームの API)は git の履歴に残っている。
 
-全45ノード（Stage 0: 5、Stage 1: 24、Stage 2: 16）で`ActionRequest.questionId`と`exploitId`を使う。正本は`SECURITY_RULES.question_answers`（ノード固有の問題ID→正解ID一覧）。Backend/Mockは生成データとゲーム別マップから同じ定義を使い、`exploitMismatch`は互換フィールドとして受け付けるが判定には一切使用しない。通常の状態・到達・権限・資源・ゲート条件を先に検証する。
+ゲームのルールはすべてフロント(`frontend/src/game/deckbattle/`)で動く。バックエンド(`backend/main.py`)は、プレイヤーと**カード基地**(図鑑・弱点ノート・戦績・実績)を PostgreSQL に保存するだけ。
 
-- E01〜E03の誤答は警戒度+8%で資源・時間は不変。追加DMZ/Internalはmainのノード別設定に従い資源-1・警戒度+4〜7%・時間不変。いずれも自然減衰・監視追加分・ノード効果・報酬・鍵認証は発生せず、ノードはscannedのまま。100%到達は敗北し、クリア評価は付かない。
-- 有効な問題IDを伴うE01/E02の確認/解析不足は、従来の資源2・20秒・実増4%の失敗試行となり、誤答処理を重ねない。問題ID未指定・不正の場合は無消費拒否する。E03の情報未確認は無消費拒否。
-- 確認条件達成後、ID未指定/null/空文字/空白のみは`exploit_required`で無消費拒否。省略による成功回避はできない。既存のIDなし成功API利用者と自動攻略は正解IDを送るよう移行が必要。
-- 有効な問題IDで、その問題の正解一覧にない回答IDを送ると誤答。前後空白・大文字小文字も含め完全一致で判定する。正解ID＋`exploitMismatch: true`は正答、不正解ID＋falseは誤答。passcode指定時は従来の暗号鍵条件も検証する。breach以外は問題ID・回答IDを使用しない。
-- 問題の正答を選ぶだけでは状態は変わらず、実行ボタンから通常侵入を送信する。情報確認・解析は別の明示操作であり、自動完了しない。
-- UIは選んだIDを送信し、同じ誤答の連続送信を抑止する。受理されたときだけ誤答済みにし、拒否時は成功表示せず再試行可能とする。API自体は受理した試行ごとに設定値を適用する。確認不足のE01/E02では誤答選択だけで試行せず、確認操作を先に促す。
-- Core・Stage2・チュートリアルも同じ問題別判定を使う。正解IDは公開の定数なので、この仕組みは判定の統一と状態条件の検証を目的とし、答えを秘匿する機構ではない。
+- フロントの呼び出し:`frontend/src/game/deckbattle/api.ts`
+- バックエンドのテスト:`backend/tests/test_players_api.py`
+- 接続先:`http://localhost:8000`(フロントは環境変数 `VITE_API_BASE` で変えられる)
+- 項目名は camelCase。日時は返さない
 
-### 問題単位の判定と追加ノード
+## プレイヤーの見分け方
 
-`questionId?: string | null`は侵入（breach）時に全45ノードで必須。形式は`ノードID:問題テンプレートID`（例：`E01:ssh-q1`、`S2-E01:ssh-q1`）で、各ノード3問・全135問のIDを一意にする。未指定/null/空文字は`question_required`、未知・空白・他ノードの問題IDは`invalid_question`で無消費拒否。UIは常に現在の問題IDを送る。省略や旧形式`ssh-q1`の自動補完はしない。
+パスワードは使わない。名前を登録するとサーバーがランダムな `playerId`(UUID の文字列)を返し、ブラウザが localStorage に覚えておく。`playerId` を知っていればそのプレイヤーのデータを読み書きできるので、`playerId` は画面に出さない。
 
-旧API利用者は、最新の`getSecurityChallenge(nodeId, vulnerability).questions`から選択問題の`.id`と選択肢の`.id`を送る必要がある。既存セーブの移行は不要で、マップ・進行状態・確認履歴は保持する。自動攻略も正規の情報確認と問題/回答IDを明示するよう更新した。
+## 型
 
-I01/I02は承認済みの例外として各ノードの`priv-q1`→`priv_esc`、`priv-q2`→`priv_sudo_b`を許可。別問題の正解を送ると誤答になる。Stage2とチュートリアルでmainが明示的に許可した同種問題以外へ、この回答を拡張しない。問題文の`devuser ALL=(ALL) NOPASSWD: ALL`は開発用一般ユーザーに全コマンドのroot実行を許す設定として出題されている。
+### DeckProfile(カード基地)
 
-新規DMZ/Internalの情報未確認は`security_requirements_unmet`で無消費拒否。これらに追加の解析必須条件は定義されていないため追加しない。正答時の追加報酬は0で、既存のノード効果・鍵断片・権限昇格は通常侵入成功時に従来どおり適用する。
+`frontend/src/game/deckbattle/profile.ts` の `DeckProfile` と同じ形。
 
-| 誤答時の警戒度 | 対象ノード（資源-1、時間0秒） |
-|---|---|
-| +4% | D06、I05 |
-| +5% | D01、D02、D04、D05、I02、I03、I06、I07、I10 |
-| +6% | D03、D07、I01、I08、I09 |
-| +7% | I04 |
+| 項目 | 型 | 内容 | 制限 |
+| --- | --- | --- | --- |
+| `seenCardIds` | string[] | 図鑑に登録したカード ID | 各64文字以内、500件まで |
+| `unlockedBranches` | string[] | 解放した Lv.3 進化先の ID | 同上 |
+| `seenEnemyIds` | string[] | 出会った敵の ID | 同上 |
+| `wrongQuestionIds` | string[] | 弱点ノート(間違えた問題の ID) | 同上 |
+| `bonusStartCoins` | number | 次のランの開始時にもらえる解析コイン | 0〜3 |
+| `stats.runsPlayed` | number | プレイ回数 | 0以上の整数 |
+| `stats.runsWon` | number | クリア回数 | 同上 |
+| `stats.elitesDefeated` | number | エリート撃破数 | 同上 |
+| `stats.maxEventStreak` | number | クイズの最高連続正解 | 同上 |
+| `stats.totalQuizCorrect` | number | クイズの正解数 | 同上 |
+| `stats.reviewsCleared` | number | 弱点ノートの復習で正解した数 | 同上 |
+| `achievements` | string[] | 解除した実績の ID | 各64文字以内、500件まで |
 
-Core・Stage2・チュートリアルもmainの設定を維持し、追加報酬0・誤答資源-1・時間0秒とする。警戒度はC01/C04が+8%、C02が+7%、C03が+10%。Stage2は+4〜10%のノード別設定。チュートリアルは通常4ノードが+5%、core-1が+8%。情報未確認は無消費拒否し、通常侵入成功時の既存ノード効果・補給・鍵・監視解除・ゲート解除は維持する。誤答には監視の追加+12%を重ねない。
+- 項目はすべて省略できる(省略すると空の配列か0)。ここにない項目を送ると 422
+- 配列の中の重複は、サーバーが1つにまとめる(最初に出てきた順)
 
-情報確認が次の合法な侵入へ繋がる場合は、スキャン直後の詰み判定で敗北にしない。確認後の侵入も既存の資源・権限・到達・ゲート条件を満たせない場合は、情報確認だけを理由に詰み判定を回避しない。
+### PlayerResponse
 
-## セキュリティ操作の統合追記
-
-`confirmInfo`成功時は確認マーカーに続き、対象の`SECURITY_RULES.info_hint`を使った`【調査完了】`ログを1件追加する。文面は生成データ経由でMockにも共有し、純粋ルールだけが出力する。重複確認・拒否時・`completeAnalysis`では調査ログを追加しない。既存のレスポンス型・コスト・報酬は変更しない。
-
-`ActionRequest.type`に`confirmInfo`（情報確認）と`completeAnalysis`（解析完了）を追加。どちらも`nodeId`が必要で、資源・時間・警戒度は消費しない。`GameState.securityEvents`はノードID→`INFO_CONFIRMED`/`ANALYSIS_COMPLETED`配列のマップ。Backendは既存の`[SECURITY:ID:EVENT]`ログから復元し、再読込で保持、resetで消去する。
-
-- 情報確認は対応ノードがスキャン済みで未確認の場合のみ可能。解析完了は情報確認後に一度だけ可能。停止/終了時、対象外ステージ/ノード、重複操作は拒否する。モーダルを開くだけでは確認済みにしない。
-- E01の侵入には情報確認と解析完了、E02/E03には情報確認が必要。従来の隣接・スキャン・権限・資源条件も必要。
-- E01のスキャン方式は通常スキャンのみ。リモートスキャンは`invalid_state`で無消費拒否する（追加リモート更新の仕様を維持）。
-- E01/E02の条件未達試行は`accepted: true`で資源2・20秒・警戒度実増4%を消費するが、ノードはscannedのまま。100%到達は敗北。`accepted`は操作の受理を示し、侵入成功はノード状態で確認する。
-- E03の条件未達は`accepted: false, reason: "security_requirements_unmet"`。進行・資源・時間・警戒度・ログを変更しない。UIは不足条件とE01/E02の試行リスクを事前表示する。
-- 初回侵入成功時の追加報酬はE01/E02が各+3。E03は既存補給+5のみで、二重加算しない。資源上限30は維持。ステージ2の監視・ゲート数値は不変。
-
-以上は統合作業中にユーザーが承認した仕様。動的生成はまだ開始していない。
-
-動的生成の第1段階では内部のゲーム別マップ型と純粋な行動遷移を追加した。その後の今回の統合で通信契約を上記のとおり拡張した。seed等はまだAPIで受け付けない。内部型と将来の接続範囲は[行動ルール基盤](action-rules-foundation.md)を参照。
-
-## ランダムマップ(ステージ4)・ハードコア・ハニーポットの追記
-
-`ebef686` で追加された内容。ステージ4は、ゲームを作るたびにマップをランダムに生成する。
-
-### リクエストの追加項目
-
-| エンドポイント | 追加項目 | 内容 |
-|---|---|---|
-| `POST /api/games` | `hardcore?: boolean`(既定 `false`)、`seed?: string` | `stageId: 4` のときだけ使う。`seed` を同じにすると同じマップになる。省略時はランダム |
-| `POST /api/games/{gameId}/reset` | `hardcore?: boolean`、`seed?: string` | 省略時、`hardcore` は前回の設定を引き継ぐ。`seed` を省略すると新しいマップになる |
-
-ハードコアでは、開始時の警戒度 5%、解析資源 22、警戒度の自然減衰なし、回復量 4、監視・強化監視の追加警戒度が +12%(通常は +10%)になる。
-
-### `ActionRequest.type` に `flagTrap`(ハニーポットの看破)を追加
-
-- `nodeId` が必要。対象はスキャン済み(`scanned`)のノードだけ。未スキャンは `node_not_scanned`、プレイ中でない・同じノードへの2回目は `invalid_state` で拒否する。
-- 対象がハニーポットなら警戒度 -5%、正規のノードなら警戒度 +4%(誤判定)。資源・時間は消費しない。
-- 看破したノード・罠が作動したノードには、以後 `breach` できない(`invalid_state`)。
-
-### ハニーポットへの侵入
-
-ハニーポットに `breach` すると `accepted: true` のまま罠が作動する。解析資源 -4、警戒度 +25%、ノードは封鎖されて侵入できなくなる。100%到達は敗北。
-
-### ARGUS の反撃(ステージ4だけ)
-
-各操作のあと、監視の解除ノード(I04)を攻略していなければ次のことが起きる。
-
-- 警戒度 40% 以上:未攻略のノード1つに強化監視を展開する(70% 以上なら最大2つ)。そのノードへの侵入は追加警戒度 +10%(ハードコアは +12%)。入口・最終目標・解除ノード・ハニーポットは対象外。
-- 警戒度 70% 以上で `breach` したとき:侵入済みのノード1つ(入口・最終目標・解除ノードを除く)を `scanned` に戻す(強制遮断。再侵入が必要)。
-
-### `GameState.dynamicMap`(ステージ4のゲームだけ)
-
-ランダムに生成したマップの情報。固定ステージ(0〜2)のゲームには含まれない。
-
-| 項目 | 型 | 内容 |
-|---|---|---|
-| `seed` | `string \| null` | マップの元になった seed |
-| `hardcore` | `boolean` | ハードコアかどうか |
-| `entryNodeIds` / `targetNodeIds` / `keyFragmentNodeIds` | `string[]` | 入口・最終目標・暗号鍵のノード |
-| `nodeEffects` | `Record<string, { resourceBonus, alertDelta, log }>` | 初回侵入時の効果 |
-| `breachRequirements` | `Record<string, string[]>` | 侵入に先に攻略が必要なノード |
-| `conditionalBreachAlert` | `{ disabledByNodeId, targetNodeIds, alertDelta } \| null` | 条件付き監視 |
-| `flaggedTraps` / `triggeredTraps` | `string[]` | 看破したノード・罠が作動したノード |
-| `argusReinforced` | `string[]` | 強化監視が展開されたノード |
-| `argusDisabled` | `boolean` | 解除ノードを攻略して ARGUS の反撃が止まっているか |
-| `enableArgusCounterattack` | `boolean` | ARGUS の反撃が有効なステージか |
-
-バックエンドは `[TRAP_FLAGGED:ID]`・`[TRAP_TRIGGERED:ID]`・`[ARGUS_REINFORCE:ID]`・`[ARGUS_SEVER:ID]` のログから、これらを復元する(再読み込みしても保持される)。マップ定義は `player_status.map_snapshot` に JSON で保存する(起動時に列を自動追加)。保存したマップには形式のバージョン `schema_version`(今は 1)を付ける。付いていない古いマップは 1 として読む。
-
-保存したマップが壊れている・読めない形式のバージョンのとき、`GET /api/games/{gameId}` と `POST /api/games/{gameId}/actions` は 500 ではなく **409 `{"detail": "map_snapshot_invalid"}`** を返す。フロントは保存済みのゲームの読み込みで 409 を受けたら、新しいゲームを作って始め直す。`POST /api/games/{gameId}/reset` は、保存したマップが壊れていても新しいマップでリセットできる。
-
----
-
-フロントエンド担当・バックエンド担当・シナリオ/データ担当が、互いの実装を待たずに並行して作業できるようにするための取り決めです。
-ここで決めた形を変える場合は、必ずこのファイルを更新してからチームに共有してください（型定義はこの契約から自動的に導かれるものではなく、`frontend/src/game/model/types.ts` に手で同期させています）。
-
-> **v0.2での変更点**：v0.1はこのファイルが共有される前にバックエンド実装(`GET /api/network`)が先行して進んでいたため、ネットワーク構造(ノード・エッジ)の形を実装済みの内容に合わせて書き換えました。プレイヤー状態・操作コマンド・リアルタイム更新はまだ未実装のため、v0.1の提案をそのまま残しつつ「未確定」と明記しています。
->
-> **v0.3での変更点**：`POST /api/scan` が実装され、`GET /api/network` も `node_state`/`player_status` と連携して実際の攻略状況を返すようになりました。3節を実装済みの形に合わせて書き換え、3節の提案(タイムラグのある操作・`ActionResult`形式)との食い違いを「7. まだ決まっていないこと」に明記しました。
->
-> **v0.4での変更点・重要**：チームで認識合わせした結果、**「操作が時間をかけて進行するか、即時実行のままか」は『ターン制(=アクションは即座に確定し、実時間の待ち時間は発生しない)』に決定**しました。この決定の前に、WebSocket・ゲーム内時間のtickループ・操作の「開始→実時間経過後に完了」という実時間方式の実装(コミット`959cc42`)が一度mainに入りましたが、決定と矛盾するため`0517d45`で revert 済みです。バックエンドは`POST /api/scan`・`/api/games/{gameId}/actions`で即座に結果が確定する形(コミット`74986ad`時点の実装)に戻っています。4節(WebSocket)は当面使わない想定に変わりました。
-
-## 1. 基本方針
-
-- バックエンドは「権威サーバー」。ゲーム内時間・警戒度・各ノードの状態はすべてバックエンドが保持し、唯一の正とする。
-- **ターン制**：プレイヤーの操作（スキャン・侵入など）は **REST** でコマンドとして送り、**即座に結果が確定する**。実時間の待ち時間は発生しない(v0.4で決定。4節のWebSocket案は当面使わない)。
-- バランス数値（コスト・警戒度増減量など）はロジックコードに埋め込まず、`balanceConfig` のような設定データとして分離する（企画書の「拡張性」要件）。
-
-## 2. データモデル
-
-### 2.1 確定：ネットワーク構造（`GET /api/network` が実際に返す形）
-
-`backend/main.py` の `get_network_map()` にすでに実装されている形。ノードはReact Flowがそのまま読み込める形で返り、接続関係はノードに持たせず別配列の `edges` で表す。
-
-```ts
-type NetworkLayer = 'External' | 'DMZ' | 'Internal' | 'Core';
-type NodeStatus = 'unscanned' | 'scanned' | 'hacked';
-
-interface ApiNetworkNode {
-  id: string;
-  position: { x: number; y: number };
-  data: {
-    label: string;
-    layer: NetworkLayer;
-    info: string | null;       // unscanned のときは "不明（スキャンが必要です）" のように伏せて返る
-    status: NodeStatus;        // player_status/node_state と連携した実際の攻略状況
-  };
-}
-
-interface ApiNetworkEdge {
-  id: string;
-  source: string;
-  target: string;
-  animated?: boolean;
-}
-
-interface NetworkMapResponse {
-  nodes: ApiNetworkNode[];
-  edges: ApiNetworkEdge[];
+```json
+{
+  "playerId": "69368590-19d6-437c-be07-5ce1729dc3a5",
+  "name": "高橋",
+  "profile": { "seenCardIds": ["ssh_brute"], "...": "DeckProfile の残りの項目" }
 }
 ```
 
-`vulnerability`（`NodeMaster.vulnerability` カラムは既にDBにあるが、まだ `/api/network` のレスポンスには含まれていない）と、ノードごとの侵入必要権限は未実装（7節参照）。
+## エンドポイント
 
-### 2.2 未確定：プレイヤー状態・ログ（提案中、backendに対応エンドポイントなし）
+### GET /api/health
 
-```ts
-type GameStatus = 'playing' | 'paused' | 'won' | 'lost';
-type LogSeverity = 'info' | 'success' | 'warning' | 'danger';
+つながるかの確認。`200 {"status": "ok"}`
 
-interface LogEntry {
-  id: string;
-  timestamp: number;   // elapsedSeconds のスナップショット
-  message: string;
-  severity: LogSeverity;
-}
+### POST /api/players
 
-interface GameState {
-  gameId: string;
-  stageId?: number;
-  status: GameStatus;
-  elapsedSeconds: number;    // DBでは player_status.game_time
-  alertLevel: number;        // DBでは player_status.alert_level (0-100)
-  analysisResource: number;  // DBでは player_status.analysis_resource
-  privilege: string;         // DBでは player_status.current_privilege。値の一覧は未定義（確認できるのは "GUEST" のみ）
-  keyFragments?: {           // 入手済みの暗号鍵の断片（未入手は null）
-    a: string | null;
-    b: string | null;
-    unlocked?: boolean;     // 両断片取得済みで暗号認証成功、または回収資源不足による救済が有効
-  };
-  nodes: ApiNetworkNode[]    // 2.1 と同じ形
-  edges: ApiNetworkEdge[];
-  log: LogEntry[];
-}
+名前でプレイヤーを登録する。登録前にブラウザで遊んでいた分のカード基地を `profile` で一緒に送れる。
+
+```json
+{ "name": "高橋", "profile": { "...": "DeckProfile(省略可)" } }
 ```
 
-## 3. プレイヤー操作（REST）
+- `name`:前後の空白を取り除いて1〜20文字。同じ名前でも別のプレイヤーになる
+- 成功:`201` と PlayerResponse
+- 名前が空・長すぎる、profile の形が違う:`422`
 
-### 3.1 確定：`POST /api/scan`（実装済み）
+### GET /api/players/{playerId}
 
-```ts
-interface ScanApiRequest {
-  node_id: string; // キャメルケースではなくスネークケース
-}
+- 成功:`200` と PlayerResponse
+- いない:`404 {"detail": "player_not_found"}`
 
-type ScanApiResponse =
-  | { message: string; status: NodeStatus; remaining_resource: number }
-  | { error: string }; // 失敗時もHTTPステータスは200、ボディのerrorで判別する
+### PUT /api/players/{playerId}/profile
+
+カード基地を丸ごと保存する(送った内容で置き換える。足し合わせはしない)。
+
+```json
+{ "profile": { "...": "DeckProfile" } }
 ```
 
-- `gameId`の概念はなく、`player_status`テーブルの最初の1行をプレイヤーとして扱う（1デプロイ=1プレイヤー想定）
-- コストは解析資源10固定で即時実行（時間経過なし）。1.の「時間がかかる操作」という想定とは異なる
-- 成功・失敗とも検証はできているが、二重送信(同じノードへの連続スキャン)を防ぐ仕組みはサーバー側にまだない
+- 成功:`200` と、保存後の PlayerResponse
+- いない:`404 {"detail": "player_not_found"}`
+- 形が違う:`422`(保存済みの内容は変わらない)
 
-### 3.2 未実装・提案中：侵入・データ回収・一時停止を含む汎用コマンド案
+## フロントの動き(`frontend/src/game/deckbattle/playerSync.ts`)
 
-`/api/scan`より前にこのファイルで提案していた形。侵入・データ回収にも展開するなら、どちらかの形に統一する必要がある(7節参照)。
+| 場面 | 動き |
+| --- | --- |
+| 未登録 | 今までどおりブラウザ(localStorage)だけに保存する |
+| 登録したとき | ブラウザのカード基地を `POST /api/players` で送り、返ってきた `playerId` を覚える |
+| カード基地を保存するたび | ブラウザに保存し、`PUT …/profile` でサーバーにも送る。続けて保存したときは順番に送り、最後の内容が残る |
+| 起動したとき | `GET /api/players/{playerId}` の内容をブラウザに写す(別のブラウザで遊んだ分が反映される) |
+| サーバーにつながらない | 「オフライン」と表示してブラウザだけに保存し、送れていない印を付ける。次に起動したときは、サーバーの古い内容で上書きせず、ブラウザの分を先に送る |
+| サーバーに `playerId` がない(DB を作り直したなど) | 未登録に戻す。ブラウザのカード基地は残す |
 
-```
-POST /api/games/{gameId}/actions
-```
-
-リクエストボディ：
-
-```ts
-type ActionType = 'scan' | 'breach' | 'dataExtract' | 'pause' | 'resume';
-
-interface ActionRequest {
-  type: ActionType;
-  nodeId?: string;   // pause / resume / recover では不要
-  passcode?: string; // 最終目標ノード侵入時の暗号キー入力（任意）
-}
-```
-
-レスポンス（操作の受理可否のみを即答し、実際の効果は WebSocket で後から届く想定）：
-
-```ts
-interface ActionResult {
-  accepted: boolean;
-  reason?: string; // 却下理由（資源不足・権限不足・対象ノード不正 等）
-}
-```
-
-却下理由の例：`insufficient_resource` / `insufficient_privilege` / `node_not_scanned` / `node_unreachable` / `invalid_passcode` / `invalid_state`
-
-## 4. サーバー → クライアント push（WebSocket）※未実装・v0.4でターン制に決定したため当面使わない想定
-
-```
-GET /ws/games/{gameId}
-```
-
-接続直後に state_snapshot を1回受け取り、以後は差分イベントを受け取る。
-
-```ts
-type ServerEvent =
-  | { type: 'state_snapshot'; state: GameState }
-  | { type: 'tick'; elapsedSeconds: number; alertLevel: number }
-  | { type: 'node_update'; node: NetworkNode }
-  | { type: 'log'; entry: LogEntry }
-  | { type: 'game_over'; result: 'won' | 'lost' };
-```
-
-## 5. バランス設定（データ化）
-
-```ts
-interface ActionCost {
-  time: number;        // 消費する秒数
-  resource: number;    // 消費する解析資源
-  alertDelta: number;  // 警戒度の変化量（成功時の基準値）
-}
-
-interface BalanceConfig {
-  scan: ActionCost;
-  breach: ActionCost;
-  dataExtract: ActionCost;
-  alertDecayPerSecond: number; // 何も起きていない間の自然減衰
-}
-```
-
-プロトタイプの初期値は `frontend/src/game/data/balanceConfig.ts` を参照（暫定値、要調整）。
-
-## 6. フロント側の抽象化（GameClient）
-
-バックエンドの実装が未完成でも画面を作れるよう、フロントはバックエンドと直接通信せず `GameClient` インターフェース越しにやり取りする。
-
-```ts
-interface GameClient {
-  connect(onEvent: (event: ServerEvent) => void): Promise<GameState>;
-  sendAction(action: ActionRequest): Promise<ActionResult>;
-  reset(): Promise<void>;
-  disconnect(): void;
-}
-```
-
-- `HttpGameClient`（`frontend/src/game/client/httpGameClient.ts`）：REST(8節のAPI)でバックエンドと通信する本番用の実装。作成したゲームの `gameId` を `localStorage` に保存し、リロード後も同じゲームを続ける（保存済みのゲームが404なら新規作成）。
-- 保存キーは`nullroute.gameId.<stageId>`でステージ別。旧`nullroute.gameId`は実際のstageIdを確認して移行し、新しい保存先がある場合は上書きしない。ミッション選択で別ステージのゲームをリセットしない。選択したstageIdと異なる応答はロードしない。
-- `MockGameClient`：バックエンドに接続できないときに `useGameClient` が自動で切り替えるブラウザ内のダミー実装。ルールは `backend/game_logic.py` に合わせてあるので、ルールを変えたら両方を更新すること。
-
-## 7. まだ決まっていないこと
-
-以下は未確定（チームで決め次第 v0.5 として更新）。
-
-- ~~操作が時間をかけて進行するか、即時実行のままか~~ → **v0.4で「ターン制(即時確定)」に決定済み**
-- **コスト数値**：`/api/scan`は資源10固定、フロントの`balanceConfig.scan.resource`は1。どちらかに揃える、またはバランス設定を共有の1箇所にまとめる
-- **成功/失敗のレスポンス形式**：`/api/scan`は`{error: string}` + HTTP200、3.2節の提案は`{accepted: boolean, reason?: string}`。どちらかに統一する
-- リクエストのプロパティ命名規則（`node_id`のスネークケース vs `nodeId`のキャメルケース）をどちらかに揃える
-- ノードごとの侵入必要権限の持たせ方：`NodeMaster` に専用カラムを足すか、`layer` から機械的に算出するかが未定（今のモック実装は暫定でlayer由来にしている）
-- `current_privilege` の値の一覧（"GUEST"以外に何があるか、順序も含めて）
-- `/api/network` に `vulnerability` を含めるか、別エンドポイントにするか
-- 同一ノードへの多重スキャン防止（フロントのモックにはあるが、`/api/scan`にはまだ無い）
-- 侵入・データ回収に相当するエンドポイント、プレイヤー状態取得、リアルタイム更新のAPI（4節はまだ提案段階で、backendには未実装）
-- 警戒度が100に達した時の挙動（即ゲームオーバーか、ペナルティか）
-- ステージ切り替え・難易度の持たせ方（`gameId` がステージも表すのか等、現状は1デプロイ=1プレイヤー固定）
-- セーブ/ロードのAPI（ロード時に `elapsedSeconds` をどう扱うか）
-- 認証（ユーザー識別が必要か）
-
-
-## 8. backend 実装済み API（REST版・リアルタイム化前）
-
-3節の提案をもとに、まず REST だけでゲームが最後まで遊べる形で実装した（`backend/main.py` / `backend/game_logic.py`）。
-WebSocket（4節）は未実装のため、現状は **アクションの結果が即時に確定** し、レスポンスに操作後の `GameState` がそのまま入る。
-
-| メソッド | パス | 内容 |
-|---|---|---|
-| POST | `/api/games` | 新しいゲームを作成し、初期 `GameState` を返す |
-| GET | `/api/games/{gameId}` | 現在の `GameState` を返す（存在しなければ 404） |
-| POST | `/api/games/{gameId}/reset` | 指定ゲームを初期状態にリセットし、初期 `GameState` を返す |
-| POST | `/api/games/{gameId}/actions` | `ActionRequest` を実行。`{ accepted, reason?, state: GameState }` を返す |
-| GET | `/api/network` | 旧API（互換用）。既定ゲームのノード・エッジ |
-| POST | `/api/scan` | 旧API（互換用）。既定ゲームでスキャン |
-
-- `gameId` は `player_status.id`（文字列で返す）。
-- `GameState.nodes` は 2.1 の `ApiNetworkNode` 形式。`data.vulnerability` を追加（未スキャン時は `null`）。
-- 却下理由に **`node_unreachable`** を追加（隣接ノードを侵入済みにしていないのに breach しようとした）。フロントの `ActionRejectReason` にも追加が必要。
-
-### ゲームルール（暫定・`balance_config.py` で調整）
-
-- **初期入口**：ステージ1はE01のみ、訓練はexternal-1のみ（`entry_node_ids`）。最初の侵入前は入口以外へのscan/remoteScan/breachを`node_unreachable`で却下する。
-- **scan**：`unscanned` かつ指定入口、または侵入済みノードの隣接先のみ。完了で `scanned`、`info` と `vulnerability` が開示される。**remoteScan** は入口の侵入後に限り、隣接条件なしで現在のステージの未スキャンノードを調べられる。
-- **breach**：`scanned` であること／指定入口以外は隣接ノードのどれかが `hacked` であること／権限が layer の要求以上であること（External=GUEST, DMZ=USER, Internal=ADMIN, Core=ROOT）。成功で `hacked`、権限が「侵入した layer の1段上」まで昇格。E02/E03も入口の例外にはならない。
-- **dataExtract**：`hacked` 状態の**最終目標ノード**のみ（`game_data.TARGET_NODE_IDS`。空ならCore層すべて）。それ以外のノードは `invalid_state`。成功で `status = 'won'`。
-- **暗号鍵の断片**：`game_data.KEY_FRAGMENT_NODE_IDS` のノードをすべて `hacked` にしてから dataExtract すると、回収時の警戒度上昇が 0 になる。
-- **ノードの特殊効果**：`game_data.NODE_EFFECTS` に登録されたノードは、breach 成功時に解析資源の増減・警戒度の増減・追加ログが発生する。
-- **pause / resume**：`playing` ⇔ `paused`。`playing` 以外ではアクションは `invalid_state` で却下。
-- 各アクションは `time` 秒ぶんゲーム内時間を進め、警戒度を `alertDelta - 減衰×time` だけ変化させる。ターン制で、待機では変化しない。
-- **recover**：侵入済みノードがあり、資源が上限未満ならノード選択なしで回復できる。資源0でも実行可能。
-- データ回収を含む全時間消費アクションで警戒度が100に達すると `status = 'lost'`。資源・時間は消費し、検知をノード攻略効果・勝利より優先する。却下ではなく`accepted: true`で敗北状態を返し、評価はnull、成功ログは出ない。鍵の回収軽減は警戒度加算前に適用する。検知されず、勝利もせず、回復を含む操作が残っていない場合も敗北する。
-- ノード・エッジのマスターデータは `backend/game_data.py`。起動時に `node_master` テーブルへ同期される。
-- フロントの Mock とデータ回収ボタンの判定は、`game_data.py`・`balance_config.py` から生成した `frontend/src/game/data/stageData.ts` を使う。**ステージ・ギミック・初期資源・操作コストを変えたら `python scripts/gen_stage_data.py` を実行して stageData.ts も更新すること**（目標ノードは `GameState` に含まれていないため、フロントはこのファイルで判定している）。フロントの `balanceConfig.ts` も生成値を読むだけ。生成し忘れはCIの `stage-data` ジョブで検出される。
-
-### 古いゲームの自動削除（backend）
-
-- `player_status.last_accessed_at` に最終アクセス時刻を記録する（`GET/POST /api/games/{gameId}...` を呼ぶたびに更新）。
-- **7日間（`balance_config.STALE_GAME_DAYS`）だれも触らなかったゲームは削除**する。実行タイミングは、サーバー起動時と `POST /api/games` で新規作成するとき。
-- 旧API（`/api/network`・`/api/scan`）が使う「最初のゲーム」（最小の `gameId`）は、古くても消さない。
-- 削除されたゲームの `gameId` にアクセスすると 404 になる。フロントは 404 のとき新規作成に進む（`HttpGameClient` で実装済み）。
-- 起動時に、`game_data.py` に存在しないノード（ステージ差し替え前の古いノード）も DB から削除する。
-
-### バックエンドのテスト
-
-```
-cd backend
-pip install -r requirements-dev.txt
-pytest
-```
-
-- テストは使い捨てのSQLiteで動くため、PostgreSQL や `docker compose` は不要。
-- ノードIDは直書きせず `game_data.py` から計算しているので、ステージのデータを差し替えてもテストは壊れない。
-- 「初期の解析資源だけで最短経路をクリアできる」ことも検査している（バランス調整で資源やコストを変えて、クリア不能になるとここで失敗する）。
-- GitHub Actions の `backend` ジョブでも `pytest` を実行する。
-
-
-### クリア時の作戦評価と複数ステージ対応（backend）
-
-- **ステージ一覧取得**: `GET /api/stages` → `{ stages: [{ id, name, difficulty, nodeCount }] }`
-  - `stageId = 0`: `TRAINING: 基礎侵入訓練`（チュートリアル5ノード）
-  - `stageId = 1`: `OPERATION SILENT TRACE: 消えた機密データ`（本編24ノード・既定）
-    - `stageId = 2`: `偽装された通信記録`（16ノード・21接続、入口S2-E01、目標S2-C03）
-    - 初期資源25・上限30・共通コスト。静的な補給・警戒度低減は有効。
-    - S2-I07未攻略中、S2-I01・S2-C01・S2-C03の侵入に追加警戒度+12%。スキャン・回収には加算しない。追加分と自然減衰を含む判定で100%に到達すると、侵入完了・ノード効果より先に敗北する。
-    - S2-C02の侵入にはS2-I04攻略、S2-C04にはS2-I07攻略が必要。未解除の侵入は`accepted: false, reason: "node_locked"`。資源・時間・警戒度・ログは変更しない。スキャンの既存条件は変更しない。
-    - 監視解除・ゲート解除は既存`log`に記録する。監視・ゲートのための`GameState`追加項目やDB構造変更はない。UIはノード攻略状態から現在の監視・ロック状態を導出する。
-    - 生成設定は`conditionalBreachAlert`（解除ノード・対象・追加値）と`breachRequirements`（ゲートごとの前提ノード一覧）。旧`plannedMechanics`は置換。ステージ0・1はそれぞれnullと空マップで無効。
-- **ステージ指定作成 / 切り替え**:
-  - `POST /api/games` に `{"stageId": 0}` などを渡すと指定ステージで作成（ボディ省略時は `stageId = 1`）。
-  - `POST /api/games/{gameId}/reset` に `{"stageId": 0}` などを渡すと指定ステージに切り替えてリセット。
-  - この明示的なreset APIは同じgameIdの内容を置き換える。通常のミッション選択ではこれを別ステージへ呼ばず、ステージごとに新規作成/再開し、他の進行を保持する。
-  - `GameState` に `stageId: number` を追加。
-- **クリア時の作戦評価（`GameState.evaluation`）**:
-  - クリア（`status === "won"`）時、`evaluation: { rank: "S" | "A" | "B" | "C" | "D", score: number, title: string }` が返り、イベントログ・Mock・リザルトにも同じ評価を使う（未クリア時は `null`）。
-  - 係数・閾値は`backend/balance_config.py`の`EVALUATION_CONFIG`で管理し、生成スクリプトでフロントに同期する。
-  - 得点 = max(0, floor(1000 − max(0, 経過秒−240)×0.5 − 警戒度×5 ＋ min(10, 残資源)×10 ＋ 0.5))。警戒度はGameStateと同じ小数2桁を使用。900以上S、750以上A、550以上B、350以上C、それ未満D。警戒度だけによる別の昇格条件は廃止。
-
-### Merge integration: scan and recovery rules
-
-- Normal scan requires a designated entry node or a hacked neighbor. Before the first breach, remote scan is also restricted to the entry. After a foothold is established, remote scan can reveal any unscanned node in the current stage.
-- recover needs no nodeId, requires a hacked node and resource below MAX_ANALYSIS_RESOURCE. It restores RESOURCE_RECOVERY_AMOUNT up to the cap, consumes 30 game seconds and adds 12 alert before natural decay.
-- Resource exhaustion causes defeat only when no legal action remains, including recovery. A hacked node therefore allows recovery even at zero resource. Alert reaching 100 still causes defeat.
-- NODE_EFFECTS takes precedence over RESOURCE_REWARDS for the same node; supply is not counted twice and is capped at MAX_ANALYSIS_RESOURCE.
+ランの途中の状態は保存しない(読み込み直すとランは最初から)。

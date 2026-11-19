@@ -1,33 +1,38 @@
-import time
-from typing import Literal, Optional
+"""NULL ROUTE のバックエンド。デッキバトルのプレイヤーとカード基地(図鑑・弱点ノート・戦績・実績)を保存する。
 
-from fastapi import FastAPI, Depends, HTTPException
+ゲームのルールはフロントだけで動く(frontend/src/game/deckbattle/)。ここではデータの保存だけを受け持つ。
+データの形は docs/api-contract.md で取り決めている。
+"""
+import os
+import time
+import uuid
+from typing import List, Optional
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from sqlalchemy import inspect, text
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 import models
-import game_logic
-from database import engine, SessionLocal
-from game_data import ALL_STAGE_NODES, DEFAULT_STAGE_ID
+from database import SessionLocal, engine
 
 app = FastAPI(title="NULL ROUTE API")
 
-
-@app.exception_handler(game_logic.MapSnapshotError)
-async def invalid_map_snapshot(_request, _error):
-    """保存したマップが読めないときは 500 で落とさず、409 で知らせる(フロントは新しいゲームを始める)。"""
-    return JSONResponse(status_code=409, content={"detail": "map_snapshot_invalid"})
+# 画面(フロント)の URL。別のポートで動かすときは環境変数 CORS_ORIGINS にカンマ区切りで書く
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 def get_db():
     db = SessionLocal()
@@ -36,62 +41,12 @@ def get_db():
     finally:
         db.close()
 
-def migrate_db():
-    """create_all は既存テーブルへの列追加をしないため、足りない列だけ追加する簡易マイグレーション。"""
-    columns = {c["name"] for c in inspect(engine).get_columns("player_status")}
-    with engine.begin() as conn:
-        if "game_status" not in columns:
-            conn.execute(text("ALTER TABLE player_status ADD COLUMN game_status VARCHAR DEFAULT 'playing'"))
-            conn.execute(text("UPDATE player_status SET game_status = 'playing' WHERE game_status IS NULL"))
-        if "stage_id" not in columns:
-            conn.execute(text("ALTER TABLE player_status ADD COLUMN stage_id INTEGER DEFAULT 1"))
-            conn.execute(text("UPDATE player_status SET stage_id = 1 WHERE stage_id IS NULL"))
-        if "key_fragment_a" not in columns:
-            conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_a VARCHAR"))
-        if "key_fragment_b" not in columns:
-            conn.execute(text("ALTER TABLE player_status ADD COLUMN key_fragment_b VARCHAR"))
-        if "map_snapshot" not in columns:
-            conn.execute(text("ALTER TABLE player_status ADD COLUMN map_snapshot TEXT"))
-        if "last_accessed_at" not in columns:
-            conn.execute(text("ALTER TABLE player_status ADD COLUMN last_accessed_at TIMESTAMP"))
-        # 既存のゲームには「今触った」扱いで猶予期間を与える（いきなり全部消えないように）
-        conn.execute(
-            text("UPDATE player_status SET last_accessed_at = :now WHERE last_accessed_at IS NULL"),
-            {"now": models.utcnow()},
-        )
-
-def init_db():
-    db = SessionLocal()
-    try:
-        # 全ステージのノード情報を game_data.py の内容に同期（既存行は上書き、無ければ追加）
-        for node in ALL_STAGE_NODES:
-            db.merge(models.NodeMaster(**node))
-        db.commit()
-        # game_data.py から消えたノードも DB から取り除く
-        removed_nodes = game_logic.remove_obsolete_nodes(db)
-        if removed_nodes:
-            print(f"[startup] removed {removed_nodes} obsolete node(s)")
-
-        # テスト用プレイヤーデータの初期化（/api/network・/api/scan が使う既定のゲーム）
-        if db.query(models.PlayerStatus).count() == 0:
-            game_logic.create_game(db)
-        else:
-            game_logic.ensure_key_fragments(db)
-
-        # 長期間使われていないゲームを掃除する
-        removed = game_logic.cleanup_stale_games(db)
-        if removed:
-            print(f"[startup] removed {removed} stale game(s)")
-    finally:
-        db.close()
 
 def setup_database(retries: int = 30, delay: float = 1.0) -> None:
-    """Docker 起動直後に PostgreSQL の準備が整うまでリトライしてから初期化する。"""
+    """Docker 起動直後に PostgreSQL の準備が整うまでリトライしてから、テーブルを作る。"""
     for attempt in range(1, retries + 1):
         try:
             models.Base.metadata.create_all(bind=engine)
-            migrate_db()
-            init_db()
             return
         except Exception as e:
             if attempt == retries:
@@ -99,152 +54,164 @@ def setup_database(retries: int = 30, delay: float = 1.0) -> None:
             print(f"[startup] waiting for database ({attempt}/{retries}): {e}")
             time.sleep(delay)
 
+
 setup_database()
 
 
-# ======= スキーマ =======
-class CreateGameRequest(BaseModel):
-    stageId: int = DEFAULT_STAGE_ID
-    hardcore: bool = False
-    seed: Optional[str] = None
+# ======= スキーマ(項目名はフロントに合わせて camelCase) =======
+MAX_NAME_LENGTH = 20
+MAX_LIST_ITEMS = 500
+MAX_ID_LENGTH = 64
+MAX_COUNT = 1_000_000
+MAX_BONUS_START_COINS = 3  # frontend/src/game/deckbattle/profile.ts の MAX_BONUS_START_COINS と同じ
+
+IdList = List[str]
 
 
-class ResetGameRequest(BaseModel):
-    stageId: Optional[int] = None
-    hardcore: Optional[bool] = None
-    seed: Optional[str] = None
+def _check_ids(values: List[str]) -> List[str]:
+    if len(values) > MAX_LIST_ITEMS:
+        raise ValueError(f"too_many_items(max {MAX_LIST_ITEMS})")
+    for v in values:
+        if not v or len(v) > MAX_ID_LENGTH:
+            raise ValueError("invalid_id")
+    # 重複は1つにまとめる(順番は最初に出てきた順)
+    return list(dict.fromkeys(values))
 
 
-class ActionRequest(BaseModel):
-    type: Literal[
-        "scan",
-        "remoteScan",
-        "breach",
-        "dataExtract",
-        "recover",
-        "pause",
-        "resume",
-        "confirmInfo",
-        "completeAnalysis",
-        "flagTrap",
-    ]
-    nodeId: Optional[str] = None
-    passcode: Optional[str] = None
-    exploitMismatch: Optional[bool] = False
-    exploitId: Optional[str] = None
-    questionId: Optional[str] = None
+class ProfileStats(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    runsPlayed: int = Field(0, ge=0, le=MAX_COUNT)
+    runsWon: int = Field(0, ge=0, le=MAX_COUNT)
+    elitesDefeated: int = Field(0, ge=0, le=MAX_COUNT)
+    maxEventStreak: int = Field(0, ge=0, le=MAX_COUNT)
+    totalQuizCorrect: int = Field(0, ge=0, le=MAX_COUNT)
+    reviewsCleared: int = Field(0, ge=0, le=MAX_COUNT)
 
 
+class DeckProfileBody(BaseModel):
+    """カード基地。frontend/src/game/deckbattle/profile.ts の DeckProfile と同じ形。"""
 
-def _get_game_or_404(db: Session, game_id: int, lock: bool = False) -> models.PlayerStatus:
-    """ゲームを取り出す。lock=True なら、状態を変える処理が終わる(commit)まで行をロックしたままにする。"""
-    player = game_logic.get_game(db, game_id, for_update=lock)
+    model_config = ConfigDict(extra="forbid")
+
+    seenCardIds: IdList = Field(default_factory=list)
+    unlockedBranches: IdList = Field(default_factory=list)
+    seenEnemyIds: IdList = Field(default_factory=list)
+    wrongQuestionIds: IdList = Field(default_factory=list)
+    bonusStartCoins: int = Field(0, ge=0, le=MAX_BONUS_START_COINS)
+    stats: ProfileStats = Field(default_factory=ProfileStats)
+    achievements: IdList = Field(default_factory=list)
+
+    @field_validator("seenCardIds", "unlockedBranches", "seenEnemyIds", "wrongQuestionIds", "achievements")
+    @classmethod
+    def _ids(cls, values: List[str]) -> List[str]:
+        return _check_ids(values)
+
+
+class CreatePlayerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    # 登録前にブラウザで遊んでいた分のカード基地(あれば一緒に保存する)
+    profile: Optional[DeckProfileBody] = None
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        name = value.strip()
+        if not name:
+            raise ValueError("name_required")
+        if len(name) > MAX_NAME_LENGTH:
+            raise ValueError(f"name_too_long(max {MAX_NAME_LENGTH})")
+        return name
+
+
+class SaveProfileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profile: DeckProfileBody
+
+
+# ======= DB の行 ⇔ レスポンス =======
+def _apply_profile(row: models.DeckProfile, body: DeckProfileBody) -> None:
+    row.seen_card_ids = body.seenCardIds
+    row.unlocked_branches = body.unlockedBranches
+    row.seen_enemy_ids = body.seenEnemyIds
+    row.wrong_question_ids = body.wrongQuestionIds
+    row.achievements = body.achievements
+    row.bonus_start_coins = body.bonusStartCoins
+    row.runs_played = body.stats.runsPlayed
+    row.runs_won = body.stats.runsWon
+    row.elites_defeated = body.stats.elitesDefeated
+    row.max_event_streak = body.stats.maxEventStreak
+    row.total_quiz_correct = body.stats.totalQuizCorrect
+    row.reviews_cleared = body.stats.reviewsCleared
+    row.updated_at = models.utcnow()
+
+
+def _profile_json(row: models.DeckProfile) -> dict:
+    return {
+        "seenCardIds": list(row.seen_card_ids or []),
+        "unlockedBranches": list(row.unlocked_branches or []),
+        "seenEnemyIds": list(row.seen_enemy_ids or []),
+        "wrongQuestionIds": list(row.wrong_question_ids or []),
+        "bonusStartCoins": row.bonus_start_coins or 0,
+        "stats": {
+            "runsPlayed": row.runs_played or 0,
+            "runsWon": row.runs_won or 0,
+            "elitesDefeated": row.elites_defeated or 0,
+            "maxEventStreak": row.max_event_streak or 0,
+            "totalQuizCorrect": row.total_quiz_correct or 0,
+            "reviewsCleared": row.reviews_cleared or 0,
+        },
+        "achievements": list(row.achievements or []),
+    }
+
+
+def _player_json(player: models.Player) -> dict:
+    return {"playerId": player.id, "name": player.name, "profile": _profile_json(player.profile)}
+
+
+def _get_player_or_404(db: Session, player_id: str) -> models.Player:
+    player = db.get(models.Player, player_id)
     if player is None:
-        raise HTTPException(status_code=404, detail="指定されたゲームが存在しません")
-    if lock:
-        # ここで commit するとロックが外れるので、使われた記録は操作と一緒に commit する
-        player.last_accessed_at = models.utcnow()
-    else:
-        game_logic.touch_game(db, player)  # 使われたことを記録（古いゲームの掃除用）
+        raise HTTPException(status_code=404, detail="player_not_found")
+    if player.profile is None:
+        player.profile = models.DeckProfile()
     return player
 
 
-# ======= 0. ステージ一覧の取得 =======
-@app.get("/api/stages")
-def get_stages():
-    """選択可能なステージ（ミッション）一覧を返す。"""
-    return {"stages": game_logic.list_stages()}
+# ======= API =======
+@app.get("/api/health")
+def health():
+    """フロントがバックエンドにつながるかを確かめる。"""
+    return {"status": "ok"}
 
 
-# ======= 1. ゲームの作成・取得・リセット =======
-@app.post("/api/games")
-def create_game(req: Optional[CreateGameRequest] = None, db: Session = Depends(get_db)):
-    """新しいゲームを開始し、初期状態(GameState)を返す。
-    ボディ無しでも呼べる（既定ステージ1）。{"stageId": 0} 等を渡せば指定ステージで開始する。
-    """
-    game_logic.cleanup_stale_games(db)  # 作るついでに、長期間使われていないゲームを掃除する
-    stage_id = req.stageId if req is not None else DEFAULT_STAGE_ID
-    hardcore = req.hardcore if req is not None else False
-    seed = req.seed if req is not None else None
-    player = game_logic.create_game(db, stage_id=stage_id, hardcore=hardcore, seed=seed)
-    return game_logic.build_game_state(db, player)
+@app.post("/api/players", status_code=201)
+def create_player(req: CreatePlayerRequest, db: Session = Depends(get_db)):
+    """名前でプレイヤーを登録し、playerId を返す。ブラウザで遊んでいた分のカード基地も一緒に保存できる。"""
+    player = models.Player(id=str(uuid.uuid4()), name=req.name)
+    profile = models.DeckProfile()
+    _apply_profile(profile, req.profile or DeckProfileBody())
+    player.profile = profile
+    db.add(player)
+    db.commit()
+    db.refresh(player)
+    return _player_json(player)
 
 
-@app.get("/api/games/{game_id}")
-def get_game_state(game_id: int, db: Session = Depends(get_db)):
-    """現在のゲーム状態(GameState)を返す。"""
-    player = _get_game_or_404(db, game_id)
-    return game_logic.build_game_state(db, player)
+@app.get("/api/players/{player_id}")
+def get_player(player_id: str, db: Session = Depends(get_db)):
+    """プレイヤーの名前とカード基地を返す。"""
+    return _player_json(_get_player_or_404(db, player_id))
 
 
-@app.post("/api/games/{game_id}/reset")
-def reset_game(game_id: int, req: Optional[ResetGameRequest] = None, db: Session = Depends(get_db)):
-    """指定されたゲームを初期状態にリセットし、初期 GameState を返す。"""
-    player = _get_game_or_404(db, game_id, lock=True)
-    stage_id = req.stageId if req is not None else None
-    hardcore = req.hardcore if req is not None else None
-    seed = req.seed if req is not None else None
-    game_logic.reset_game(db, player, stage_id=stage_id, hardcore=hardcore, seed=seed)
-    return game_logic.build_game_state(db, player)
-
-
-# ======= 2. プレイヤー操作 =======
-@app.post("/api/games/{game_id}/actions")
-def post_action(game_id: int, action: ActionRequest, db: Session = Depends(get_db)):
-    """scan / remoteScan / breach / dataExtract / recover / pause / resume /
-    confirmInfo / completeAnalysis を実行する。
-    受理可否(accepted, reason)に加えて、操作後の GameState を state として返す。
-    """
-
-    # 同じゲームへの操作は1つずつ処理する(apply_action の commit でロックが外れる)
-    player = _get_game_or_404(db, game_id, lock=True)
-    try:
-        game_logic.apply_action(
-            db,
-            player,
-            action.type,
-            action.nodeId,
-            passcode=action.passcode,
-            exploit_mismatch=bool(action.exploitMismatch),
-            exploit_id=action.exploitId,
-            question_id=action.questionId,
-        )
-    except game_logic.ActionRejected as e:
-        db.rollback()  # ロックもここで外れる
-        game_logic.touch_game(db, player)  # 拒否された操作でも、使われた記録は残す
-        return {
-            "accepted": False,
-            "reason": e.reason,
-            "state": game_logic.build_game_state(db, player),
-        }
-
-    return {
-        "accepted": True,
-        "state": game_logic.build_game_state(db, player),
-    }
-
-
-# ======= 3. 旧API（互換用：既定のゲーム = 最初のプレイヤー を対象にする） =======
-@app.get("/api/network")
-def get_network_map(db: Session = Depends(get_db)):
-    player = db.query(models.PlayerStatus).order_by(models.PlayerStatus.id).first()
-    state = game_logic.build_game_state(db, player)
-    return {"nodes": state["nodes"], "edges": state["edges"]}
-
-
-class ScanRequest(BaseModel):
-    node_id: str
-
-@app.post("/api/scan")
-def scan_node(req: ScanRequest, db: Session = Depends(get_db)):
-    player = db.query(models.PlayerStatus).order_by(models.PlayerStatus.id).first()
-    try:
-        game_logic.apply_action(db, player, "scan", req.node_id)
-    except game_logic.ActionRejected as e:
-        db.rollback()
-        return {"error": e.reason}
-    return {
-        "message": f"ノード {req.node_id} のスキャン完了",
-        "status": "scanned",
-        "remaining_resource": player.analysis_resource,
-    }
+@app.put("/api/players/{player_id}/profile")
+def save_profile(player_id: str, req: SaveProfileRequest, db: Session = Depends(get_db)):
+    """カード基地を丸ごと保存する(送った内容で置き換える)。保存後の内容を返す。"""
+    player = _get_player_or_404(db, player_id)
+    _apply_profile(player.profile, req.profile)
+    db.commit()
+    db.refresh(player)
+    return _player_json(player)
