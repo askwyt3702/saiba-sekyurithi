@@ -1336,68 +1336,63 @@ function EventScreen({
       <section className="db-event-card">
         <div className="db-event-head">
           <div className="db-event-head__left">
-            <span className="db-brand__tag">
-              {eventId === 'vuln_check' ? 'EVENT 1 // 脆弱性診断 (TYPE A)' : 'EVENT 2 // パッチ適用 (TYPE B)'}
+            <span className="db-event-pill db-event-pill--type">
+              {eventId === 'vuln_check' ? '脆弱性診断' : 'パッチ適用'}
             </span>
-            <span className="db-step db-step--current">
-              連続チャレンジ {step} / {MAX_EVENT_STREAK} 問目
+            <span className="db-event-pill db-event-pill--step">
+              {step} / {MAX_EVENT_STREAK} 問目
             </span>
             {selectedChoiceId !== null && question.mitreId && (
-              <span className="db-event-tag db-event-tag--attck">ATT&amp;CK: {question.mitreId}</span>
+              <span className="db-event-tag db-event-tag--attck">{question.mitreId}</span>
             )}
             {selectedChoiceId !== null && question.cweId && (
               <span className="db-event-tag db-event-tag--cwe">{question.cweId}</span>
             )}
           </div>
-          <span className="db-event-hp">
-            現在 HP {run.hp} / {run.maxHp}
-          </span>
+          <div className="db-event-head__right">
+            {!reconUsed && selectedChoiceId === null && (
+              <button
+                type="button"
+                className="db-event-recon-mini"
+                onClick={onUseRecon}
+                disabled={run.reconCoins <= 0}
+                title="解析コインを1枚消費してヒントを開示し、不正解の選択肢を1つ除外します"
+              >
+                {run.reconCoins > 0 ? `🪙 事前調査 (残${run.reconCoins})` : '🪙 コイン不足'}
+              </button>
+            )}
+            <span className="db-event-hp">
+              HP {run.hp}/{run.maxHp}
+            </span>
+          </div>
         </div>
 
-        <h2 className="db-event-cat">
-          {selectedChoiceId !== null ? question.category : 'セキュリティ診断 // 状況と選択肢から正しいものを特定せよ'}
-        </h2>
-        <div className="db-event-scanlog">{question.scanTerminalLog}</div>
-
-        {reconUsed ? (
-          <div className="db-event-recon db-event-recon--done">
-            <div className="db-event-recon__head">
-              <span className="db-event-recon__badge">RECON INTEL ✓</span>
-              <strong>事前調査完了 — 無関係なダミー選択肢を1つ除外し、2択に絞り込みました！</strong>
-            </div>
-            <p className="db-event-recon__text">
-              💡 <strong>診断ヒント：</strong>{question.whyDangerous}
-            </p>
-          </div>
-        ) : selectedChoiceId === null ? (
-          <div className="db-event-recon">
-            <span className="db-event-recon__prompt">
-              🪙 「解析コイン」を1枚使うと、セキュリティヒント開示＆ダミー選択肢を1つ除外（2択化）できます（所持: {run.reconCoins}枚 / 敵撃破で20%ドロップ）
-            </span>
-            <button
-              type="button"
-              className="db-event-recon__btn"
-              onClick={onUseRecon}
-              disabled={run.reconCoins <= 0}
-            >
-              {run.reconCoins > 0 ? '🪙 コイン×1で事前調査（ダミー1択カット）' : '🪙 解析コイン不足（使用不可）'}
-            </button>
-          </div>
-        ) : null}
-
-        <p className="db-event-prompt">
-          &gt; {question.prompt}
-          <span className="db-event-prompt__rule">
-            {`（正解：${
-              step === 1
-                ? `好きなカードに EXP +${getQuizXpReward(run)}`
+        <div className="db-event-question-box">
+          {selectedChoiceId !== null && <div className="db-event-cat">{question.category}</div>}
+          <p className="db-event-prompt">{question.prompt}</p>
+          <div className="db-event-rules">
+            <span className="db-event-rule db-event-rule--ok">
+              正解:{' '}
+              {step === 1
+                ? `EXP +${getQuizXpReward(run)}`
                 : step === 2
-                  ? 'HP10回復・カード1枚追加・カード1枚削除から1つ'
-                  : '常駐ツールかレアカード'
-            } ／ 不正解：${eventId === 'vuln_check' ? 'HP -5' : 'ペナルティなし'}）`}
-          </span>
-        </p>
-        {question.codeSnippet && <pre className="db-event-code">{question.codeSnippet}</pre>}
+                  ? 'HP+10 / カード追加 / 削除'
+                  : '常駐ツール / レアカード'}
+            </span>
+            <span className="db-event-rule db-event-rule--ng">
+              不正解: {eventId === 'vuln_check' ? 'HP -5' : 'ペナルティなし'}
+            </span>
+          </div>
+          <div className="db-event-scanlog">{question.scanTerminalLog}</div>
+          {question.codeSnippet && <pre className="db-event-code">{question.codeSnippet}</pre>}
+        </div>
+
+        {reconUsed && (
+          <div className="db-event-recon db-event-recon--done">
+            <span className="db-event-recon__badge">事前調査済</span>
+            <span className="db-event-recon__text">ダミー1択を除外しました — ヒント: {question.whyDangerous}</span>
+          </div>
+        )}
 
         <div className="db-event-choices" role="radiogroup" aria-label="イベント問題の選択肢">
           {question.choices.map((choice, idx) => {
@@ -1419,24 +1414,25 @@ function EventScreen({
                   .filter(Boolean)
                   .join(' ')}
               >
-                <div className="db-event-choice__head">
-                  <div className="db-event-choice__title">
-                    [{idx + 1}] {choice.title}
+                <span className="db-event-choice__num">{idx + 1}</span>
+                <div className="db-event-choice__body">
+                  <div className="db-event-choice__head">
+                    <div className="db-event-choice__title">{choice.title}</div>
+                    {isFilteredOut && (
+                      <span className="db-event-choice__badge db-event-choice__badge--filtered">除外済</span>
+                    )}
+                    {selectedChoiceId !== null && choice.isCorrect && (
+                      <span className="db-event-choice__badge db-event-choice__badge--ok">✔ 正解</span>
+                    )}
+                    {picked && !choice.isCorrect && (
+                      <span className="db-event-choice__badge db-event-choice__badge--ng">✖ 選択</span>
+                    )}
                   </div>
-                  {isFilteredOut && (
-                    <span className="db-event-choice__badge db-event-choice__badge--filtered">
-                      調査により除外済（対象外）
-                    </span>
-                  )}
-                  {selectedChoiceId !== null && choice.isCorrect && (
-                    <span className="db-event-choice__badge db-event-choice__badge--ok">✔ 正解</span>
-                  )}
-                  {picked && !choice.isCorrect && (
-                    <span className="db-event-choice__badge db-event-choice__badge--ng">✖ 選択した回答</span>
+                  <div className="db-event-choice__desc">{choice.description}</div>
+                  {selectedChoiceId !== null && choice.command && (
+                    <code className="db-event-choice__cmd">{choice.command}</code>
                   )}
                 </div>
-                {choice.command && <code className="db-event-choice__cmd">{choice.command}</code>}
-                <div className="db-event-choice__desc">{choice.description}</div>
               </button>
             );
           })}
