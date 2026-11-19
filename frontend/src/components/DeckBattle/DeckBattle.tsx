@@ -67,7 +67,9 @@ import {
 } from '../../game/deckbattle/run';
 import { MAX_TOOLS, TOOL_DEFINITIONS } from '../../game/deckbattle/tools';
 import type {
+  BattleLog,
   BattleState,
+  BattleSnapshot,
   CardInstance,
   CardKind,
   EnemyActionEvent,
@@ -89,12 +91,15 @@ import { HowToPlayModal } from './HowToPlayModal';
 import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
 import idlePose from '../../assets/player-idle.png';
 import attackPose from '../../assets/player-attack.png';
+import guardPose from '../../assets/player-guard.png';
+import hurtPose from '../../assets/player-hurt.png';
 import './DeckBattle.css';
 
 const ENEMY_STEP_MS = 900;
 const FX_MS = 1150;
 const BANNER_MS = 1050;
-const PLAYER_ATTACK_MS = 340;
+const PLAYER_POSE_MS = 340;
+const MULTI_HIT_STEP_MS = 430;
 const KIND_LABEL: Record<CardKind, string> = { attack: '攻撃', defense: '防御', utility: '補助' };
 
 type FxTone = 'hit' | 'shield' | 'heal' | 'buff' | 'bad' | 'burn';
@@ -130,6 +135,10 @@ function damagePower(amount: number): FxPower {
   return 'normal';
 }
 
+function powerClass(fx: Pick<Fx, 'power'> | undefined, prefix: string): string {
+  return fx?.power && fx.power !== 'normal' ? ` ${prefix}-${fx.power}` : '';
+}
+
 function formatDamageText(amount: number, prefix = ''): string {
   const power = damagePower(amount);
   if (power === 'crit') return `💥 ${prefix}-${amount}!!`;
@@ -137,12 +146,16 @@ function formatDamageText(amount: number, prefix = ''): string {
   return `${prefix}-${amount}`;
 }
 
-interface Playback {
+interface PlaybackState {
   base: BattleState;
-  events: EnemyActionEvent[];
   index: number;
   final: BattleState;
 }
+
+type Playback = PlaybackState & (
+  | { actor: 'enemy'; events: EnemyActionEvent[] }
+  | { actor: 'player'; events: Array<{ after: BattleSnapshot }>; banner: Omit<ActionBanner, 'id'> }
+);
 
 type StagePhase =
   | 'setup'
@@ -191,21 +204,22 @@ interface DeckBattleProps {
 
 const RUN_NODE_ICONS: Record<RunNode['kind'], { icon: string; label: string }> = {
   battle: { icon: '🤖', label: '戦闘' },
-  event: { icon: '📋', label: 'イベント' },
-  mystery: { icon: '🎲', label: 'ハプニング' },
-  rest: { icon: '🔧', label: '休憩・保守' },
+  event: { icon: '📋', label: 'クイズ' },
+  mystery: { icon: '🎲', label: '事件' },
+  rest: { icon: '🔧', label: '休憩' },
   shop: { icon: '🏪', label: '闇市' },
   boss: { icon: '💀', label: 'ボス' },
 };
 
-function describeNodeShort(node: RunNode, index: number): string {
+function describeNodeShort(node: RunNode, index: number, elite: boolean): string {
   if (node.kind === 'shop') return `${index + 1}. 解析コイン闇市`;
   if (node.kind === 'mystery') return `${index + 1}. ハプニング`;
   if (node.kind === 'rest') return `${index + 1}. 休憩・システム保守`;
   if (node.kind === 'boss') return `${index + 1}. ボス:ARGUS`;
   if (node.kind === 'event') return `${index + 1}. ${node.eventId === 'vuln_check' ? '診断クイズ' : 'パッチ適用'}`;
-  const first = ENEMY_DEFINITIONS[node.enemyIds[0]];
-  const suffix = node.enemyIds.length > 1 ? `×${node.enemyIds.length}` : '';
+  const enemyIds = elite && node.eliteEnemyIds?.length ? node.eliteEnemyIds : node.enemyIds;
+  const first = ENEMY_DEFINITIONS[enemyIds[0]];
+  const suffix = enemyIds.length > 1 ? `×${enemyIds.length}` : '';
   return `${index + 1}. ${first?.name ?? '敵'}${suffix}`;
 }
 
@@ -286,7 +300,7 @@ function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<Acti
         actor: 'enemy',
         kind: 'enemy',
         icon,
-        title: `${name} の攻撃`,
+        title: `${name} の攻撃${ev.hits > 1 ? ` ${ev.hit}/${ev.hits}` : ''}`,
         detail: ev.damage > 0 ? `⚔ ${ev.damage} ダメージ！` : '🛡 FWで完全に防いだ！',
         power: ev.damage > 0 ? damagePower(ev.damage) : 'normal',
       };
@@ -324,10 +338,10 @@ function countNoiseCards(state: BattleState): number {
   return allUids.filter((uid) => state.cards[uid]?.defId === 'noise').length;
 }
 
-function fxForPlay(before: BattleState, after: BattleState, playedCard = true): FxSpec[] {
+function fxForEnemyDamage(before: BattleSnapshot['enemies'], after: BattleSnapshot['enemies']): FxSpec[] {
   const specs: FxSpec[] = [];
-  for (const enemy of after.enemies) {
-    const prev = before.enemies.find((e) => e.uid === enemy.uid);
+  for (const enemy of after) {
+    const prev = before.find((e) => e.uid === enemy.uid);
     if (!prev) continue;
     const hpLost = prev.hp - enemy.hp;
     const blockLost = prev.block - enemy.block;
@@ -348,6 +362,15 @@ function fxForPlay(before: BattleState, after: BattleState, playedCard = true): 
         impact: hpLost > 0 ? undefined : 'guard',
       });
     }
+  }
+  return specs;
+}
+
+function fxForPlay(before: BattleState, after: BattleState, playedCard = true, includeDamage = true): FxSpec[] {
+  const specs = includeDamage ? fxForEnemyDamage(before.enemies, after.enemies) : [];
+  for (const enemy of after.enemies) {
+    const prev = before.enemies.find((e) => e.uid === enemy.uid);
+    if (!prev) continue;
     if (enemy.burn && !prev.burn) {
       specs.push({ at: enemy.uid, text: `🔥 過熱${enemy.burn.amount}`, tone: 'burn', impact: 'burn' });
     } else if (enemy.burn && prev.burn && enemy.burn.amount > prev.burn.amount) {
@@ -434,7 +457,7 @@ function fxForPlay(before: BattleState, after: BattleState, playedCard = true): 
   return specs;
 }
 
-function snapshotState(base: BattleState, event: EnemyActionEvent): BattleState {
+function snapshotState(base: BattleState, event: { after: BattleSnapshot }): BattleState {
   const { after } = event;
   return {
     ...base,
@@ -488,7 +511,39 @@ function createInitialRun(): RunState {
   return coins > 0 ? { ...fresh, reconCoins: fresh.reconCoins + coins } : fresh;
 }
 
+function BattleLogPanel({ entries }: { entries: BattleLog[] }) {
+  const recent = entries.slice(-30).reverse();
+  return (
+    <div className="db-log">
+      <ol className="db-log__list db-log__list--recent" aria-label="直近の戦闘ログ">
+        {recent.slice(0, 2).map((entry) => <BattleLogRow key={entry.id} entry={entry} />)}
+      </ol>
+      <details>
+        <summary className="db-log__summary">戦闘ログ</summary>
+        <ol className="db-log__list db-log__list--full" aria-label="詳細な戦闘ログ">
+          {recent.map((entry) => <BattleLogRow key={entry.id} entry={entry} />)}
+        </ol>
+      </details>
+    </div>
+  );
+}
+
+function BattleLogRow({ entry }: { entry: BattleLog }) {
+  const actor = entry.actor ?? 'system';
+  const label = actor === 'player' ? '自分' : actor === 'enemy' ? '敵' : '進行';
+  return (
+    <li className={`db-log__item db-log__item--actor-${actor} ${entry.effect ? `db-log__item--${entry.effect}` : ''}`}>
+      <span className={`db-log__badge db-log__badge--${actor}`}>{label}</span>
+      <span className="db-log__turn">T{entry.turn}</span>
+      <span className="db-log__msg" title={entry.message}><EffectText text={entry.message} /></span>
+    </li>
+  );
+}
+
 export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
+  const { hoverProps, previewNode, hoveredUid } = useCardHoverPreview();
+  const [eliteNode, setEliteNode] = useState<number | null>(null);
+  const [runNumber, setRunNumber] = useState(0);
   // useState の初期化は開発時(StrictMode)に2回呼ばれるため、ここで開始コインを消費すると2回目が0枚になる。
   // 読むのは初期化で、消費は下の useEffect で1回だけ行う
   const [run, setRun] = useState<RunState>(createInitialRun);
@@ -526,7 +581,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   }, []);
 
   const shown = playback ? (playback.index >= 0 ? snapshotState(playback.base, playback.events[playback.index]) : playback.base) : battle;
-  const activeEnemyAction = playback?.events[playback.index];
+  const activeEnemyAction = playback?.actor === 'enemy' ? playback.events[playback.index] : undefined;
   const actingUid = activeEnemyAction?.enemyUid;
   const busy = playback !== null || battle.status !== 'playing' || phase !== 'battle';
 
@@ -580,6 +635,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (next >= playback.events.length) {
       const t = window.setTimeout(() => {
         const final = playback.final;
+        if (playback.actor === 'player') {
+          const lastHit = playback.events.at(-1);
+          if (lastHit) pushFx(fxForEnemyDamage(lastHit.after.enemies, final.enemies));
+        }
         setBattle(final);
         setPlayback(null);
         if (final.status === 'lost') {
@@ -589,18 +648,35 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           playSound('extract');
           handleBattleFinished(final);
         }
-      }, ENEMY_STEP_MS);
+      }, playback.actor === 'player' ? MULTI_HIT_STEP_MS : ENEMY_STEP_MS);
       return () => window.clearTimeout(t);
     }
+    if (playback.actor === 'player') {
+      const t = window.setTimeout(() => {
+        const previous = playback.events[playback.index]?.after.enemies ?? playback.base.enemies;
+        const enemies = playback.events[next].after.enemies;
+        const power = damagePower(Math.max(...enemies.map((enemy, index) => previous[index].hp - enemy.hp), 0));
+        pushFx(fxForEnemyDamage(previous, enemies), MULTI_HIT_STEP_MS);
+        pushFx([{ at: 'player-launch', text: '', tone: 'buff', power }], PLAYER_POSE_MS);
+        playSound('breach');
+        showBanner({ ...playback.banner, power, title: `${playback.banner.title} ${next + 1}/${playback.events.length}` }, MULTI_HIT_STEP_MS);
+        setPlayback({ ...playback, index: next });
+      }, next === 0 ? 0 : MULTI_HIT_STEP_MS);
+      return () => window.clearTimeout(t);
+    }
+    const ev = playback.events[next];
+    const repeatedHit = ev.kind === 'attack' && ev.hit > 1;
     const t = window.setTimeout(() => {
-      const ev = playback.events[next];
       if (ev.kind === 'attack') playSound(ev.damage > 0 ? 'alert' : 'recover');
       else if (ev.kind === 'burn' || ev.kind === 'retaliate') playSound('breach');
       else playSound('scan');
-      pushFx(fxForEvent(ev));
-      showBanner(bannerForEnemyEvent(ev, playback.base), ENEMY_STEP_MS - 60);
-      setPlayback((p) => (p ? { ...p, index: next } : null));
-    }, next === 0 ? 350 : ENEMY_STEP_MS);
+      pushFx(fxForEvent(ev), ev.kind === 'attack' && ev.hits > 1 ? MULTI_HIT_STEP_MS : FX_MS);
+      if (ev.kind === 'attack') {
+        pushFx([{ at: ev.damage > 0 ? 'player-hurt' : 'player-guard', text: '', tone: 'buff', power: damagePower(ev.damage) }], PLAYER_POSE_MS);
+      }
+      showBanner(bannerForEnemyEvent(ev, playback.base), ev.kind === 'attack' && ev.hits > 1 ? MULTI_HIT_STEP_MS : ENEMY_STEP_MS - 60);
+      setPlayback({ ...playback, index: next });
+    }, next === 0 ? 350 : repeatedHit ? MULTI_HIT_STEP_MS : ENEMY_STEP_MS);
     return () => window.clearTimeout(t);
   }, [playback, pushFx, showBanner, handleBattleFinished]);
 
@@ -616,6 +692,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   }, []);
 
   const startRun = (loadoutId: LoadoutId = run.loadoutId, securityLevel: number = run.securityLevel, fastGrowth = run.fastGrowth) => {
+    setEliteNode(null);
+    setRunNumber((number) => number + 1);
     playSound('breach');
     const fresh = createRunWithProfileCoins(fastGrowth, loadoutId, securityLevel);
     updateProfile((p) => recordDiscovery(p, fresh.deck.map((c) => c.defId), []));
@@ -735,6 +813,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const onChooseRoute = (useElite: boolean) => {
+    if (useElite) setEliteNode(run.nodeIndex);
     playSound('click');
     const updated: RunState = { ...run, currentBattleElite: useElite };
     setRun(updated);
@@ -759,9 +838,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       return prev ? Math.max(max, prev.hp - enemy.hp) : max;
     }, 0);
     const power = damagePower(maxEnemyDmg);
-    playSound(kind === 'attack' ? 'breach' : kind === 'defense' ? 'recover' : 'scan');
-    pushFx(fxForPlay(battle, result.state, true));
-    showBanner({
+    const banner: Omit<ActionBanner, 'id'> = {
       actor: 'player',
       kind,
       icon: stats.icon,
@@ -769,16 +846,28 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       detail: stats.text,
       isAoe,
       power,
-    });
-    if (kind === 'attack') {
-      pushFx(
-        [{ at: 'player-launch', text: '', tone: 'buff', power }],
-        power === 'crit' ? 460 : power === 'heavy' ? 400 : PLAYER_ATTACK_MS,
-      );
-    }
-    setBattle(result.state);
+    };
     setSelectedUid(null);
     setNotice(null);
+    if (result.attackFrames && result.attackFrames.length > 1) {
+      pushFx(fxForPlay(battle, result.state, true, false));
+      setPlayback({
+        actor: 'player',
+        base: { ...battle, hand: result.state.hand, discard: result.state.discard },
+        events: result.attackFrames.map((after) => ({ after })),
+        index: -1,
+        final: result.state,
+        banner,
+      });
+      return;
+    }
+    playSound(kind === 'attack' ? 'breach' : kind === 'defense' ? 'recover' : 'scan');
+    pushFx(fxForPlay(battle, result.state, true));
+    showBanner(banner);
+    if (kind === 'attack' || kind === 'defense') {
+      pushFx([{ at: kind === 'attack' ? 'player-launch' : 'player-guard', text: '', tone: 'buff', power }], kind === 'defense' ? PLAYER_POSE_MS : power === 'crit' ? 460 : power === 'heavy' ? 400 : PLAYER_POSE_MS);
+    }
+    setBattle(result.state);
     if (result.state.status === 'won') {
       window.setTimeout(() => {
         playSound('extract');
@@ -820,7 +909,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     const base: BattleState = { ...battle, hand: [], discard: [...battle.discard, ...battle.hand] };
     setSelectedUid(null);
     setNotice(null);
-    setPlayback({ base, events: final.lastEnemyActions, index: -1, final });
+    setPlayback({ actor: 'enemy', base, events: final.lastEnemyActions, index: -1, final });
   };
 
   const onUseTool = (toolIndex: number) => {
@@ -1019,11 +1108,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const fxAt = (at: string) => fx.filter((f) => f.at === at);
-  const playerMotion = fx.filter((f) => f.at === 'player-launch' || (f.at === 'player' && f.impact)).at(-1);
-  const playerImpact = playerMotion?.impact;
+  const playerImpact = fx.filter((f) => f.at === 'player' && f.impact).at(-1);
+  const playerMotion = fx.filter((f) => f.at === 'player-launch' || f.at === 'player-guard' || f.at === 'player-hurt').at(-1);
   const playerAttacking = playerMotion?.at === 'player-launch';
+  const playerGuarding = playerMotion?.at === 'player-guard';
+  const playerHurt = playerMotion?.at === 'player-hurt';
   const { player, modifiers } = shown;
   const hpRatio = Math.max(0, player.hp / player.maxHp);
+  const isBoss = run.nodes[run.nodeIndex]?.kind === 'boss';
 
   return (
     <div className="db-shell">
@@ -1031,25 +1123,27 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <div className="db-brand">
           <span className="db-brand__tag">SECTOR 06</span>
           <span>DECK BREACH</span>
-          <span className="db-brand__proto">{run.nodes.length}マス試作ラン</span>
         </div>
 
         <ol className="db-stepper" aria-label="ラン進行">
           {run.nodes.map((node, idx) => {
-            const { icon, label } = RUN_NODE_ICONS[node.kind];
+            const choosingRoute = idx === run.nodeIndex && phase === 'elite_choice';
+            const elite = idx === eliteNode || choosingRoute;
+            const { icon, label } = elite ? { icon: '⚠️', label: '強敵' } : RUN_NODE_ICONS[node.kind];
             const current = idx === run.nodeIndex && run.status !== 'won';
             const done = idx < run.nodeIndex || (idx === run.nodeIndex && run.status === 'won');
-            const name = `${label}・${describeNodeShort(node, idx)}`;
+            const name = choosingRoute ? `${idx + 1}. 通常戦または強敵を選択` : `${label}・${describeNodeShort(node, idx, elite)}`;
             return (
               <li
                 key={idx}
-                className={`db-route-node db-route-node--${node.kind}`}
+                className={`db-route-node db-route-node--${elite ? 'elite' : node.kind}`}
                 aria-current={current ? 'step' : undefined}
                 title={name}
               >
                 <span className="db-route-node__icon" role="img" aria-label={done ? `${name}（通過済み）` : name}>
                   {icon}
                 </span>
+                <span className="db-route-node__label" aria-hidden="true">{label}</span>
                 {done && <span className="db-route-node__check" aria-hidden="true">✓</span>}
               </li>
             );
@@ -1063,21 +1157,12 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
             </span>
           )}
           <span className="db-chip db-chip--buff">🪙 解析コイン {run.reconCoins}枚</span>
-          <button
-            type="button"
-            className={`db-btn db-fast-toggle ${run.fastGrowth ? 'db-fast-toggle--on' : ''}`}
-            onClick={toggleFastGrowth}
-            title="試作用:ONにすると1回の戦闘・クイズですぐLv.3進化まで試せます"
-          >
-            {run.fastGrowth ? '⚡ 試用高速成長:ON' : '試用高速成長:OFF'}
-          </button>
           <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowDeckModal(true)}>
             デッキ ({run.deck.length})
           </button>
           <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowHowToPlay(true)} title="遊び方と用語の説明">
             ❓ 遊び方
           </button>
-          {phase === 'battle' && <span className="db-turn">TURN {shown.turn}</span>}
           <button type="button" className="db-btn db-btn--ghost" onClick={onBackToMissions}>
             ミッション選択へ
           </button>
@@ -1098,6 +1183,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
             })}
           </span>
         )}
+        <button
+          type="button"
+          className={`db-btn db-fast-toggle ${run.fastGrowth ? 'db-fast-toggle--on' : ''}`}
+          onClick={toggleFastGrowth}
+          title="試作用:ONにすると1回の戦闘・クイズですぐLv.3進化まで試せます"
+        >
+          {run.fastGrowth ? '⚡ 試用高速成長:ON' : '試用高速成長:OFF'}
+        </button>
       </div>
 
       {phase === 'setup' ? (
@@ -1134,7 +1227,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           onContinue={onFinishEvent}
         />
       ) : phase !== 'shop' && (
-        <div className="db-main">
+        <div className={`db-main ${isBoss ? 'db-main--boss' : ''}`}>
           <section className="db-left">
             <div
               className={[
@@ -1184,191 +1277,178 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                   </div>
                 </>
               )}
-              <div className="db-fighter" aria-hidden="true">
-                <span
-                  key={playerMotion?.id ?? 'idle'}
-                  className={[
-                    'db-fighter__avatar',
-                    playerImpact === 'strike'
-                      ? `db-fighter__avatar--hit${playerMotion?.power && playerMotion.power !== 'normal' ? ` db-fighter__avatar--hit-${playerMotion.power}` : ''}`
-                      : playerAttacking
-                        ? `db-fighter__avatar--launch${playerMotion?.power && playerMotion.power !== 'normal' ? ` db-fighter__avatar--launch-${playerMotion.power}` : ''}`
-                        : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                >
-                  <span className="db-fighter__poses">
-                    <img src={idlePose} alt="" draggable={false} hidden={playerAttacking} />
-                    <img src={attackPose} alt="" draggable={false} hidden={!playerAttacking} />
-                  </span>
-                </span>
-                {playerImpact && (
+              {isBoss && <div key={runNumber} className="db-boss-intro" aria-hidden="true">ボス戦 <strong>ARGUS</strong></div>}
+              <div className="db-player-side">
+                <div className="db-fighter" aria-hidden="true">
                   <span
-                    key={`impact-${playerMotion?.id}`}
-                    className={`db-impact db-impact--${playerImpact}${playerMotion?.power && playerMotion.power !== 'normal' ? ` db-impact--power-${playerMotion.power}` : ''}`}
-                  />
-                )}
-              </div>
-              {shown.enemies.map((enemy) => {
-                const dead = enemy.hp <= 0;
-                const intent = describeIntent(getEnemyIntent(enemy));
-                const enemyFx = fxAt(enemy.uid);
-                const impact = enemyFx.filter((f) => f.impact).at(-1);
-                const hitPower = impact?.impact === 'strike' || impact?.impact === 'burn' ? impact.power : undefined;
-                const attacking = activeEnemyAction?.kind === 'attack' && actingUid === enemy.uid;
-                const def = ENEMY_DEFINITIONS[enemy.defId];
-                return (
-                  <button
-                    type="button"
-                    key={enemy.uid}
+                    key={playerMotion?.id ?? 'idle'}
                     className={[
-                      'db-enemy',
-                      dead ? 'db-enemy--dead' : '',
-                      selectedUid && !dead ? 'db-enemy--targetable' : '',
-                      actingUid === enemy.uid ? 'db-enemy--acting' : '',
-                      hitPower === 'crit' ? 'db-enemy--hit-crit' : hitPower === 'heavy' ? 'db-enemy--hit-heavy' : '',
-                      def.phase2 ? 'db-enemy--boss' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    onClick={() => onEnemyClick(enemy)}
-                    disabled={dead || !selectedUid || busy}
-                    aria-label={`${enemy.name} HP ${enemy.hp}/${enemy.maxHp}`}
+                      'db-fighter__avatar',
+                      playerAttacking ? 'db-fighter__avatar--launch' : '',
+                      playerGuarding ? 'db-fighter__avatar--guard' : '',
+                      playerHurt ? 'db-fighter__avatar--hit' : '',
+                      playerHurt ? powerClass(playerMotion, 'db-fighter__avatar--hit') : '',
+                      playerAttacking ? powerClass(playerMotion, 'db-fighter__avatar--launch') : '',
+                    ].join(' ')}
                   >
-                    {!dead && (
-                      <span className={`db-intent db-intent--${intent.tone}`} title={intent.title}>
-                        <span className="db-intent__icon">{intent.icon}</span>
-                        <span>{intent.text}</span>
-                      </span>
-                    )}
-                    <span
-                      key={attacking ? `attack-${playback?.index}` : impact?.id ?? 'idle'}
-                      className={[
-                        'db-enemy__icon',
-                        attacking
-                          ? 'db-enemy__icon--launch'
-                          : impact?.impact === 'strike'
-                            ? `db-enemy__icon--hit${impact.power && impact.power !== 'normal' ? ` db-enemy__icon--hit-${impact.power}` : ''}`
-                            : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      {dead ? '💀' : enemy.icon}
+                    <span className="db-fighter__poses">
+                      <img src={idlePose} alt="" draggable={false} hidden={playerAttacking || playerGuarding || playerHurt} />
+                      <img src={attackPose} alt="" draggable={false} hidden={!playerAttacking} />
+                      <img src={guardPose} alt="" draggable={false} hidden={!playerGuarding} />
+                      <img src={hurtPose} alt="" draggable={false} hidden={!playerHurt} />
                     </span>
-                    <span className="db-enemy__name">
-                      {enemy.name}
-                      {enemy.phase === 2 && <span className="db-enemy__phase">本気</span>}
-                    </span>
-                    <span className="db-bar">
-                      <span className="db-bar__fill db-bar__fill--enemy" style={{ width: `${(enemy.hp / enemy.maxHp) * 100}%` }} />
+                  </span>
+                  {playerImpact && <span key={`impact-${playerImpact.id}`} className={`db-impact db-impact--${playerImpact.impact}${powerClass(playerImpact, "db-impact--power")}`} />}
+                </div>
+                <div className="db-player">
+                  <div className={`db-player__stats ${fxAt('player').some((f) => f.tone === 'hit') ? 'db-player--hit' : ''}`}>
+                    <span className="db-player__label">あなた(侵入者)</span>
+                    <span className="db-bar db-bar--player">
+                      <span className="db-bar__fill db-bar__fill--player" style={{ width: `${hpRatio * 100}%` }} />
                       <span className="db-bar__text">
-                        {enemy.hp} / {enemy.maxHp}
+                        HP {player.hp} / {player.maxHp}
                       </span>
                     </span>
-                    <span className="db-enemy__status">
-                      {!dead && (
-                        <span className="db-chip db-chip--weak" title={`弱点:${WEAKNESS_LABEL[enemy.weakness]}(1.5倍ダメージ)`}>
-                          🎯 弱点:{WEAKNESS_LABEL[enemy.weakness]}
-                        </span>
-                      )}
-                      {!dead && selectedUid && battle.cards[selectedUid] && doesCardHitWeakness(getCardStats(battle.cards[selectedUid]), enemy) && (
-                        <span className="db-chip db-chip--burn">💥 WEAK ×1.5</span>
-                      )}
-                      {enemy.block > 0 && <span className="db-chip db-chip--shield">🛡 {enemy.block}</span>}
-                      {enemy.attackBonus > 0 && <span className="db-chip db-chip--bad">⬆ +{enemy.attackBonus}</span>}
-                      {enemy.vulnerable && enemy.vulnerable > 0 && (
-                        <span className="db-chip db-chip--burn" title="受けるダメージ1.5倍">
-                          💔 脆弱 {enemy.vulnerable}T
-                        </span>
-                      )}
-                      {enemy.jammed && enemy.jammed > 0 && (
-                        <span className="db-chip db-chip--shield" title="与えるダメージ-30%">
-                          📶 ジャム {enemy.jammed}T
-                        </span>
-                      )}
-                      {enemy.burn && (
-                        <span className="db-chip db-chip--burn">
-                          🔥 {enemy.burn.amount}・{enemy.burn.turns}T
-                        </span>
-                      )}
-                    </span>
-                    {impact && (
-                      <span
-                        key={`impact-${impact.id}`}
-                        className={`db-impact db-impact--${impact.impact}${impact.power && impact.power !== 'normal' ? ` db-impact--power-${impact.power}` : ''}`}
-                        aria-hidden="true"
-                      />
+                    {player.block > 0 && <span className="db-chip db-chip--shield">🛡 FW {player.block}</span>}
+                    {player.retaliate > 0 && <span className="db-chip db-chip--buff">🪤 反撃 {player.retaliate}</span>}
+                    {modifiers.reconCombo === 'ready' && (
+                      <span className="db-chip db-chip--buff" title="このターン中に攻撃カードを使うと帯域+1">
+                        🔍 解析コンボ準備中(攻撃で+1EN)
+                      </span>
                     )}
-                    <span className="db-fx">
-                      {enemyFx.map((f) => (
-                        <span
-                          key={f.id}
-                          className={`db-fx__float db-fx__float--${f.tone}${f.power && f.power !== 'normal' ? ` db-fx__float--power-${f.power}` : ''}`}
-                        >
+                    {modifiers.nextAttackBonus > 0 && <span className="db-chip db-chip--buff">🎯 次の攻撃+{modifiers.nextAttackBonus}</span>}
+                    {modifiers.repeatNextAttack && <span className="db-chip db-chip--buff">⏩ 次の攻撃×2</span>}
+                    {modifiers.nextCardDiscount > 0 && <span className="db-chip db-chip--buff">📜 次のカード−{modifiers.nextCardDiscount}EN</span>}
+                    {player.energyPenalty > 0 && <span className="db-chip db-chip--bad">👁 検知 −{player.energyPenalty}</span>}
+                    {shown.tools.length > 0 && (
+                      <span className="db-tool-bar">
+                        {shown.tools.map((toolId, idx) => {
+                          const t = TOOL_DEFINITIONS[toolId];
+                          return (
+                            <button
+                              key={`${toolId}-${idx}`}
+                              type="button"
+                              className="db-tool-btn"
+                              disabled={busy}
+                              onClick={() => onUseTool(idx)}
+                              title={`帯域0で使用: ${t.description}`}
+                            >
+                              {t.icon} {t.name}
+                            </button>
+                          );
+                        })}
+                      </span>
+                    )}
+                    <span className="db-fx db-fx--player">
+                      {fxAt('player').map((f) => (
+                        <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}${powerClass(f, "db-fx__float--power")}`}>
                           {f.text}
                         </span>
                       ))}
                     </span>
-                  </button>
-                );
-              })}
+                  </div>
+                </div>
+              </div>
+              <div className="db-enemies">
+                {shown.enemies.map((enemy) => {
+                  const dead = enemy.hp <= 0;
+                  const intent = describeIntent(getEnemyIntent(enemy));
+                  const enemyFx = fxAt(enemy.uid);
+                  const impact = enemyFx.filter((f) => f.impact).at(-1);
+                  const attacking = activeEnemyAction?.kind === 'attack' && actingUid === enemy.uid;
+                  const def = ENEMY_DEFINITIONS[enemy.defId];
+                  return (
+                    <button
+                      type="button"
+                      key={`${enemy.defId}-${enemy.uid}`}
+                      className={[
+                        'db-enemy',
+                        dead ? 'db-enemy--dead' : '',
+                        selectedUid && !dead ? 'db-enemy--targetable' : '',
+                        actingUid === enemy.uid ? 'db-enemy--acting' : '',
+                        def.phase2 ? 'db-enemy--boss' : '',
+                      ].join(' ')}
+                      onClick={() => onEnemyClick(enemy)}
+                      disabled={dead || !selectedUid || busy}
+                      aria-label={`${enemy.name}、HP ${enemy.hp}/${enemy.maxHp}${dead ? '、撃破済み' : `、次の行動 ${intent.title}、弱点 ${WEAKNESS_LABEL[enemy.weakness]}`}`}
+                    >
+                      <span className="db-enemy__intent-slot">
+                        {!dead && (
+                          <span className={`db-intent db-intent--${intent.tone}`} title={intent.title}>
+                            <span className="db-intent__icon">{intent.icon}</span>
+                            <span>{intent.text}</span>
+                          </span>
+                        )}
+                      </span>
+                      <span className="db-enemy__stage" aria-hidden="true">
+                        <span
+                          key={attacking ? `attack-${playback?.index}` : impact?.id ?? 'idle'}
+                          className={[
+                            'db-enemy__model',
+                            `db-enemy__model--${enemy.defId}`,
+                            attacking ? 'db-enemy__model--attack' : '',
+                            impact?.impact === 'strike' && !attacking ? `db-enemy__model--hit${powerClass(impact, 'db-enemy__model--hit')}` : '',
+                          ].join(' ')}
+                        >
+                          <span className="db-enemy__icon">{dead ? '💀' : enemy.icon}</span>
+                        </span>
+                        {impact && <span key={`impact-${impact.id}`} className={`db-impact db-impact--${impact.impact}${powerClass(impact, "db-impact--power")}`} />}
+                      </span>
+                      <span className="db-enemy__name">
+                        {enemy.name}
+                        {enemy.phase === 2 && <span className="db-enemy__phase">本気</span>}
+                      </span>
+                      <span className="db-bar">
+                        <span className="db-bar__fill db-bar__fill--enemy" style={{ width: `${(enemy.hp / enemy.maxHp) * 100}%` }} />
+                        <span className="db-bar__text">
+                          {enemy.hp} / {enemy.maxHp}
+                        </span>
+                      </span>
+                      <span className="db-enemy__status">
+                        {!dead && (
+                          <span className="db-chip db-chip--weak" title={`弱点:${WEAKNESS_LABEL[enemy.weakness]}(1.5倍ダメージ)`}>
+                            🎯 弱点:{WEAKNESS_LABEL[enemy.weakness]}
+                          </span>
+                        )}
+                        {!dead && selectedUid && battle.cards[selectedUid] && doesCardHitWeakness(getCardStats(battle.cards[selectedUid]), enemy) && (
+                          <span className="db-chip db-chip--burn">💥 WEAK ×1.5</span>
+                        )}
+                        {enemy.block > 0 && <span className="db-chip db-chip--shield">🛡 {enemy.block}</span>}
+                        {enemy.attackBonus > 0 && <span className="db-chip db-chip--bad">⬆ +{enemy.attackBonus}</span>}
+                        {enemy.vulnerable && enemy.vulnerable > 0 && (
+                          <span className="db-chip db-chip--burn" title="受けるダメージ1.5倍">
+                            💔 脆弱 {enemy.vulnerable}T
+                          </span>
+                        )}
+                        {enemy.jammed && enemy.jammed > 0 && (
+                          <span className="db-chip db-chip--shield" title="与えるダメージ-30%">
+                            📶 ジャム {enemy.jammed}T
+                          </span>
+                        )}
+                        {enemy.burn && (
+                          <span className="db-chip db-chip--burn">
+                            🔥 {enemy.burn.amount}・{enemy.burn.turns}T
+                          </span>
+                        )}
+                      </span>
+                      <span className="db-fx">
+                        {enemyFx.map((f) => (
+                          <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}${powerClass(f, "db-fx__float--power")}`}>
+                            {f.text}
+                          </span>
+                        ))}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="db-player">
-              <div className={`db-player__stats ${fxAt('player').some((f) => f.tone === 'hit') ? 'db-player--hit' : ''}`}>
-                <span className="db-player__label">あなた(侵入者)</span>
-                <span className="db-bar db-bar--player">
-                  <span className="db-bar__fill db-bar__fill--player" style={{ width: `${hpRatio * 100}%` }} />
-                  <span className="db-bar__text">
-                    HP {player.hp} / {player.maxHp}
-                  </span>
-                </span>
-                {player.block > 0 && <span className="db-chip db-chip--shield">🛡 FW {player.block}</span>}
-                {player.retaliate > 0 && <span className="db-chip db-chip--buff">🪤 反撃 {player.retaliate}</span>}
-                {modifiers.reconCombo === 'ready' && (
-                  <span className="db-chip db-chip--buff" title="このターン中に攻撃カードを使うと帯域+1">
-                    🔍 解析コンボ準備中(攻撃で+1EN)
-                  </span>
-                )}
-                {modifiers.nextAttackBonus > 0 && <span className="db-chip db-chip--buff">🎯 次の攻撃+{modifiers.nextAttackBonus}</span>}
-                {modifiers.repeatNextAttack && <span className="db-chip db-chip--buff">⏩ 次の攻撃×2</span>}
-                {modifiers.nextCardDiscount > 0 && <span className="db-chip db-chip--buff">📜 次のカード−{modifiers.nextCardDiscount}EN</span>}
-                {player.energyPenalty > 0 && <span className="db-chip db-chip--bad">👁 検知 −{player.energyPenalty}</span>}
-                {shown.tools.length > 0 && (
-                  <span className="db-tool-bar">
-                    {shown.tools.map((toolId, idx) => {
-                      const t = TOOL_DEFINITIONS[toolId];
-                      return (
-                        <button
-                          key={`${toolId}-${idx}`}
-                          type="button"
-                          className="db-tool-btn"
-                          disabled={busy}
-                          onClick={() => onUseTool(idx)}
-                          title={`帯域0で使用: ${t.description}`}
-                        >
-                          {t.icon} {t.name}
-                        </button>
-                      );
-                    })}
-                  </span>
-                )}
-                <span className="db-fx db-fx--player">
-                  {fxAt('player').map((f) => (
-                    <span
-                      key={f.id}
-                      className={`db-fx__float db-fx__float--${f.tone}${f.power && f.power !== 'normal' ? ` db-fx__float--power-${f.power}` : ''}`}
-                    >
-                      {f.text}
-                    </span>
-                  ))}
-                </span>
+            <div className="db-battle-strip">
+              <div className={`db-battle-status ${playback?.actor === 'enemy' ? 'db-battle-status--enemy' : ''}`} role="status">
+                {notice ?? (playback?.actor === 'enemy' ? '敵のターン' : playback ? '連撃中' : selectedUid ? '攻撃対象を選択' : `あなたのターン · ${shown.turn}`)}
               </div>
-              <div className="db-notice" role="status">
-                {notice ?? (playback ? '敵のターン…' : '')}
-              </div>
+              <BattleLogPanel key={`${runNumber}-${run.nodeIndex}`} entries={shown.log} />
             </div>
 
             <div className="db-table">
@@ -1384,40 +1464,45 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 <span>山札</span>
               </div>
 
-              <div className="db-hand">
-                {shown.hand.map((uid) => {
-                  const card = shown.cards[uid];
-                  const def = getCardDefinition(card.defId);
-                  const stats = getCardStats(card);
-                  const cost = getPlayCost(shown, uid);
-                  const unplayable = !!def.unplayable;
-                  const affordable = !unplayable && cost <= player.energy;
-                  const xpProg = getXpProgress(card);
-                  return (
-                    <button
-                      type="button"
-                      key={uid}
-                      className={[
-                        'db-card',
-                        `db-card--${def.kind}`,
-                        `db-card--${def.rarity}`,
-                        unplayable ? 'db-card--noise' : '',
-                        selectedUid === uid ? 'db-card--selected' : '',
-                        !affordable ? 'db-card--unaffordable' : '',
-                      ].join(' ')}
-                      onClick={() => onCardClick(uid)}
-                      disabled={busy || unplayable}
-                      title={`${def.lore} (${xpProg.label})`}
-                    >
-                      <span className={`db-card__cost ${cost < stats.cost ? 'db-card__cost--discounted' : ''}`}>{unplayable ? '×' : cost}</span>
-                      <span className="db-card__band">{unplayable ? 'NOISE' : KIND_LABEL[def.kind]}</span>
-                      <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
-                      <span className="db-card__name">{stats.name}</span>
-                      <span className="db-card__desc"><EffectText text={stats.text} /></span>
-                      {!unplayable && <span className="db-card__level">{xpProg.label}</span>}
-                    </button>
-                  );
-                })}
+              <div className="db-hand" role="group" aria-label="手札">
+                <div className="db-hand__cards">
+                  {shown.hand.map((uid) => {
+                    const card = shown.cards[uid];
+                    const def = getCardDefinition(card.defId);
+                    const stats = getCardStats(card);
+                    const cost = getPlayCost(shown, uid);
+                    const unplayable = !!def.unplayable;
+                    const affordable = !unplayable && cost <= player.energy;
+                    const xpProg = getXpProgress(card);
+                    return (
+                      <button
+                        type="button"
+                        key={uid}
+                        className={[
+                          'db-card',
+                          `db-card--${def.kind}`,
+                          `db-card--${def.rarity}`,
+                          unplayable ? 'db-card--noise' : '',
+                          selectedUid === uid ? 'db-card--selected' : '',
+                          !affordable ? 'db-card--unaffordable' : '',
+                        ].join(' ')}
+                        {...hoverProps(card, cost)}
+                        onClick={() => { if (affordable) onCardClick(uid); }}
+                        disabled={busy}
+                        aria-disabled={!affordable}
+                        aria-pressed={selectedUid === uid}
+                        title={!affordable ? (unplayable ? '使用不可' : '帯域不足') : undefined}
+                      >
+                        <span className={`db-card__cost ${cost < stats.cost ? 'db-card__cost--discounted' : ''}`}>{unplayable ? '×' : cost}</span>
+                        <span className="db-card__band">{unplayable ? 'NOISE' : KIND_LABEL[def.kind]}</span>
+                        <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
+                        <span className="db-card__name">{stats.name}</span>
+                        <span className="db-card__desc"><EffectText text={stats.text} /></span>
+                        {!unplayable && <span className="db-card__level">{xpProg.label}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="db-pile" title="捨て札">
@@ -1430,33 +1515,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
             </div>
           </section>
 
-          <aside className="db-log" aria-label="戦闘ログ">
-            <div className="db-log__title">
-              <span>BATTLE LOG</span>
-              <span className="db-log__legend">
-                <span className="db-log__legend-dot db-log__legend-dot--player">自分</span>
-                <span className="db-log__legend-dot db-log__legend-dot--enemy">敵</span>
-              </span>
-            </div>
-            <ol className="db-log__list">
-              {[...shown.log].reverse().slice(0, 30).map((entry) => {
-                const actor = entry.actor ?? 'system';
-                const actorLabel = actor === 'player' ? 'YOU' : actor === 'enemy' ? 'ENEMY' : 'SYS';
-                return (
-                  <li
-                    key={entry.id}
-                    className={`db-log__item db-log__item--${entry.tone} db-log__item--actor-${actor}`}
-                  >
-                    <div className="db-log__meta">
-                      <span className={`db-log__badge db-log__badge--${actor}`}>{actorLabel}</span>
-                      <span className="db-log__turn">TURN {entry.turn}</span>
-                    </div>
-                    <div className="db-log__msg"><EffectText text={entry.message} /></div>
-                  </li>
-                );
-              })}
-            </ol>
-          </aside>
+          {phase === 'battle' && !busy && hoveredUid && shown.hand.includes(hoveredUid) && previewNode}
         </div>
       )}
 
@@ -1622,9 +1681,11 @@ function EvolutionOverlay({
 
 function CardPreviewPanel({
   card,
+  cost,
   className = '',
 }: {
   card: CardInstance;
+  cost?: number;
   className?: string;
 }) {
   const def = getCardDefinition(card.defId);
@@ -1635,7 +1696,9 @@ function CardPreviewPanel({
     <aside className={`db-card-preview-panel ${className}`.trim()} aria-label="カードプレビュー">
       <div className="db-card-preview-float__tag">CARD PREVIEW // {card.uid}</div>
       <div className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--preview-large`}>
-        <span className="db-card__cost">{stats.cost}</span>
+        <span className={`db-card__cost ${cost !== undefined && cost < stats.cost ? 'db-card__cost--discounted' : ''}`}>
+          {def.unplayable ? '×' : cost ?? stats.cost}
+        </span>
         <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
         <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
         <span className="db-card__name">{stats.name}</span>
@@ -1664,28 +1727,29 @@ function CardPreviewPanel({
   );
 }
 
-function FloatingCardPreview({ card, side }: { card: CardInstance; side: 'left' | 'right' }) {
-  return <CardPreviewPanel card={card} className={`db-card-preview-float db-card-preview-float--${side}`} />;
+function FloatingCardPreview({ card, side, cost }: { card: CardInstance; side: 'left' | 'right'; cost?: number }) {
+  return <CardPreviewPanel card={card} cost={cost} className={`db-card-preview-float db-card-preview-float--${side}`} />;
 }
 
 function useCardHoverPreview(resetKey?: string | number | boolean) {
   const [hovered, setHovered] = useState<{
     card: CardInstance;
     side: 'left' | 'right';
+    cost?: number;
     target: HTMLElement | null;
     key: string | number | boolean | undefined;
   } | null>(null);
 
-  const hoverProps = (card: CardInstance) => ({
+  const hoverProps = (card: CardInstance, cost?: number) => ({
     onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
       const mid = typeof window !== 'undefined' ? window.innerWidth / 2 : 640;
       const side: 'left' | 'right' = rect.left + rect.width / 2 > mid ? 'left' : 'right';
-      setHovered({ card, side, target: e.currentTarget, key: resetKey });
+      setHovered({ card, side, cost, target: e.currentTarget, key: resetKey });
     },
     onMouseLeave: () => setHovered((prev) => (prev?.card.uid === card.uid ? null : prev)),
     onFocus: (e: React.FocusEvent<HTMLElement>) =>
-      setHovered({ card, side: 'right', target: e.currentTarget, key: resetKey }),
+      setHovered({ card, side: 'right', cost, target: e.currentTarget, key: resetKey }),
     onBlur: () => setHovered((prev) => (prev?.card.uid === card.uid ? null : prev)),
   });
 
@@ -1695,9 +1759,9 @@ function useCardHoverPreview(resetKey?: string | number | boolean) {
       ? hovered
       : null;
   const previewNode = activeHovered ? (
-    <FloatingCardPreview card={activeHovered.card} side={activeHovered.side} />
+    <FloatingCardPreview card={activeHovered.card} side={activeHovered.side} cost={activeHovered.cost} />
   ) : null;
-  return { hoverProps, clearPreview, previewNode };
+  return { hoverProps, clearPreview, previewNode, hoveredUid: activeHovered?.card.uid };
 }
 
 function RewardOverlay({

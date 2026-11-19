@@ -219,12 +219,13 @@ export interface BattleLog {
   message: string;
   tone: 'info' | 'good' | 'bad';
   actor?: BattleLogActor;
+  effect?: 'heal' | 'status';
 }
 
 /** 敵のターンに実際に起きたこと(画面で1つずつ演出する) */
 /** 敵のターンに起きたこと1つ(画面で1つずつ再生する) */
 export type EnemyActionKind =
-  | { kind: 'attack'; enemyUid: string; damage: number; blocked: number; hits: number }
+  | { kind: 'attack'; enemyUid: string; damage: number; blocked: number; hits: number; hit: number }
   | { kind: 'block'; enemyUid: string; amount: number }
   | { kind: 'buff'; enemyUid: string; amount: number }
   | { kind: 'detect'; enemyUid: string; amount: number }

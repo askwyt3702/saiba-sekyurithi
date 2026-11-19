@@ -110,7 +110,12 @@ test('7章の例:脆弱性特定+並列実行+総当たり連打で (4+8)×3×2 
   );
   s = play(s, 'c1');
   s = play(s, 'c2');
-  s = play(s, 'c3');
+  const combo = battle.playCard(s, 'c3');
+  assert.equal(combo.accepted, true);
+  assert.deepEqual(Array.from(combo.attackFrames, (frame) => frame.enemies[0].hp), [
+    12, 24, 36, 48, 60, 72,
+  ].map((damage) => hp('argus') - damage));
+  s = combo.state;
   assert.equal(s.enemies[0].hp, hp('argus') - 72);
   assert.equal(s.usesThisBattle.c3, 1, '2回発動しても使用回数は1回');
   // 修正は使い切っている
@@ -250,6 +255,20 @@ test('攻撃力の強化は予告と実際の攻撃に反映される', () => {
   assert.equal(battle.getEnemyIntent(after.enemies[0]).amount, strengthened);
   const next = battle.endTurn(after);
   assert.equal(next.player.hp, 65 - strengthened);
+});
+
+test('敵の連撃は1ヒットずつFWとHPを記録する', () => {
+  const s = setup([{ defId: 'firewall' }], ['ids_sensor']);
+  const intent = battle.getEnemyIntent(s.enemies[0]);
+  s.player.block = intent.amount;
+  const after = battle.endTurn(s);
+  assert.deepEqual(Array.from(after.lastEnemyActions, (hit) => [
+    hit.hit, hit.hits, hit.damage, hit.blocked, hit.after.playerHp,
+  ]), [
+    [1, 2, 0, intent.amount, 65],
+    [2, 2, intent.amount, 0, 65 - intent.amount],
+  ]);
+  assert.equal(after.player.hp, 65 - intent.amount);
 });
 
 test('回復は最大HPを超えない', () => {
@@ -786,4 +805,16 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
   const m2 = run.resolveMysteryChoice(run.createRun(), 'overclock_terminal', 'extract_relic', 7);
   assert.equal(m2.run.hp, 57);
   assert.equal(m2.run.relics.length, 1);
+});
+
+test('戦闘ログはHPダメージとFW減少を区別し、実際の回復量を表示する', () => {
+  let s = setup([{ defId: 'ssh_brute' }], ['scanner_bot'], ['c1']);
+  s.enemies[0].block = 2;
+  s = play(s, 'c1');
+  assert.match(s.log.at(-1).message, /あなた → スキャナーbot：4ダメージ・FWを2削った/);
+  s.player.hp = s.player.maxHp - 3;
+  s.tools = ['hotfix'];
+  const healed = battle.activateBattleTool(s, 0).state;
+  assert.equal(healed.log.at(-1).effect, 'heal');
+  assert.match(healed.log.at(-1).message, /HPを3回復/);
 });

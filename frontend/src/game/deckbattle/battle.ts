@@ -8,6 +8,7 @@ import { TOOL_DEFINITIONS } from './tools';
 import type {
   BattleLogActor,
   BattleState,
+  BattleSnapshot,
   CardDefinition,
   CardEffect,
   CardInstance,
@@ -219,8 +220,9 @@ function addLog(
   message: string,
   tone: 'info' | 'good' | 'bad',
   actor: BattleLogActor = 'system',
+  effect?: BattleState['log'][number]['effect'],
 ): void {
-  state.log.push({ id: state.log.length + 1, turn: state.turn, message, tone, actor });
+  state.log.push({ id: state.log.length + 1, turn: state.turn, message, tone, actor, effect });
 }
 
 function drawCards(state: BattleState, count: number): void {
@@ -303,6 +305,7 @@ function applyEffect(
   target: EnemyState | undefined,
   attackBonus: number,
   cardEffects: CardEffect[],
+  attackFrames: BattleSnapshot[],
 ): void {
   switch (effect.type) {
     case 'damage': {
@@ -314,6 +317,7 @@ function applyEffect(
           const weakDmg = doesCardHitWeakness({ effects: cardEffects }, enemy) ? Math.floor(baseDmg * 1.5) : baseDmg;
           damageEnemy(enemy, weakDmg, Boolean(effect.pierce));
         }
+        if (targets.length > 0) attackFrames.push(battleSnapshot(state));
       }
       break;
     }
@@ -461,6 +465,7 @@ function applyEffect(
 export interface PlayResult {
   state: BattleState;
   accepted: boolean;
+  attackFrames?: BattleSnapshot[];
   /** 却下したときの理由 */
   reason?: string;
 }
@@ -500,9 +505,9 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
     state.modifiers.repeatNextAttack = false;
   }
 
-  const hpBefore = Object.fromEntries(state.enemies.map((e) => [e.uid, e.hp + e.block]));
+  const attackFrames: BattleSnapshot[] = [];
   for (let t = 0; t < times; t++) {
-    for (const effect of stats.effects) applyEffect(state, effect, target, bonus, stats.effects);
+    for (const effect of stats.effects) applyEffect(state, effect, target, bonus, stats.effects, attackFrames);
   }
   state.discard.push(uid);
 
@@ -519,15 +524,23 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
     }
   }
 
-  const hits = state.enemies
-    .map((e) => ({ e, lost: hpBefore[e.uid] - (e.hp + e.block) }))
-    .filter((x) => x.lost > 0)
-    .map((x) => `${x.e.name}に${x.lost}`);
-  const detail = hits.length ? `${hits.join('、')}ダメージ` : stats.text;
-  addLog(state, `[${stats.name}]${times === 2 ? '(2回発動)' : ''} ${detail}`, 'info', 'player');
+  const hits = state.enemies.flatMap((enemy, index) => {
+    const before = prev.enemies[index];
+    const hp = before.hp - enemy.hp;
+    const fw = before.block - enemy.block;
+    const effects = [hp > 0 ? `${hp}ダメージ` : '', fw > 0 ? `FWを${fw}削った` : ''].filter(Boolean);
+    return effects.length ? [`あなた → ${enemy.name}：${effects.join('・')}`] : [];
+  });
+  const recovered = state.player.hp - prev.player.hp;
+  const gainedFw = state.player.block - prev.player.block;
+  if (recovered > 0) hits.push(`あなた：HPを${recovered}回復`);
+  if (gainedFw > 0) hits.push(`あなた：FWを${gainedFw}獲得`);
+  const statusEffect = stats.effects.some((effect) => ['burn', 'vulnerable', 'jam'].includes(effect.type));
+  const detail = hits.length ? hits.join(' ／ ') : `あなた：${stats.text}`;
+  addLog(state, `${detail}［${stats.name}${times === 2 ? '×2' : ''}］`, 'info', 'player', recovered > 0 ? 'heal' : statusEffect ? 'status' : undefined);
   updatePhases(state);
   checkVictory(state);
-  return { state, accepted: true };
+  return { state, accepted: true, attackFrames };
 }
 
 /** ターン終了:手札を捨て、敵が予告どおりに動き、次のターンを始める */
@@ -559,7 +572,7 @@ export function endTurn(prev: BattleState): BattleState {
       if (enemy.burn) {
         const dealt = damageEnemy(enemy, enemy.burn.amount, true);
         recordAction(state, { kind: 'burn', enemyUid: enemy.uid, damage: dealt });
-        addLog(state, `過熱で ${enemy.name} に${dealt}ダメージ。`, 'good', 'player');
+        addLog(state, `あなた → ${enemy.name}：過熱で${dealt}ダメージ`, 'good', 'player', 'status');
         enemy.burn.turns -= 1;
         if (enemy.burn.turns <= 0) delete enemy.burn;
       }
@@ -582,14 +595,15 @@ export function endTurn(prev: BattleState): BattleState {
 
 /** 敵のターンの出来事を、その直後の HP・FW と一緒に記録する */
 function recordAction(state: BattleState, event: EnemyActionKind): void {
-  state.lastEnemyActions.push({
-    ...event,
-    after: {
-      playerHp: Math.max(0, state.player.hp),
-      playerBlock: state.player.block,
-      enemies: state.enemies.map((e) => ({ uid: e.uid, hp: e.hp, block: e.block })),
-    },
-  });
+  state.lastEnemyActions.push({ ...event, after: battleSnapshot(state) });
+}
+
+function battleSnapshot(state: BattleState): BattleSnapshot {
+  return {
+    playerHp: Math.max(0, state.player.hp),
+    playerBlock: state.player.block,
+    enemies: state.enemies.map((e) => ({ uid: e.uid, hp: e.hp, block: e.block })),
+  };
 }
 
 function runEnemyMove(state: BattleState, enemy: EnemyState, move: EnemyMove): void {
@@ -616,7 +630,7 @@ function runEnemyMove(state: BattleState, enemy: EnemyState, move: EnemyMove): v
     case 'detect':
       state.player.energyPenalty += move.amount;
       push({ kind: 'detect', enemyUid: enemy.uid, amount: move.amount });
-      addLog(state, `${enemy.name} に検知された。次のターンの帯域−${move.amount}。`, 'bad', 'enemy');
+      addLog(state, `${enemy.name} → あなた：検知、次のターンの帯域−${move.amount}`, 'bad', 'enemy', 'status');
       break;
     case 'noise':
       for (let i = 0; i < move.count; i++) {
@@ -625,7 +639,7 @@ function runEnemyMove(state: BattleState, enemy: EnemyState, move: EnemyMove): v
         state.discard.push(uid);
       }
       push({ kind: 'noise', enemyUid: enemy.uid, count: move.count });
-      addLog(state, `${enemy.name} がノイズを${move.count}枚送り込んだ。`, 'bad', 'enemy');
+      addLog(state, `${enemy.name} → あなた：ノイズ${move.count}枚`, 'bad', 'enemy', 'status');
       break;
   }
 }
@@ -636,13 +650,15 @@ function enemyAttack(state: BattleState, enemy: EnemyState, amount: number, hits
   let blocked = 0;
   for (let i = 0; i < hits; i++) {
     const absorbed = Math.min(state.player.block, amount);
+    const landed = amount - absorbed;
     state.player.block -= absorbed;
+    state.player.hp -= landed;
     blocked += absorbed;
-    damage += amount - absorbed;
+    damage += landed;
+    recordAction(state, { kind: 'attack', enemyUid: enemy.uid, damage: landed, blocked: absorbed, hits, hit: i + 1 });
+    if (state.player.hp <= 0) break;
   }
-  state.player.hp -= damage;
-  recordAction(state, { kind: 'attack', enemyUid: enemy.uid, damage, blocked, hits });
-  addLog(state, `${enemy.name} の攻撃:${damage}ダメージ${blocked ? `(FWで${blocked}防いだ)` : ''}。`, damage > 0 ? 'bad' : 'info', 'enemy');
+  addLog(state, `${enemy.name} → あなた：${damage}ダメージ${blocked ? `（FWで${blocked}防御）` : ''}`, damage > 0 ? 'bad' : 'info', 'enemy');
 
   // 反撃:次に受ける攻撃1回で、攻撃してきた敵にダメージ(FW で全部防いでも発動する)
   if (state.player.retaliate > 0 && enemy.hp > 0) {
@@ -667,7 +683,7 @@ export function activateBattleTool(prev: BattleState, toolIndex: number): PlayRe
   switch (toolId) {
     case 'hotfix':
       state.player.hp = Math.min(state.player.maxHp, state.player.hp + 12);
-      addLog(state, `[ツール:${def.name}] 回線耐久 +12 回復`, 'good', 'player');
+      addLog(state, `あなた：HPを${state.player.hp - prev.player.hp}回復［${def.name}］`, 'good', 'player', 'heal');
       break;
     case 'overclock':
       state.player.energy += 2;
@@ -685,7 +701,7 @@ export function activateBattleTool(prev: BattleState, toolIndex: number): PlayRe
         enemy.vulnerable = (enemy.vulnerable ?? 0) + 2;
         enemy.jammed = (enemy.jammed ?? 0) + 2;
       }
-      addLog(state, `[ツール:${def.name}] 敵全体に脆弱(2T)＋ジャミング(2T)`, 'good', 'player');
+      addLog(state, `あなた → 敵全体：脆弱・ジャミング各2ターン［${def.name}］`, 'good', 'player', 'status');
       break;
   }
   return { state, accepted: true };
