@@ -640,3 +640,154 @@
     gap: 12px;
   }
 }
+
+/* ---- カード基地ボタン・プレイヤー名(右上) ---- */
+.ms-hub-btn {
+  padding: 7px 12px;
+  border: 1.5px solid #00ff64;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #065f46 0%, #064e3b 100%);
+  color: #ecfdf5;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.ms-hub-btn:hover {
+  box-shadow: 0 0 12px rgba(0, 255, 100, 0.4);
+}
+
+.ms-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(126, 240, 168, 0.45);
+  border-radius: 4px;
+  background: rgba(2, 16, 9, 0.8);
+  color: #c8f7da;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+.ms-player__name {
+  font-weight: 700;
+}
+
+.ms-player__status {
+  color: #7ef0a8;
+  font-size: 11px;
+}
+
+.ms-player--offline {
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
+.ms-player--offline .ms-player__status {
+  color: #fbbf24;
+}
+
+.ms-player--register {
+  cursor: pointer;
+  border-style: dashed;
+}
+
+.ms-player--register:hover {
+  border-color: #00ff64;
+  color: #00ff64;
+}
+
+/* ---- プレイヤー登録の画面 ---- */
+.ms-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(1, 6, 3, 0.78);
+  z-index: 50;
+}
+
+.ms-modal__box {
+  width: 460px;
+  padding: 24px 28px;
+  border: 1.5px solid #00ff64;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #04170d, #020a06);
+  color: #d8efe2;
+  font-family: ui-monospace, Consolas, monospace;
+  letter-spacing: normal;
+  text-align: left;
+}
+
+.ms-modal__title {
+  margin: 0 0 10px;
+  color: #00ff64;
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+
+.ms-modal__text {
+  margin: 0 0 14px;
+  color: #a7d8bb;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ms-modal__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #7ef0a8;
+}
+
+.ms-modal__input {
+  padding: 8px 10px;
+  border: 1px solid rgba(126, 240, 168, 0.5);
+  border-radius: 4px;
+  background: #01100a;
+  color: #ecfdf5;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.ms-modal__error {
+  margin: 10px 0 0;
+  color: #fb7185;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ms-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.ms-modal__btn {
+  padding: 8px 16px;
+  border: 1.5px solid #00ff64;
+  border-radius: 4px;
+  background: #065f46;
+  color: #ecfdf5;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ms-modal__btn--ghost {
+  border-color: rgba(126, 240, 168, 0.4);
+  background: transparent;
+  color: #a7d8bb;
+}
+
+.ms-modal__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
