@@ -1,0 +1,193 @@
+/* 遊び方の説明画面。1280×720 の画面で見たときの px で書いている(vh/vw は使わない) */
+.htp-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 10, 0.82);
+  z-index: 60;
+}
+
+.htp-box {
+  display: flex;
+  flex-direction: column;
+  width: 900px;
+  height: 620px;
+  border: 1.5px solid #38bdf8;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #071723, #03090f);
+  box-shadow: 0 0 40px rgba(56, 189, 248, 0.2);
+  color: #e2f5ee;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.htp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 8px;
+}
+
+.htp-tag {
+  color: #67e8f9;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+
+.htp-close {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: transparent;
+  color: #cbd5e1;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.htp-close:hover {
+  border-color: #67e8f9;
+  color: #67e8f9;
+}
+
+.htp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 20px 10px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.htp-tab {
+  padding: 5px 10px;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #94a3b8;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.htp-tab:hover {
+  color: #e2f5ee;
+}
+
+.htp-tab--current {
+  border-color: #38bdf8;
+  background: rgba(14, 116, 144, 0.35);
+  color: #e0f2fe;
+  font-weight: 700;
+}
+
+.htp-body {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 24px 6px;
+  overflow-y: auto;
+}
+
+.htp-title {
+  margin: 0 0 6px;
+  color: #f8fafc;
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+
+.htp-lead {
+  margin: 0 0 14px;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.htp-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.htp-item {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(51, 65, 85, 0.7);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.htp-term {
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.htp-text {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.htp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 14px;
+  border-top: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.htp-page {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.htp-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.htp-btn {
+  padding: 8px 18px;
+  border: 1.5px solid #38bdf8;
+  border-radius: 6px;
+  background: #0e7490;
+  color: #ecfeff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.htp-btn--ghost {
+  border-color: #334155;
+  background: transparent;
+  color: #cbd5e1;
+}
+
+.htp-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 用語が多いページは2列にして、1画面に収める */
+.htp-items--compact {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.htp-items--compact .htp-item {
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 6px 10px;
+}
+
+.htp-items--compact .htp-text {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
