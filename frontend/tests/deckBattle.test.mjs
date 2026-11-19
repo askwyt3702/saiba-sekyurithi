@@ -419,9 +419,9 @@ test('イベントの事前調査で除外される選択肢は必ず不正解�
   assert.throws(() => run.applyQuizXpReward(r, 'c3'));
 });
 
-test('6マス目のボス(ARGUS)に勝つとラン勝利になる', () => {
+test('最後のマスのボス(ARGUS)に勝つとラン勝利になる', () => {
   const r = run.createRun({ fastGrowth: false });
-  r.nodeIndex = 5;
+  r.nodeIndex = r.nodes.length - 1;
   const b = run.createBattleForCurrentNode(r, 11);
   b.status = 'won';
   const res = run.applyBattleResult(r, b, 12);
@@ -456,6 +456,41 @@ test('解析コンボ:補助カード後に攻撃カードを使うと1ターン
   assert.equal(s.player.energy, 3);
 });
 
+test('適応型フィルターは購入後の戦闘で、解析コンボに1ターン1回だけFWを追加する', () => {
+  const base = { ...run.createRun(), reconCoins: 3 };
+  const beforePurchase = run.createBattleForCurrentNode(base, 1);
+  const atShop = { ...base, nodeIndex: base.nodes.findIndex((node) => node.kind === 'shop') };
+  const purchased = run.spendCoinShop(atShop, { type: 'relic', relicId: 'adaptive_filter' });
+  let s = run.createBattleForCurrentNode(run.advanceToNextNode(purchased), 1);
+  assert.equal(beforePurchase.relics.includes('adaptive_filter'), false);
+  assert.equal(purchased.reconCoins, 0);
+  const utility = purchased.deck.find((card) => card.defId === 'port_scan').uid;
+  const attacks = purchased.deck.filter((card) => card.defId === 'ssh_brute').map((card) => card.uid);
+  s.hand = [utility, ...attacks.slice(0, 2)];
+  s.drawPile = s.drawPile.filter((id) => !s.hand.includes(id));
+  s = play(s, utility);
+  assert.equal(s.player.block, 0);
+  s = play(s, attacks[0], s.enemies[0].uid);
+  assert.equal(s.player.energy, 4);
+  assert.equal(s.player.block, 3);
+  s = play(s, attacks[1], s.enemies[0].uid);
+  assert.equal(s.player.block, 3);
+});
+
+test('証跡ラボのクイズ報酬はプレビューと一致し、通常成長でEXP2のカードが進化する', () => {
+  const r = run.grantRelic(run.createRun(), 'forensics_lab');
+  const card = r.deck[0];
+  card.level = 2;
+  card.xp = 2;
+  const preview = run.previewQuizXpReward(r, card.uid);
+  const result = run.applyQuizXpReward(r, card.uid);
+  assert.equal(preview.xpDelta, 3);
+  assert.equal(preview.willEvolve, true);
+  assert.equal(result.gain.xpAdded, preview.xpDelta);
+  assert.ok(result.run.pendingEvolutions.includes(card.uid));
+  assert.equal(run.getQuizXpReward({ ...r, fastGrowth: true }), 5);
+});
+
 test('パッシブ装備(暗号化VPN・ゼロトラスト鍵・パケットキャッシュ・自動スクレイパー)が戦闘に反映される', () => {
   const s = battle.createBattle({
     deck: [
@@ -479,7 +514,7 @@ test('パッシブ装備(暗号化VPN・ゼロトラスト鍵・パケットキ�
 
 test('エリートルート(ゼロトラストゲート)はEXP2倍＆レアカード確定報酬になる', () => {
   let r = run.createRun({ fastGrowth: false });
-  r.nodeIndex = 4;
+  r.nodeIndex = r.nodes.findIndex((node) => node.kind === 'battle' && node.eliteEnemyIds);
   r.currentBattleElite = true;
   const b = run.createBattleForCurrentNode(r, 5, true);
   assert.equal(b.enemies[0].defId, 'zero_trust_gate');
@@ -496,20 +531,21 @@ test('エリートルート(ゼロトラストゲート)はEXP2倍＆レアカ�
 
 test('解析コインは敵撃破時に約20%・エリート撃破で確定ドロップし、事前調査で消費できる', () => {
   const baseRun = run.createRun({ fastGrowth: false });
-  assert.equal(baseRun.reconCoins, 0);
-  assert.throws(() => run.spendReconCoin(baseRun));
+  assert.equal(baseRun.reconCoins, 2);
+  assert.throws(() => run.spendReconCoin({ ...baseRun, reconCoins: 0 }));
 
   // エリート撃破は確定+1
-  const eliteRun = { ...baseRun, nodeIndex: 4, currentBattleElite: true };
+  const eliteIndex = baseRun.nodes.findIndex((node) => node.kind === 'battle' && node.eliteEnemyIds);
+  const eliteRun = { ...baseRun, nodeIndex: eliteIndex, currentBattleElite: true };
   const eliteBattle = run.createBattleForCurrentNode(eliteRun, 1, true);
   eliteBattle.status = 'won';
   eliteBattle.enemies.forEach((e) => { e.hp = 0; });
   const eliteRes = run.applyBattleResult(eliteRun, eliteBattle, 5);
   assert.equal(eliteRes.coinsDropped, 1);
-  assert.equal(eliteRes.run.reconCoins, 1);
+  assert.equal(eliteRes.run.reconCoins, 3);
 
   const afterSpend = run.spendReconCoin(eliteRes.run);
-  assert.equal(afterSpend.reconCoins, 0);
+  assert.equal(afterSpend.reconCoins, 2);
 
   // 通常戦闘100回シミュレーションでドロップ率が20%前後になることを確認
   let drops = 0;
@@ -589,7 +625,8 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
 
   // 3. コイン闇市ショップ: 回復(1)・ツール補充(1)・削除(2)・レリック(3)
   let r = run.createRun({ fastGrowth: false });
-  r = { ...r, hp: 40, reconCoins: 7, tools: [] };
+  const shopIndex = r.nodes.findIndex((node) => node.kind === 'shop');
+  r = { ...r, nodeIndex: shopIndex, hp: 40, reconCoins: 7, tools: [] };
   r = run.spendCoinShop(r, { type: 'heal' });
   assert.equal(r.hp, 52);
   assert.equal(r.reconCoins, 6);
@@ -602,6 +639,25 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
   r = run.spendCoinShop(r, { type: 'relic', relicId: 'encrypted_vpn' });
   assert.ok(r.relics.includes('encrypted_vpn'));
   assert.equal(r.reconCoins, 0);
+});
+
+test('闇市は診断クイズの次にあり、開始コインで購入して次の戦闘へ進める', () => {
+  const start = run.createRun();
+  const event = run.advanceToNextNode(start);
+  const shop = run.advanceToNextNode(event);
+  assert.equal(start.reconCoins, 2);
+  assert.equal(event.nodes[event.nodeIndex].eventId, 'vuln_check');
+  assert.equal(shop.nodes[shop.nodeIndex].kind, 'shop');
+  assert.throws(() => run.spendCoinShop(start, { type: 'heal' }), /闇市マス/);
+  assert.throws(() => run.createBattleForCurrentNode(shop, 1), /not a battle/);
+  const purchase = run.spendCoinShop(shop, { type: 'remove', cardUid: 'c1' });
+  assert.equal(purchase.reconCoins, 0);
+  assert.throws(() => run.spendCoinShop(purchase, { type: 'heal' }), /足りません/);
+  const next = run.advanceToNextNode(purchase);
+  const nextBattle = run.createBattleForCurrentNode(next, 1);
+  assert.equal(nextBattle.enemies[0].defId, 'ids_sensor');
+  assert.equal(nextBattle.cards.c1, undefined);
+  assert.throws(() => run.spendCoinShop(next, { type: 'heal' }), /闇市マス/);
 });
 
 test('脆弱は狙った敵だけに付き、その敵を倒したときはほかの敵に移らない', () => {

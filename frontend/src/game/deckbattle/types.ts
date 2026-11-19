@@ -147,7 +147,13 @@ export interface EnemyState {
   jammed?: number;
 }
 
-export type RelicId = 'encrypted_vpn' | 'auto_scraper' | 'packet_cache' | 'zero_trust_key';
+export type RelicId =
+  | 'encrypted_vpn'
+  | 'auto_scraper'
+  | 'packet_cache'
+  | 'zero_trust_key'
+  | 'adaptive_filter'
+  | 'forensics_lab';
 
 export interface RelicDefinition {
   id: RelicId;
@@ -251,6 +257,7 @@ export type RunEventId = 'vuln_check' | 'patch';
 export type RunNode =
   | { kind: 'battle'; enemyIds: string[]; eliteEnemyIds?: string[] }
   | { kind: 'event'; eventId: RunEventId }
+  | { kind: 'shop' }
   | { kind: 'boss'; enemyIds: string[] };
 
 /** 戦闘後やイベントでカードが得た経験値の記録(画面の演出用) */
