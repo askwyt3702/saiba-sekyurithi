@@ -20,8 +20,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 48px;
-  padding: 0 16px;
+  min-height: 72px;
+  padding: 4px 16px;
   background: rgba(4, 15, 22, 0.94);
   border-bottom: 1px solid rgba(34, 211, 238, 0.28);
   flex-shrink: 0;
@@ -43,6 +43,12 @@
   background: rgba(244, 63, 94, 0.16);
   color: #fda4af;
   font-size: 10px;
+}
+
+.db-brand__progress {
+  color: #9be7ff;
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 .db-topbar__right {
@@ -1036,7 +1042,8 @@
 
 /* ---------- M2/M3: ラン進行・成長・進化・報酬・イベント ---------- */
 .db-stepper {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(8, auto);
   flex: 0 0 auto;
   gap: 4px;
   align-items: center;

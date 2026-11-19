@@ -9,6 +9,13 @@ export const WEAKNESS_LABEL: Record<EnemyWeakness, string> = {
   all: '全体',
 };
 
+export function describeEnemyGroup(enemyIds: string[]): string {
+  const names = enemyIds.map((id) => ENEMY_DEFINITIONS[id]?.name ?? id);
+  return names.length > 1 && new Set(names).size === 1
+    ? `${names[0]}×${names.length}`
+    : names.join('・');
+}
+
 export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
   scanner_bot: {
     id: 'scanner_bot',

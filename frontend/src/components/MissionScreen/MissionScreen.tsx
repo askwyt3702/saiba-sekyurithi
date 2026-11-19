@@ -101,7 +101,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
 
             <h2 className="ms-card-title">デッキ構築ローグライト</h2>
             <p className="ms-card-desc">
-              全40種類のカードを育て、Lv.3で分岐進化させながらARGUS撃破を目指す。解析コイン{STARTING_RECON_COINS}枚を持って出発し、診断クイズのあとに闇市へ立ち寄れる。
+              全40種類のカードを育て、Lv.3で分岐進化させながらARGUS撃破を目指す。解析コイン{STARTING_RECON_COINS}枚を持って出発し、中盤の闇市と道中の休憩で戦いに備える。
             </p>
 
             <div className="ms-card-meta">

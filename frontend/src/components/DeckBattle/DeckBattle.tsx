@@ -14,7 +14,7 @@ import {
   playCard,
   activateBattleTool,
 } from '../../game/deckbattle/battle';
-import { ENEMY_DEFINITIONS, WEAKNESS_LABEL } from '../../game/deckbattle/enemies';
+import { describeEnemyGroup, ENEMY_DEFINITIONS, WEAKNESS_LABEL } from '../../game/deckbattle/enemies';
 import {
   type DeckProfile,
   consumeBonusStartCoins,
@@ -218,9 +218,7 @@ function describeNodeShort(node: RunNode, index: number, elite: boolean): string
   if (node.kind === 'boss') return `${index + 1}. ボス:ARGUS`;
   if (node.kind === 'event') return `${index + 1}. ${node.eventId === 'vuln_check' ? '診断クイズ' : 'パッチ適用'}`;
   const enemyIds = elite && node.eliteEnemyIds?.length ? node.eliteEnemyIds : node.enemyIds;
-  const first = ENEMY_DEFINITIONS[enemyIds[0]];
-  const suffix = enemyIds.length > 1 ? `×${enemyIds.length}` : '';
-  return `${index + 1}. ${first?.name ?? '敵'}${suffix}`;
+  return `${index + 1}. ${describeEnemyGroup(enemyIds)}`;
 }
 
 function describeIntent(move: EnemyMove): { icon: string; text: string; title: string; tone: 'attack' | 'defend' | 'debuff' } {
@@ -1123,6 +1121,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <div className="db-brand">
           <span className="db-brand__tag">SECTOR 06</span>
           <span>DECK BREACH</span>
+          <span className="db-brand__progress" aria-label={`全${run.nodes.length}マスのうち第${run.nodeIndex + 1}マス`}>
+            {run.nodeIndex + 1}/{run.nodes.length}
+          </span>
         </div>
 
         <ol className="db-stepper" aria-label="ラン進行">

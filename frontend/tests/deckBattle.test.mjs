@@ -480,7 +480,8 @@ test('適応型フィルターは購入後の戦闘で、解析コンボに1タ�
   const beforePurchase = run.createBattleForCurrentNode(base, 1);
   const atShop = { ...base, nodeIndex: base.nodes.findIndex((node) => node.kind === 'shop') };
   const purchased = run.spendCoinShop(atShop, { type: 'relic', relicId: 'adaptive_filter' });
-  let s = run.createBattleForCurrentNode(run.advanceToNextNode(purchased), 1);
+  const nextBattleIndex = purchased.nodes.findIndex((node, index) => index > purchased.nodeIndex && node.kind === 'battle');
+  let s = run.createBattleForCurrentNode({ ...purchased, nodeIndex: nextBattleIndex }, 1);
   assert.equal(beforePurchase.relics.includes('adaptive_filter'), false);
   assert.equal(purchased.reconCoins, 0);
   const utility = purchased.deck.find((card) => card.defId === 'port_scan').uid;
@@ -660,12 +661,20 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
   assert.equal(r.reconCoins, 0);
 });
 
-test('闇市は診断クイズの次にあり、開始コインで購入して次の戦闘へ進める', () => {
+test('16マスは戦闘7・イベント4・闇市1・休憩3と最後のボスで構成される', () => {
+  const route = run.createRun().nodes;
+  assert.deepEqual(Array.from(route, (node) => node.kind), [
+    'battle', 'event', 'battle', 'rest', 'battle', 'mystery', 'battle', 'shop',
+    'event', 'rest', 'battle', 'mystery', 'battle', 'battle', 'rest', 'boss',
+  ]);
+  assert.ok(route[6].eliteEnemyIds?.length);
+  assert.equal(route.at(-1).enemyIds[0], 'argus');
+});
+
+test('8マス目の闇市で開始コインを使え、購入結果を持って進める', () => {
   const start = run.createRun();
-  const event = run.advanceToNextNode(start);
-  const shop = run.advanceToNextNode(event);
+  const shop = { ...start, nodeIndex: 7 };
   assert.equal(start.reconCoins, 2);
-  assert.equal(event.nodes[event.nodeIndex].eventId, 'vuln_check');
   assert.equal(shop.nodes[shop.nodeIndex].kind, 'shop');
   assert.throws(() => run.spendCoinShop(start, { type: 'heal' }), /闇市マス/);
   assert.throws(() => run.createBattleForCurrentNode(shop, 1), /not a battle/);
@@ -673,8 +682,10 @@ test('闇市は診断クイズの次にあり、開始コインで購入して�
   assert.equal(purchase.reconCoins, 0);
   assert.throws(() => run.spendCoinShop(purchase, { type: 'heal' }), /足りません/);
   const next = run.advanceToNextNode(purchase);
-  const nextBattle = run.createBattleForCurrentNode(next, 1);
-  assert.equal(nextBattle.enemies[0].defId, 'ids_sensor');
+  assert.equal(next.nodes[next.nodeIndex].eventId, 'patch');
+  const battleIndex = next.nodes.findIndex((node, index) => index > next.nodeIndex && node.kind === 'battle');
+  const nextBattle = run.createBattleForCurrentNode({ ...next, nodeIndex: battleIndex }, 1);
+  assert.equal(nextBattle.enemies[0].defId, 'firewall_ai');
   assert.equal(nextBattle.cards.c1, undefined);
   assert.throws(() => run.spendCoinShop(next, { type: 'heal' }), /闇市マス/);
 });

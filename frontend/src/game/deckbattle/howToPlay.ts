@@ -1,7 +1,7 @@
 // 遊び方の説明(画面は components/DeckBattle/HowToPlayModal.tsx)。
 // 数値はルールの定数から作るので、調整しても説明がずれない。
 import { DRAW_PER_TURN, ENERGY_PER_TURN, MAX_HAND_SIZE, BURN_TURNS } from './battle';
-import { ENEMY_DEFINITIONS } from './enemies';
+import { describeEnemyGroup } from './enemies';
 import type { StorageLike } from './profile';
 import {
   BATTLE_WIN_HEAL_RATIO,
@@ -40,8 +40,7 @@ function describeNode(node: RunNode): string {
   if (node.kind === 'mystery') return 'ハプニング';
   if (node.kind === 'rest') return '休憩・保守';
   if (node.kind === 'shop') return '闇市';
-  const names = node.enemyIds.map((id) => ENEMY_DEFINITIONS[id]?.name ?? id);
-  const label = names.length > 1 && new Set(names).size === 1 ? `${names[0]}×${names.length}` : names.join('・');
+  const label = describeEnemyGroup(node.enemyIds);
   if (node.kind === 'boss') return `ボス:${label}`;
   return node.eliteEnemyIds ? `戦闘:${label}(強敵ルートも選べる)` : `戦闘:${label}`;
 }
@@ -113,7 +112,7 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
         { term: '解析コイン 🪙', text: `${STARTING_RECON_COINS}枚で始まり、倒した敵から${Math.round(RECON_COIN_DROP_RATE * 100)}%で出る。クイズの「事前調査」(はずれの選択肢を1つ消す)と闇市で使う。` },
         { term: '闇市', text: 'コインで回復・使い捨てツール・カードの削除・常駐ツールと交換できるマス。' },
         { term: 'ハプニング', text: 'ランダムな出来事。HPを払って大きな見返りを狙うか、安全な方を選ぶ。' },
-        { term: '休憩・保守', text: `ボスの手前のマス。HPを最大の${Math.round(REST_HEAL_RATIO * 100)}%回復する・カードを1つ上のレベルにする・カードを1枚消す、から1つ選ぶ。` },
+        { term: '休憩・保守', text: `道中とボスの直前にある整備マス。HPを最大の${Math.round(REST_HEAL_RATIO * 100)}%回復する・カードを1つ上のレベルにする・カードを1枚消す、から1つ選ぶ。` },
         { term: '使い捨てツール', text: `戦闘中に帯域0で使える道具(最大${MAX_TOOLS}個)。最初に「緊急パッチ」(HP回復)を1個持っている。` },
         { term: '常駐ツール', text: '手に入れると、その後の戦闘でずっと効く(毎ターンFW+3など)。' },
       ],

@@ -38,15 +38,22 @@ export const RECON_COIN_DROP_RATE = 0.2;
 export const STARTING_RECON_COINS = 2;
 export const REST_HEAL_RATIO = 0.35;
 
-/** 1回のランのマスの並び(闇市・ハプニング・エリート分岐・ボス前休憩を含む9マス構成) */
+/** 序盤でカードを育て、中盤の闇市と3回の休憩を経てボスに向かう16マス。 */
 export const DEFAULT_RUN_NODES: RunNode[] = [
   { kind: 'battle', enemyIds: ['scanner_bot'] },
   { kind: 'event', eventId: 'vuln_check' },
-  { kind: 'shop' },
   { kind: 'battle', enemyIds: ['ids_sensor', 'ids_sensor'] },
+  { kind: 'rest' },
+  { kind: 'battle', enemyIds: ['scanner_bot', 'ids_sensor'] },
   { kind: 'mystery' },
-  { kind: 'event', eventId: 'patch' },
   { kind: 'battle', enemyIds: ['firewall_ai'], eliteEnemyIds: ['zero_trust_gate'] },
+  { kind: 'shop' },
+  { kind: 'event', eventId: 'patch' },
+  { kind: 'rest' },
+  { kind: 'battle', enemyIds: ['firewall_ai', 'scanner_bot'] },
+  { kind: 'mystery' },
+  { kind: 'battle', enemyIds: ['firewall_ai', 'ids_sensor'] },
+  { kind: 'battle', enemyIds: ['zero_trust_gate', 'scanner_bot'] },
   { kind: 'rest' },
   { kind: 'boss', enemyIds: ['argus'] },
 ];
