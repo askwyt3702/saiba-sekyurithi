@@ -32,7 +32,25 @@ export type CardEffect =
   /** ジャミング:敵が与える攻撃ダメージ-30%(amount ターン) */
   | { type: 'jam'; amount: number }
   /** 常駐効果:戦闘中ずっと毎ターン開始時に自動で発動 */
-  | { type: 'persistent'; stat: 'turnBlock' | 'turnDraw' | 'turnEnergy' | 'turnAttackBonus'; amount: number };
+  | { type: 'persistent'; stat: 'turnBlock' | 'turnDraw' | 'turnEnergy' | 'turnAttackBonus'; amount: number }
+  /** 現在の自分のFW(ブロック)の値×multiplierのダメージを与える */
+  | { type: 'shieldBash'; multiplier?: number; target: 'single' | 'all' }
+  /** 敵のFWをすべて破壊する(steal:trueなら奪って自分のFWに加算) */
+  | { type: 'stripBlock'; steal?: boolean; target: 'single' | 'all' }
+  /** 敵が状態異常(過熱・脆弱・ジャミング)なら追加ダメージ */
+  | { type: 'bonusIfDebuffed'; amount: number; target: 'single' | 'all' }
+  /** 敵の過熱ダメージを今すぐ即時発動させる */
+  | { type: 'triggerBurn'; multiplier?: number; target: 'single' | 'all' }
+  /** 自分のHPを削る(最低1は残る) */
+  | { type: 'selfDamage'; amount: number }
+  /** 現在の手札枚数×perCardのダメージを与える */
+  | { type: 'handScaleDamage'; perCard: number; target: 'single' | 'all' }
+  /** 手札・捨て札・山札のノイズをすべて消去し、消した枚数に応じたボーナスを得る */
+  | { type: 'purgeNoise'; blockPerNoise?: number; drawPerNoise?: number; damagePerNoise?: number }
+  /** 敵の攻撃力上昇(attackBonus)を0にリセットする */
+  | { type: 'clearEnemyBuff'; target: 'single' | 'all' }
+  /** 現在の自分のFWを2倍にする */
+  | { type: 'doubleBlock' };
 
 /** あるレベル(または進化先)でのカードの性能 */
 export interface CardStats {

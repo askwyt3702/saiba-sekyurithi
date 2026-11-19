@@ -69,6 +69,7 @@ import type {
   XpGainEntry,
 } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
+import { CardArtwork } from './CardArtwork';
 import './DeckBattle.css';
 
 const ENEMY_STEP_MS = 900;
@@ -910,7 +911,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     >
                       <span className={`db-card__cost ${cost < stats.cost ? 'db-card__cost--discounted' : ''}`}>{unplayable ? '×' : cost}</span>
                       <span className="db-card__band">{unplayable ? 'NOISE' : KIND_LABEL[def.kind]}</span>
-                      <span className="db-card__art">{stats.icon}</span>
+                      <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
                       <span className="db-card__name">{stats.name}</span>
                       <span className="db-card__desc">{stats.text}</span>
                       {!unplayable && <span className="db-card__level">{xpProg.label}</span>}
@@ -1085,6 +1086,7 @@ function EvolutionOverlay({
                 <span className="db-evo-card__icon">{branch.icon ?? def.icon}</span>
                 <span className="db-evo-card__cost">{branch.cost} EN</span>
               </div>
+              <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={3} branchId={branch.id} />
               <div className="db-evo-card__name">{branch.name}</div>
               <div className="db-evo-card__text">{branch.text}</div>
               <div className="db-evo-card__cta">この進化にする</div>
@@ -1129,7 +1131,7 @@ function RewardOverlay({
                   >
                     <span className="db-card__cost">{lv1.cost}</span>
                     <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
-                    <span className="db-card__art">{def.icon}</span>
+                    <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={1} />
                     <span className="db-card__name">{def.name}</span>
                     <span className="db-card__desc">{lv1.text}</span>
                     <span className="db-card__lore">{def.lore}</span>
@@ -1441,7 +1443,7 @@ function EventScreen({
                   >
                     <span className="db-card__cost">{def.levels[1].cost}</span>
                     <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
-                    <span className="db-card__art">{def.icon}</span>
+                    <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={1} />
                     <span className="db-card__name">{def.name}</span>
                     <span className="db-card__desc">{def.levels[1].text}</span>
                   </button>
@@ -1506,7 +1508,7 @@ function EventScreen({
                   >
                     <span className="db-card__cost">{def.levels[1].cost}</span>
                     <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
-                    <span className="db-card__art">{def.icon}</span>
+                    <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={1} />
                     <span className="db-card__name">{def.name}</span>
                     <span className="db-card__desc">{def.levels[1].text}</span>
                   </button>

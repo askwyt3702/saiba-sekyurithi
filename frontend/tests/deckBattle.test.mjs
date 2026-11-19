@@ -487,7 +487,7 @@ test('エリートルート(ゼロトラストゲート)はEXP2倍＆レアカ�
   b.usesThisBattle = { c1: 1 }; // 通常2EXP -> エリートで4EXP
   const res = run.applyBattleResult(r, b, 15);
   assert.equal(res.run.deck[0].xp, 4);
-  assert.ok(res.rewardChoices.some((id) => id === 'zero_day' || id === 'backdoor'));
+  assert.ok(res.rewardChoices.some((id) => battle.getCardDefinition(id).rarity === 'rare'));
 
   const compressed = run.removeCardFromDeck(res.run, 'c2');
   assert.equal(compressed.deck.length, 9);
@@ -620,4 +620,58 @@ test('対象のないカードのジャミングは敵全体に付く', () => {
   s = play(s, 'c1');
   assert.equal(s.enemies[0].jammed, 1);
   assert.equal(s.enemies[1].jammed, 1);
+});
+
+
+test('40種類のカード(コモン20・アンコモン12・レア8)と差別化された9種の新効果が正しく動く', () => {
+  const cardsMod = load(new URL('../src/game/deckbattle/cards.ts', import.meta.url));
+  assert.equal(cardsMod.REWARD_CARD_IDS.length, 40);
+  const commons = cardsMod.REWARD_CARD_IDS.filter((id) => cardsMod.CARD_DEFINITIONS[id].rarity === 'common');
+  const uncommons = cardsMod.REWARD_CARD_IDS.filter((id) => cardsMod.CARD_DEFINITIONS[id].rarity === 'uncommon');
+  const rares = cardsMod.REWARD_CARD_IDS.filter((id) => cardsMod.CARD_DEFINITIONS[id].rarity === 'rare');
+  assert.equal(commons.length, 20);
+  assert.equal(uncommons.length, 12);
+  assert.equal(rares.length, 8);
+  for (const id of rares) {
+    assert.equal(cardsMod.CARD_DEFINITIONS[id].branches.length, 3, `${id} should have 3 branches`);
+  }
+
+  // 1. doubleBlock + shieldBash (fortress_double + shield_slam)
+  let s = setup([{ defId: 'fortress_double' }, { defId: 'shield_slam' }], ['scanner_bot'], ['c1', 'c2']);
+  s.player.block = 4;
+  s = play(s, 'c1'); // (4+3)*2 = 14
+  assert.equal(s.player.block, 14);
+  s = play(s, 'c2'); // +3 -> 17 FW, 17 damage
+  assert.equal(s.player.block, 17);
+  assert.equal(s.enemies[0].hp, hp('scanner_bot') - 17);
+
+  // 2. stripBlock(steal) + clearEnemyBuff (csrf_forge + privilege_reset)
+  let s2 = setup([{ defId: 'csrf_forge' }, { defId: 'privilege_reset' }], ['firewall_ai'], ['c1', 'c2']);
+  s2.enemies[0].block = 10;
+  s2.enemies[0].attackBonus = 6;
+  s2 = play(s2, 'c1');
+  assert.equal(s2.enemies[0].block, 0);
+  assert.equal(s2.player.block, 10);
+  s2 = play(s2, 'c2');
+  assert.equal(s2.enemies[0].attackBonus, 0);
+
+  // 3. triggerBurn + bonusIfDebuffed (burn_detonate + cmd_inject)
+  let s3 = setup([{ defId: 'burn_detonate' }, { defId: 'cmd_inject' }], ['argus'], ['c1', 'c2']);
+  s3.enemies[0].burn = { amount: 5, turns: 3 };
+  s3 = play(s3, 'c1'); // 4 dmg + burn(5+2=7) + triggerBurn(7) = 11 dmg
+  assert.equal(s3.enemies[0].hp, hp('argus') - 11);
+  s3 = play(s3, 'c2'); // 4 + bonusIfDebuffed(6) = 10 dmg
+  assert.equal(s3.enemies[0].hp, hp('argus') - 21);
+
+  // 4. selfDamage + handScaleDamage + purgeNoise (overvolt + packet_burst + sandbox_guard)
+  let s4 = setup(
+    [{ defId: 'overvolt' }, { defId: 'packet_burst' }, { defId: 'sandbox_guard' }, { defId: 'noise' }],
+    ['argus'],
+    ['c1', 'c2', 'c3', 'c4'],
+  );
+  s4 = play(s4, 'c1'); // HP-3, energy+2
+  assert.equal(s4.player.hp, 62);
+  s4 = play(s4, 'c3'); // FW5 + purge 1 noise (+3 FW) = 8 FW
+  assert.equal(s4.player.block, 8);
+  assert.equal(s4.hand.includes('c4'), false);
 });

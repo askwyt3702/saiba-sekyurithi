@@ -14,6 +14,7 @@ import {
   saveDeckProfile,
 } from '../../game/deckbattle/profile';
 import { playSound } from '../../game/sound/soundEffects';
+import { CardArtwork } from './CardArtwork';
 import './DeckBattle.css';
 
 type HubTab = 'codex' | 'weakness' | 'stats' | 'achievements';
@@ -107,6 +108,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                     </div>
                     {seen ? (
                       <>
+                        <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={2} />
                         <div className="db-muted" style={{ fontSize: 11 }}>
                           Lv.1: {def.levels[1].cost}EN / {def.levels[1].text}
                         </div>

@@ -43,9 +43,20 @@ export function getCardStats(card: CardInstance): CardStats & { name: string; ic
   return { ...def.levels[card.level], name: def.name, icon: def.icon };
 }
 
-/** 対象の敵を選ぶ必要があるカードか(1体を狙うダメージ・過熱を含む) */
+/** 対象の敵を選ぶ必要があるカードか(1体を狙うダメージ・過熱等を含む) */
 export function cardNeedsTarget(stats: Pick<CardStats, 'effects'>): boolean {
-  return stats.effects.some((e) => (e.type === 'damage' && e.target === 'single') || e.type === 'burn');
+  return stats.effects.some(
+    (e) =>
+      ((e.type === 'damage' ||
+        e.type === 'shieldBash' ||
+        e.type === 'stripBlock' ||
+        e.type === 'bonusIfDebuffed' ||
+        e.type === 'triggerBurn' ||
+        e.type === 'handScaleDamage' ||
+        e.type === 'clearEnemyBuff') &&
+        e.target === 'single') ||
+      e.type === 'burn',
+  );
 }
 
 /** 「次のカード−1EN」を考えた、今このカードを使うのに必要な帯域 */
@@ -307,6 +318,90 @@ function applyEffect(
       else if (effect.stat === 'turnDraw') state.player.turnDrawBonus += effect.amount;
       else if (effect.stat === 'turnEnergy') state.player.turnEnergyBonus += effect.amount;
       else if (effect.stat === 'turnAttackBonus') state.player.turnAttackBonus += effect.amount;
+      break;
+    case 'shieldBash': {
+      const mult = effect.multiplier ?? 1;
+      const dmg = Math.floor(state.player.block * mult) + attackBonus;
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      for (const enemy of targets) {
+        if (dmg > 0) damageEnemy(enemy, dmg);
+      }
+      break;
+    }
+    case 'stripBlock': {
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      for (const enemy of targets) {
+        const stolen = enemy.block;
+        enemy.block = 0;
+        if (effect.steal && stolen > 0) {
+          state.player.block += stolen;
+        }
+      }
+      break;
+    }
+    case 'bonusIfDebuffed': {
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      for (const enemy of targets) {
+        const isDebuffed = Boolean(enemy.burn || (enemy.vulnerable && enemy.vulnerable > 0) || (enemy.jammed && enemy.jammed > 0));
+        if (isDebuffed) {
+          damageEnemy(enemy, effect.amount + attackBonus);
+        }
+      }
+      break;
+    }
+    case 'triggerBurn': {
+      const mult = effect.multiplier ?? 1;
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      for (const enemy of targets) {
+        if (enemy.burn && enemy.burn.amount > 0) {
+          damageEnemy(enemy, Math.floor(enemy.burn.amount * mult), true);
+        }
+      }
+      break;
+    }
+    case 'selfDamage':
+      state.player.hp = Math.max(1, state.player.hp - effect.amount);
+      break;
+    case 'handScaleDamage': {
+      const dmg = state.hand.length * effect.perCard + attackBonus;
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      for (const enemy of targets) {
+        if (dmg > 0) damageEnemy(enemy, dmg);
+      }
+      break;
+    }
+    case 'purgeNoise': {
+      const isNoise = (uid: string) => state.cards[uid]?.defId === 'noise';
+      const handNoises = state.hand.filter(isNoise);
+      const discardNoises = state.discard.filter(isNoise);
+      const drawNoises = state.drawPile.filter(isNoise);
+      const totalPurged = handNoises.length + discardNoises.length + drawNoises.length;
+      state.hand = state.hand.filter((id) => !isNoise(id));
+      state.discard = state.discard.filter((id) => !isNoise(id));
+      state.drawPile = state.drawPile.filter((id) => !isNoise(id));
+      for (const uid of [...handNoises, ...discardNoises, ...drawNoises]) {
+        delete state.cards[uid];
+      }
+      if (totalPurged > 0) {
+        if (effect.blockPerNoise) state.player.block += totalPurged * effect.blockPerNoise;
+        if (effect.damagePerNoise) {
+          for (const enemy of livingEnemies(state)) {
+            damageEnemy(enemy, totalPurged * effect.damagePerNoise, true);
+          }
+        }
+        if (effect.drawPerNoise) drawCards(state, totalPurged * effect.drawPerNoise);
+      }
+      break;
+    }
+    case 'clearEnemyBuff': {
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      for (const enemy of targets) {
+        enemy.attackBonus = 0;
+      }
+      break;
+    }
+    case 'doubleBlock':
+      state.player.block *= 2;
       break;
   }
 }
