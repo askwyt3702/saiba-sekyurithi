@@ -59,6 +59,11 @@
   font-size: 12px;
 }
 
+.db-topbar .db-brand,
+.db-topbar__right {
+  white-space: nowrap;
+}
+
 .db-encounter {
   display: flex;
   align-items: center;
@@ -769,9 +774,58 @@
 /* ---------- M2/M3: ラン進行・成長・進化・報酬・イベント ---------- */
 .db-stepper {
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  flex: 0 0 auto;
+  gap: 9px;
   align-items: center;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.db-route-node {
+  --route-color: #fb923c;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 34px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--route-color) 50%, #1e293b);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--route-color) 13%, #0f172a);
+}
+
+.db-route-node--event {
+  --route-color: #38bdf8;
+}
+
+.db-route-node--boss {
+  --route-color: #f472b6;
+}
+
+.db-route-node__icon {
+  font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.db-route-node[aria-current='step'] {
+  border-color: #67e8f9;
+  box-shadow: 0 0 0 1px #67e8f9, 0 0 10px rgba(34, 211, 238, 0.38);
+}
+
+.db-route-node__check {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #065f46;
+  color: #a7f3d0;
+  font: 700 10px/1 sans-serif;
 }
 
 .db-step {

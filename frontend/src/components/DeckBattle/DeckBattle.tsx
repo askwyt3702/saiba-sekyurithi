@@ -121,6 +121,12 @@ interface DeckBattleProps {
   onBackToMissions: () => void;
 }
 
+const RUN_NODE_ICONS: Record<RunNode['kind'], { icon: string; label: string }> = {
+  battle: { icon: '🤖', label: '戦闘' },
+  event: { icon: '📋', label: 'イベント' },
+  boss: { icon: '💀', label: 'ボス' },
+};
+
 function describeNodeShort(node: RunNode, index: number): string {
   if (node.kind === 'boss') return `${index + 1}. ボス:ARGUS`;
   if (node.kind === 'event') return `${index + 1}. ${node.eventId === 'vuln_check' ? '診断クイズ' : 'パッチ適用'}`;
@@ -248,7 +254,7 @@ function createRunWithProfileCoins(fastGrowth: boolean): RunState {
 
 /** 最初のランの作成用:開始コインを読むだけで、消費(保存)はしない */
 function createInitialRun(): RunState {
-  const fresh = createRun({ fastGrowth: true });
+  const fresh = createRun();
   const coins = loadDeckProfile().bonusStartCoins;
   return coins > 0 ? { ...fresh, reconCoins: fresh.reconCoins + coins } : fresh;
 }
@@ -667,20 +673,27 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           <span className="db-brand__proto">6マス試作ラン</span>
         </div>
 
-        <nav className="db-stepper" aria-label="ラン進行">
-          {run.nodes.map((node, idx) => (
-            <span
-              key={idx}
-              className={[
-                'db-step',
-                idx === run.nodeIndex ? 'db-step--current' : '',
-                idx < run.nodeIndex || (idx === run.nodeIndex && run.status === 'won') ? 'db-step--done' : '',
-              ].join(' ')}
-            >
-              {describeNodeShort(node, idx)}
-            </span>
-          ))}
-        </nav>
+        <ol className="db-stepper" aria-label="ラン進行">
+          {run.nodes.map((node, idx) => {
+            const { icon, label } = RUN_NODE_ICONS[node.kind];
+            const current = idx === run.nodeIndex && run.status !== 'won';
+            const done = idx < run.nodeIndex || (idx === run.nodeIndex && run.status === 'won');
+            const name = `${label}・${describeNodeShort(node, idx)}`;
+            return (
+              <li
+                key={idx}
+                className={`db-route-node db-route-node--${node.kind}`}
+                aria-current={current ? 'step' : undefined}
+                title={name}
+              >
+                <span className="db-route-node__icon" role="img" aria-label={done ? `${name}（通過済み）` : name}>
+                  {icon}
+                </span>
+                {done && <span className="db-route-node__check" aria-hidden="true">✓</span>}
+              </li>
+            );
+          })}
+        </ol>
 
         <div className="db-topbar__right">
           <button
