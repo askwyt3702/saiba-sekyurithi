@@ -99,12 +99,14 @@ const KIND_LABEL: Record<CardKind, string> = { attack: '攻撃', defense: '防�
 
 type FxTone = 'hit' | 'shield' | 'heal' | 'buff' | 'bad' | 'burn';
 type FxImpact = 'strike' | 'guard' | 'burn' | 'debuff' | 'buff' | 'heal';
+type FxPower = 'normal' | 'heavy' | 'crit';
 interface Fx {
   id: number;
   at: string;
   text: string;
   tone: FxTone;
   impact?: FxImpact;
+  power?: FxPower;
 }
 type FxSpec = Omit<Fx, 'id'>;
 
@@ -116,6 +118,23 @@ interface ActionBanner {
   title: string;
   detail?: string;
   isAoe?: boolean;
+  power?: FxPower;
+}
+
+const HEAVY_DAMAGE_THRESHOLD = 12;
+const CRIT_DAMAGE_THRESHOLD = 25;
+
+function damagePower(amount: number): FxPower {
+  if (amount >= CRIT_DAMAGE_THRESHOLD) return 'crit';
+  if (amount >= HEAVY_DAMAGE_THRESHOLD) return 'heavy';
+  return 'normal';
+}
+
+function formatDamageText(amount: number, prefix = ''): string {
+  const power = damagePower(amount);
+  if (power === 'crit') return `💥 ${prefix}-${amount}!!`;
+  if (power === 'heavy') return `⚡ ${prefix}-${amount}!`;
+  return `${prefix}-${amount}`;
 }
 
 interface Playback {
@@ -217,7 +236,13 @@ function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
     case 'attack':
       return [
         ev.damage > 0
-          ? { at: 'player', text: `-${ev.damage}`, tone: 'hit', impact: 'strike' }
+          ? {
+              at: 'player',
+              text: formatDamageText(ev.damage),
+              tone: 'hit',
+              impact: 'strike',
+              power: damagePower(ev.damage),
+            }
           : { at: 'player', text: '🛡 防いだ！', tone: 'shield', impact: 'guard' },
       ];
     case 'block':
@@ -229,9 +254,25 @@ function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
     case 'noise':
       return [{ at: 'player', text: `☣ ノイズ+${ev.count}`, tone: 'bad', impact: 'debuff' }];
     case 'retaliate':
-      return [{ at: ev.enemyUid, text: `🪤 反撃-${ev.damage}`, tone: 'hit', impact: 'strike' }];
+      return [
+        {
+          at: ev.enemyUid,
+          text: formatDamageText(ev.damage, '🪤 反撃'),
+          tone: 'hit',
+          impact: 'strike',
+          power: damagePower(ev.damage),
+        },
+      ];
     case 'burn':
-      return [{ at: ev.enemyUid, text: `🔥 過熱-${ev.damage}`, tone: 'burn', impact: 'burn' }];
+      return [
+        {
+          at: ev.enemyUid,
+          text: formatDamageText(ev.damage, '🔥 過熱'),
+          tone: 'burn',
+          impact: 'burn',
+          power: damagePower(ev.damage),
+        },
+      ];
   }
 }
 
@@ -247,6 +288,7 @@ function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<Acti
         icon,
         title: `${name} の攻撃`,
         detail: ev.damage > 0 ? `⚔ ${ev.damage} ダメージ！` : '🛡 FWで完全に防いだ！',
+        power: ev.damage > 0 ? damagePower(ev.damage) : 'normal',
       };
     case 'block':
       return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の防御`, detail: `🛡 FW +${ev.amount}` };
@@ -257,9 +299,23 @@ function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<Acti
     case 'noise':
       return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の妨害`, detail: `☣ ノイズ ×${ev.count} 混入` };
     case 'retaliate':
-      return { actor: 'player', kind: 'defense', icon: '🪤', title: '反撃トラップ発動！', detail: `${name} に ${ev.damage} ダメージ` };
+      return {
+        actor: 'player',
+        kind: 'defense',
+        icon: '🪤',
+        title: '反撃トラップ発動！',
+        detail: `${name} に ${ev.damage} ダメージ`,
+        power: damagePower(ev.damage),
+      };
     case 'burn':
-      return { actor: 'player', kind: 'attack', icon: '🔥', title: '過熱ダメージ発動！', detail: `${name} に ${ev.damage} ダメージ` };
+      return {
+        actor: 'player',
+        kind: 'attack',
+        icon: '🔥',
+        title: '過熱ダメージ発動！',
+        detail: `${name} に ${ev.damage} ダメージ`,
+        power: damagePower(ev.damage),
+      };
   }
 }
 
@@ -275,7 +331,15 @@ function fxForPlay(before: BattleState, after: BattleState, playedCard = true): 
     if (!prev) continue;
     const hpLost = prev.hp - enemy.hp;
     const blockLost = prev.block - enemy.block;
-    if (hpLost > 0) specs.push({ at: enemy.uid, text: `-${hpLost}`, tone: 'hit', impact: 'strike' });
+    if (hpLost > 0) {
+      specs.push({
+        at: enemy.uid,
+        text: formatDamageText(hpLost),
+        tone: 'hit',
+        impact: 'strike',
+        power: damagePower(hpLost),
+      });
+    }
     if (blockLost > 0) {
       specs.push({
         at: enemy.uid,
@@ -690,6 +754,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     const stats = getCardStats(card);
     const kind = def.kind;
     const isAoe = stats.effects.some((e) => 'target' in e && e.target === 'all');
+    const maxEnemyDmg = result.state.enemies.reduce((max, enemy) => {
+      const prev = battle.enemies.find((p) => p.uid === enemy.uid);
+      return prev ? Math.max(max, prev.hp - enemy.hp) : max;
+    }, 0);
+    const power = damagePower(maxEnemyDmg);
     playSound(kind === 'attack' ? 'breach' : kind === 'defense' ? 'recover' : 'scan');
     pushFx(fxForPlay(battle, result.state, true));
     showBanner({
@@ -699,8 +768,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       title: stats.name,
       detail: stats.text,
       isAoe,
+      power,
     });
-    if (kind === 'attack') pushFx([{ at: 'player-launch', text: '', tone: 'buff' }], PLAYER_ATTACK_MS);
+    if (kind === 'attack') {
+      pushFx(
+        [{ at: 'player-launch', text: '', tone: 'buff', power }],
+        power === 'crit' ? 460 : power === 'heavy' ? 400 : PLAYER_ATTACK_MS,
+      );
+    }
     setBattle(result.state);
     setSelectedUid(null);
     setNotice(null);
@@ -1061,17 +1136,45 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       ) : phase !== 'shop' && (
         <div className="db-main">
           <section className="db-left">
-            <div className={`db-arena ${selectedUid ? 'db-arena--targeting' : ''}`}>
+            <div
+              className={[
+                'db-arena',
+                selectedUid ? 'db-arena--targeting' : '',
+                banner?.power === 'crit' ? 'db-arena--shake-crit' : banner?.power === 'heavy' ? 'db-arena--shake-heavy' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
               {banner && (
                 <>
                   <div
                     key={`beam-${banner.id}`}
-                    className={`db-arena-beam db-arena-beam--${banner.kind}${banner.isAoe ? ' db-arena-beam--aoe' : ''}`}
+                    className={[
+                      'db-arena-beam',
+                      `db-arena-beam--${banner.kind}`,
+                      banner.isAoe ? 'db-arena-beam--aoe' : '',
+                      banner.power && banner.power !== 'normal' ? `db-arena-beam--power-${banner.power}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                     aria-hidden="true"
                   />
+                  {banner.power && banner.power !== 'normal' && (
+                    <div
+                      key={`shock-${banner.id}`}
+                      className={`db-arena-shockwave db-arena-shockwave--${banner.power}`}
+                      aria-hidden="true"
+                    />
+                  )}
                   <div
                     key={`banner-${banner.id}`}
-                    className={`db-action-banner db-action-banner--${banner.kind}`}
+                    className={[
+                      'db-action-banner',
+                      `db-action-banner--${banner.kind}`,
+                      banner.power && banner.power !== 'normal' ? `db-action-banner--power-${banner.power}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                     role="status"
                     aria-live="polite"
                   >
@@ -1084,20 +1187,35 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
               <div className="db-fighter" aria-hidden="true">
                 <span
                   key={playerMotion?.id ?? 'idle'}
-                  className={`db-fighter__avatar ${playerImpact === 'strike' ? 'db-fighter__avatar--hit' : playerAttacking ? 'db-fighter__avatar--launch' : ''}`}
+                  className={[
+                    'db-fighter__avatar',
+                    playerImpact === 'strike'
+                      ? `db-fighter__avatar--hit${playerMotion?.power && playerMotion.power !== 'normal' ? ` db-fighter__avatar--hit-${playerMotion.power}` : ''}`
+                      : playerAttacking
+                        ? `db-fighter__avatar--launch${playerMotion?.power && playerMotion.power !== 'normal' ? ` db-fighter__avatar--launch-${playerMotion.power}` : ''}`
+                        : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                 >
                   <span className="db-fighter__poses">
                     <img src={idlePose} alt="" draggable={false} hidden={playerAttacking} />
                     <img src={attackPose} alt="" draggable={false} hidden={!playerAttacking} />
                   </span>
                 </span>
-                {playerImpact && <span key={`impact-${playerMotion?.id}`} className={`db-impact db-impact--${playerImpact}`} />}
+                {playerImpact && (
+                  <span
+                    key={`impact-${playerMotion?.id}`}
+                    className={`db-impact db-impact--${playerImpact}${playerMotion?.power && playerMotion.power !== 'normal' ? ` db-impact--power-${playerMotion.power}` : ''}`}
+                  />
+                )}
               </div>
               {shown.enemies.map((enemy) => {
                 const dead = enemy.hp <= 0;
                 const intent = describeIntent(getEnemyIntent(enemy));
                 const enemyFx = fxAt(enemy.uid);
                 const impact = enemyFx.filter((f) => f.impact).at(-1);
+                const hitPower = impact?.impact === 'strike' || impact?.impact === 'burn' ? impact.power : undefined;
                 const attacking = activeEnemyAction?.kind === 'attack' && actingUid === enemy.uid;
                 const def = ENEMY_DEFINITIONS[enemy.defId];
                 return (
@@ -1109,8 +1227,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       dead ? 'db-enemy--dead' : '',
                       selectedUid && !dead ? 'db-enemy--targetable' : '',
                       actingUid === enemy.uid ? 'db-enemy--acting' : '',
+                      hitPower === 'crit' ? 'db-enemy--hit-crit' : hitPower === 'heavy' ? 'db-enemy--hit-heavy' : '',
                       def.phase2 ? 'db-enemy--boss' : '',
-                    ].join(' ')}
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                     onClick={() => onEnemyClick(enemy)}
                     disabled={dead || !selectedUid || busy}
                     aria-label={`${enemy.name} HP ${enemy.hp}/${enemy.maxHp}`}
@@ -1123,7 +1244,16 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     )}
                     <span
                       key={attacking ? `attack-${playback?.index}` : impact?.id ?? 'idle'}
-                      className={`db-enemy__icon ${attacking ? 'db-enemy__icon--launch' : impact?.impact === 'strike' ? 'db-enemy__icon--hit' : ''}`}
+                      className={[
+                        'db-enemy__icon',
+                        attacking
+                          ? 'db-enemy__icon--launch'
+                          : impact?.impact === 'strike'
+                            ? `db-enemy__icon--hit${impact.power && impact.power !== 'normal' ? ` db-enemy__icon--hit-${impact.power}` : ''}`
+                            : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
                     >
                       {dead ? '💀' : enemy.icon}
                     </span>
@@ -1164,10 +1294,19 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                         </span>
                       )}
                     </span>
-                    {impact && <span key={`impact-${impact.id}`} className={`db-impact db-impact--${impact.impact}`} aria-hidden="true" />}
+                    {impact && (
+                      <span
+                        key={`impact-${impact.id}`}
+                        className={`db-impact db-impact--${impact.impact}${impact.power && impact.power !== 'normal' ? ` db-impact--power-${impact.power}` : ''}`}
+                        aria-hidden="true"
+                      />
+                    )}
                     <span className="db-fx">
                       {enemyFx.map((f) => (
-                        <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}`}>
+                        <span
+                          key={f.id}
+                          className={`db-fx__float db-fx__float--${f.tone}${f.power && f.power !== 'normal' ? ` db-fx__float--power-${f.power}` : ''}`}
+                        >
                           {f.text}
                         </span>
                       ))}
@@ -1218,7 +1357,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 )}
                 <span className="db-fx db-fx--player">
                   {fxAt('player').map((f) => (
-                    <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}`}>
+                    <span
+                      key={f.id}
+                      className={`db-fx__float db-fx__float--${f.tone}${f.power && f.power !== 'normal' ? ` db-fx__float--power-${f.power}` : ''}`}
+                    >
                       {f.text}
                     </span>
                   ))}
