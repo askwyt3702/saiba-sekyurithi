@@ -36,6 +36,8 @@ export const HOW_TO_PLAY_SEEN_KEY = 'cyber_mystery_deck_how_to_play_seen_v1';
 
 function describeNode(node: RunNode): string {
   if (node.kind === 'event') return node.eventId === 'vuln_check' ? 'クイズ(脆弱性診断)' : 'クイズ(パッチ適用)';
+  if (node.kind === 'mystery') return 'ハプニング';
+  if (node.kind === 'rest') return '休憩・保守';
   if (node.kind === 'shop') return '闇市';
   const names = node.enemyIds.map((id) => ENEMY_DEFINITIONS[id]?.name ?? id);
   const label = names.length > 1 && new Set(names).size === 1 ? `${names[0]}×${names.length}` : names.join('・');

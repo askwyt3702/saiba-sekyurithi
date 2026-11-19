@@ -153,7 +153,21 @@ export type RelicId =
   | 'packet_cache'
   | 'zero_trust_key'
   | 'adaptive_filter'
-  | 'forensics_lab';
+  | 'forensics_lab'
+  | 'thermal_core'
+  | 'thorn_daemon'
+  | 'siphon_module'
+  | 'overclock_bus'
+  | 'weak_scanner'
+  | 'coin_miner';
+
+export type LoadoutId = 'balanced' | 'red_team' | 'blue_team' | 'thermal_ops';
+
+export type MysteryEventId =
+  | 'dark_zero_day'
+  | 'overclock_terminal'
+  | 'corrupted_forge'
+  | 'abandoned_cache';
 
 export interface RelicDefinition {
   id: RelicId;
@@ -257,6 +271,8 @@ export type RunEventId = 'vuln_check' | 'patch';
 export type RunNode =
   | { kind: 'battle'; enemyIds: string[]; eliteEnemyIds?: string[] }
   | { kind: 'event'; eventId: RunEventId }
+  | { kind: 'mystery' }
+  | { kind: 'rest' }
   | { kind: 'shop' }
   | { kind: 'boss'; enemyIds: string[] };
 
@@ -292,5 +308,11 @@ export interface RunState {
   askedQuestionIds: string[];
   /** 試作用:true にすると経験値が多く入り、すぐ Lv.2/Lv.3 を試せる */
   fastGrowth: boolean;
+  /** 選んだ初期ビルド */
+  loadoutId: LoadoutId;
+  /** 高難度モード(セキュリティレベル 0〜5) */
+  securityLevel: number;
+  /** このランで発生済みのハプニングイベント */
+  seenMysteryIds: MysteryEventId[];
   nextUid: number;
 }

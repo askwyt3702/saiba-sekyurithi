@@ -3,6 +3,9 @@ import type { RelicDefinition, RelicId } from './types';
 
 export const ADAPTIVE_FILTER_FW = 3;
 export const FORENSICS_LAB_XP = 1;
+export const THERMAL_CORE_BURN = 2;
+export const THORN_DAEMON_RETALIATE = 4;
+export const SIPHON_MODULE_HEAL = 6;
 
 export const RELIC_DEFINITIONS: Record<RelicId, RelicDefinition> = {
   encrypted_vpn: {
@@ -40,6 +43,42 @@ export const RELIC_DEFINITIONS: Record<RelicId, RelicDefinition> = {
     name: '証跡ラボ',
     icon: '🔬',
     description: `通常成長時、イベントの1問目に正解してカードに与える経験値が +${FORENSICS_LAB_XP} 増える。`,
+  },
+  thermal_core: {
+    id: 'thermal_core',
+    name: '過熱コア',
+    icon: '🔥',
+    description: `毎ターン開始時、敵全体に過熱+${THERMAL_CORE_BURN}を付与する。`,
+  },
+  thorn_daemon: {
+    id: 'thorn_daemon',
+    name: '反撃デーモン',
+    icon: '🪤',
+    description: `毎ターン開始時に「反撃+${THORN_DAEMON_RETALIATE}」を得る。`,
+  },
+  siphon_module: {
+    id: 'siphon_module',
+    name: '吸収モジュール',
+    icon: '🩸',
+    description: `戦闘勝利時のHP回復量が +${SIPHON_MODULE_HEAL} 増える。`,
+  },
+  overclock_bus: {
+    id: 'overclock_bus',
+    name: 'オーバークロックバス',
+    icon: '⚡',
+    description: '各戦闘の1ターン目だけ帯域+2・ドロー+1を得る。',
+  },
+  weak_scanner: {
+    id: 'weak_scanner',
+    name: '脆弱スキャナー',
+    icon: '🎯',
+    description: '各戦闘の開始時、敵全体に「脆弱(2T)」を付与する。',
+  },
+  coin_miner: {
+    id: 'coin_miner',
+    name: 'コインマイナー',
+    icon: '🪙',
+    description: '戦闘に勝利するたび、必ず解析コイン+1を追加獲得する。',
   },
 };
 

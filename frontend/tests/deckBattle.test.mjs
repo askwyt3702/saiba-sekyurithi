@@ -741,3 +741,49 @@ test('戦闘ログに自分(player)・敵(enemy)・システム(system)の区別
   s = battle.endTurn(s);
   assert.equal(s.log[s.log.length - 1].actor, 'enemy');
 });
+
+
+test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハプニング・新常駐装備が正しく動く', () => {
+  // 1. 初期ビルド(red_team) + 高難度(securityLevel: 4)
+  const r = run.createRun({ loadoutId: 'red_team', securityLevel: 4 });
+  assert.equal(r.loadoutId, 'red_team');
+  assert.equal(r.maxHp, 50, 'red_team(60) - Lv.3ペナルティ(10) = 50');
+  assert.ok(r.relics.includes('auto_scraper'));
+  const b = run.createBattleForCurrentNode(r, 1);
+  assert.ok(b.enemies[0].maxHp > hp('scanner_bot'), 'Lv.1以上で敵HP増加');
+  assert.equal(b.enemies[0].attackBonus, 2, 'Lv.2以上で敵攻撃力+2');
+  assert.equal(b.discard.length, 1, 'Lv.4以上でノイズ1枚が捨て札に混入');
+
+  // 2. 新規常駐装備(thermal_core / thorn_daemon / overclock_bus / weak_scanner)
+  const bRelic = battle.createBattle({
+    deck: r.deck,
+    playerHp: 50,
+    playerMaxHp: 50,
+    enemyIds: ['scanner_bot'],
+    seed: 1,
+    relics: ['thermal_core', 'thorn_daemon', 'overclock_bus', 'weak_scanner'],
+  });
+  assert.equal(bRelic.enemies[0].vulnerable, 2);
+  assert.equal(bRelic.enemies[0].burn?.amount, 2);
+  assert.equal(bRelic.player.retaliate, 4);
+  assert.equal(bRelic.player.energy, 6, '初期4 + overclock_bus(+2)');
+  assert.equal(bRelic.hand.length, 5, '初期4 + overclock_bus(+1)');
+
+  // 3. 休憩・システム保守マス(回復 / 即強化 / 削除)
+  const hurt = { ...run.createRun(), hp: 30 };
+  const healed = run.applyRestAction(hurt, { type: 'heal' });
+  assert.equal(healed.run.hp, 30 + Math.floor(65 * run.REST_HEAL_RATIO));
+  const upgraded = run.applyRestAction(hurt, { type: 'upgrade', cardUid: 'c1' });
+  assert.equal(upgraded.run.deck.find((c) => c.uid === 'c1')?.level, 2);
+  const removed = run.applyRestAction(hurt, { type: 'remove', cardUid: 'c1' });
+  assert.equal(removed.run.deck.length, hurt.deck.length - 1);
+
+  // 4. ハプニングマス(リスク＆リターン)
+  const m1 = run.resolveMysteryChoice(run.createRun(), 'dark_zero_day', 'buy_rare', 7);
+  assert.equal(m1.run.hp, 53);
+  assert.equal(m1.run.deck.length, 11);
+  assert.equal(m1.run.reconCoins, 3);
+  const m2 = run.resolveMysteryChoice(run.createRun(), 'overclock_terminal', 'extract_relic', 7);
+  assert.equal(m2.run.hp, 57);
+  assert.equal(m2.run.relics.length, 1);
+});

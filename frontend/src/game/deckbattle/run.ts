@@ -2,14 +2,21 @@
 // 画面に依存しない純粋な関数で実装し、node --test と画面の両方から使う。
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
 import { createBattle, getCardDefinition } from './battle';
-import { RARE_CARD_IDS, REWARD_CARD_IDS, STARTER_DECK_IDS } from './cards';
-import { ALL_RELIC_IDS, FORENSICS_LAB_XP } from './relics';
+import { RARE_CARD_IDS, REWARD_CARD_IDS } from './cards';
+import { ALL_RELIC_IDS, FORENSICS_LAB_XP, RELIC_DEFINITIONS, SIPHON_MODULE_HEAL } from './relics';
 import { nextRandom, shuffled } from './rng';
-import { ALL_TOOL_IDS, MAX_TOOLS } from './tools';
+import {
+  ALL_MYSTERY_EVENT_IDS,
+  LOADOUT_DEFINITIONS,
+  MAX_SECURITY_LEVEL,
+} from './roguelike';
+import { ALL_TOOL_IDS, MAX_TOOLS, TOOL_DEFINITIONS } from './tools';
 import type {
   BattleState,
   CardInstance,
   CardLevel,
+  LoadoutId,
+  MysteryEventId,
   RelicId,
   RunEventId,
   RunNode,
@@ -29,15 +36,18 @@ export const PATCH_EVENT_HEAL = 15;
 export const MAX_EVENT_STREAK = 3;
 export const RECON_COIN_DROP_RATE = 0.2;
 export const STARTING_RECON_COINS = 2;
+export const REST_HEAL_RATIO = 0.35;
 
-/** 1回のランのマスの並び(戦闘3では通常/エリートの2択が可能) */
+/** 1回のランのマスの並び(闇市・ハプニング・エリート分岐・ボス前休憩を含む9マス構成) */
 export const DEFAULT_RUN_NODES: RunNode[] = [
   { kind: 'battle', enemyIds: ['scanner_bot'] },
   { kind: 'event', eventId: 'vuln_check' },
   { kind: 'shop' },
   { kind: 'battle', enemyIds: ['ids_sensor', 'ids_sensor'] },
+  { kind: 'mystery' },
   { kind: 'event', eventId: 'patch' },
   { kind: 'battle', enemyIds: ['firewall_ai'], eliteEnemyIds: ['zero_trust_gate'] },
+  { kind: 'rest' },
   { kind: 'boss', enemyIds: ['argus'] },
 ];
 
@@ -45,22 +55,31 @@ export function createCardInstance(defId: string, uid: string): CardInstance {
   return { uid, defId, level: 1, xp: 0 };
 }
 
-export function createRun(options: { fastGrowth?: boolean } = {}): RunState {
-  const deck = STARTER_DECK_IDS.map((defId, i) => createCardInstance(defId, `c${i + 1}`));
+export function createRun(
+  options: { fastGrowth?: boolean; loadoutId?: LoadoutId; securityLevel?: number } = {},
+): RunState {
+  const loadoutId: LoadoutId = options.loadoutId ?? 'balanced';
+  const loadout = LOADOUT_DEFINITIONS[loadoutId] ?? LOADOUT_DEFINITIONS.balanced;
+  const securityLevel = Math.max(0, Math.min(MAX_SECURITY_LEVEL, Math.floor(options.securityLevel ?? 0)));
+  const maxHp = Math.max(25, loadout.maxHp - (securityLevel >= 3 ? 10 : 0));
+  const deck = loadout.deckIds.map((defId, i) => createCardInstance(defId, `c${i + 1}`));
   return {
     status: 'playing',
     deck,
-    hp: PLAYER_MAX_HP,
-    maxHp: PLAYER_MAX_HP,
+    hp: maxHp,
+    maxHp,
     nodes: DEFAULT_RUN_NODES.map((n) => ({ ...n })),
     nodeIndex: 0,
-    relics: [],
-    tools: ['hotfix'],
+    relics: [...loadout.relics],
+    tools: [...loadout.tools],
     reconCoins: STARTING_RECON_COINS,
     currentBattleElite: false,
     pendingEvolutions: [],
     askedQuestionIds: [],
     fastGrowth: options.fastGrowth ?? false,
+    loadoutId,
+    securityLevel,
+    seenMysteryIds: [],
     nextUid: deck.length + 1,
   };
 }
@@ -101,6 +120,7 @@ export function createBattleForCurrentNode(run: RunState, seed: number, useElite
     seed,
     relics: run.relics,
     tools: run.tools,
+    securityLevel: run.securityLevel,
   });
 }
 
@@ -167,7 +187,8 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
   const node = run.nodes[run.nodeIndex];
   const isBoss = node?.kind === 'boss';
   const baseHp = Math.max(1, Math.min(run.maxHp, battle.player.hp));
-  const healAmount = isBoss ? 0 : Math.floor(run.maxHp * BATTLE_WIN_HEAL_RATIO);
+  const siphonBonus = run.relics.includes('siphon_module') ? SIPHON_MODULE_HEAL : 0;
+  const healAmount = isBoss ? 0 : Math.floor(run.maxHp * BATTLE_WIN_HEAL_RATIO) + siphonBonus;
   const nextHp = Math.min(run.maxHp, baseHp + healAmount);
   const healed = nextHp - baseHp;
 
@@ -212,6 +233,9 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
           coinsDropped += 1;
         }
       }
+    }
+    if (run.relics.includes('coin_miner')) {
+      coinsDropped += 1;
     }
   }
 
@@ -484,4 +508,173 @@ export function pickRewardPool(seed: number, count = 3): string[] {
 /** イベント3問目報酬用:レアカード候補を返す */
 export function pickRarePool(seed: number): string[] {
   return shuffled(RARE_CARD_IDS, seed).items;
+}
+
+export type RestAction =
+  | { type: 'heal' }
+  | { type: 'upgrade'; cardUid: string }
+  | { type: 'remove'; cardUid: string };
+
+/** 休憩・システム保守マスの処理(大幅回復 / カード即強化・進化 / 不要カード削除) */
+export function applyRestAction(run: RunState, action: RestAction): { run: RunState; summary: string } {
+  if (action.type === 'heal') {
+    const amount = Math.floor(run.maxHp * REST_HEAL_RATIO);
+    const nextHp = Math.min(run.maxHp, run.hp + amount);
+    const gained = nextHp - run.hp;
+    return {
+      run: { ...run, hp: nextHp },
+      summary: `回線を保守し、HP を +${gained} 回復した（${nextHp}/${run.maxHp}）。`,
+    };
+  }
+  if (action.type === 'remove') {
+    const target = run.deck.find((c) => c.uid === action.cardUid);
+    if (!target || run.deck.length <= 1) return { run, summary: '削除できるカードがありません。' };
+    const def = getCardDefinition(target.defId);
+    return {
+      run: removeCardFromDeck(run, action.cardUid),
+      summary: `${def.icon} ${def.name} (${target.uid}) をデッキから削除した。`,
+    };
+  }
+  const card = run.deck.find((c) => c.uid === action.cardUid);
+  if (!card) return { run, summary: '強化対象が見つかりません。' };
+  const def = getCardDefinition(card.defId);
+  const delta = card.level === 1 ? Math.max(1, XP_TO_LV2 - card.xp) : card.level === 2 ? Math.max(1, XP_TO_LV3 - card.xp) : 0;
+  if (delta <= 0) return { run, summary: `${def.name} はすでに最大レベルです。` };
+  const res = addXp(run.deck, run.pendingEvolutions, card.uid, delta);
+  const nextLv = res.entry?.newLevel ?? card.level;
+  return {
+    run: { ...run, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
+    summary:
+      nextLv === 3
+        ? `${def.icon} ${def.name} が Lv.3 に到達！分岐進化を選べます。`
+        : `${def.icon} ${def.name} を Lv.${nextLv} に即チューニングした！`,
+  };
+}
+
+/** ハプニングマスで発生するイベントを1つ選ぶ(同じラン内では重複を避ける) */
+export function pickMysteryEvent(run: RunState, seed: number): MysteryEventId {
+  const unseen = ALL_MYSTERY_EVENT_IDS.filter((id) => !run.seenMysteryIds.includes(id));
+  const pool = unseen.length > 0 ? unseen : ALL_MYSTERY_EVENT_IDS;
+  return shuffled(pool, seed).items[0];
+}
+
+/** ハプニングマスの選択肢を解決する */
+export function resolveMysteryChoice(
+  run: RunState,
+  eventId: MysteryEventId,
+  choiceId: string,
+  seed: number,
+): { run: RunState; summary: string; discoveredCardId?: string } {
+  const baseRun: RunState = {
+    ...run,
+    seenMysteryIds: run.seenMysteryIds.includes(eventId) ? run.seenMysteryIds : [...run.seenMysteryIds, eventId],
+  };
+
+  if (eventId === 'dark_zero_day') {
+    if (choiceId === 'buy_rare') {
+      const nextHp = Math.max(1, baseRun.hp - 12);
+      const rareId = shuffled(RARE_CARD_IDS, seed).items[0];
+      const def = getCardDefinition(rareId);
+      const withCard = pickRewardCard({ ...baseRun, hp: nextHp, reconCoins: baseRun.reconCoins + 1 }, rareId);
+      return {
+        run: withCard,
+        summary: `HP−12の代償にレアカード ${def.icon}「${def.name}」と解析コイン+1を入手した！`,
+        discoveredCardId: rareId,
+      };
+    }
+    return {
+      run: { ...baseRun, reconCoins: baseRun.reconCoins + 1 },
+      summary: '安全に通信ログだけ抜き取り、解析コイン +1 を獲得した。',
+    };
+  }
+
+  if (eventId === 'overclock_terminal') {
+    if (choiceId === 'extract_relic') {
+      const nextHp = Math.max(1, baseRun.hp - 8);
+      const relicId = pickAvailableRelic(baseRun, seed);
+      if (relicId) {
+        const relic = RELIC_DEFINITIONS[relicId];
+        return {
+          run: grantRelic({ ...baseRun, hp: nextHp }, relicId),
+          summary: `HP−8と引き換えに常駐装備 ${relic.icon}「${relic.name}」を抽出した！`,
+        };
+      }
+      return {
+        run: { ...baseRun, hp: nextHp, reconCoins: baseRun.reconCoins + 2 },
+        summary: 'すべての常駐装備を所持済みだったため、代わりに解析コイン +2 を抽出した！',
+      };
+    }
+    const nextHp = Math.min(baseRun.maxHp, baseRun.hp + 8);
+    return {
+      run: { ...baseRun, hp: nextHp },
+      summary: `冷却回路を流用し、HP を +${nextHp - baseRun.hp} 回復した。`,
+    };
+  }
+
+  if (eventId === 'corrupted_forge') {
+    const upgradable = baseRun.deck.filter((c) => c.level < 3 && !getCardDefinition(c.defId).unplayable);
+    if (choiceId === 'force_evolve') {
+      const nextHp = Math.max(1, baseRun.hp - 10);
+      if (upgradable.length === 0) {
+        return {
+          run: { ...baseRun, hp: nextHp, reconCoins: baseRun.reconCoins + 1 },
+          summary: '未進化カードがなかったため、代わりに解析コイン +1 を回収した（HP−10）。',
+        };
+      }
+      const picked = shuffled(upgradable, seed).items[0];
+      const def = getCardDefinition(picked.defId);
+      const delta = Math.max(1, XP_TO_LV3 - picked.xp);
+      const res = addXp(baseRun.deck, baseRun.pendingEvolutions, picked.uid, delta);
+      return {
+        run: { ...baseRun, hp: nextHp, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
+        summary: `HP−10の負荷と引き換えに ${def.icon}「${def.name}」が即座に Lv.3 進化待ちになった！`,
+      };
+    }
+    if (choiceId === 'coin_tune') {
+      if (baseRun.reconCoins < 1) {
+        return { run: baseRun, summary: '解析コインが足りないため実行できなかった。' };
+      }
+      const nextCoins = baseRun.reconCoins - 1;
+      if (upgradable.length === 0) {
+        return { run: { ...baseRun, reconCoins: nextCoins }, summary: 'すでに全カードが最大レベルだった。' };
+      }
+      const picked = shuffled(upgradable, seed).items[0];
+      const def = getCardDefinition(picked.defId);
+      const res = addXp(baseRun.deck, baseRun.pendingEvolutions, picked.uid, 3);
+      return {
+        run: { ...baseRun, reconCoins: nextCoins, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
+        summary: `コイン1枚で ${def.icon}「${def.name}」に EXP+3 を安全に注入した！`,
+      };
+    }
+    return { run: baseRun, summary: '危険を察知してサーバーから切断した。' };
+  }
+
+  // abandoned_cache
+  if (choiceId === 'take_supplies') {
+    let tools = [...baseRun.tools];
+    let toolMsg = '';
+    if (tools.length < MAX_TOOLS) {
+      const toolId = shuffled(ALL_TOOL_IDS, seed).items[0];
+      tools = [...tools, toolId];
+      toolMsg = `緊急ツール ${TOOL_DEFINITIONS[toolId].icon}「${TOOL_DEFINITIONS[toolId].name}」と`;
+    }
+    return {
+      run: { ...baseRun, tools, reconCoins: baseRun.reconCoins + 1 },
+      summary: `${toolMsg}解析コイン +1 を回収した！`,
+    };
+  }
+  const candidates = baseRun.deck.filter((c) => c.level < 3 && !getCardDefinition(c.defId).unplayable);
+  if (candidates.length === 0) {
+    return {
+      run: { ...baseRun, reconCoins: baseRun.reconCoins + 1 },
+      summary: '全カードが最大強化済みだったため、代わりに解析コイン +1 を獲得した。',
+    };
+  }
+  const picked = shuffled(candidates, seed).items[0];
+  const def = getCardDefinition(picked.defId);
+  const res = addXp(baseRun.deck, baseRun.pendingEvolutions, picked.uid, 3);
+  return {
+    run: { ...baseRun, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
+    summary: `学習データを注入し、${def.icon}「${def.name}」に EXP+3 を付与した！`,
+  };
 }

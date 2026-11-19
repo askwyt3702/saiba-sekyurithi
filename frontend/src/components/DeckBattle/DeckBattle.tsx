@@ -29,12 +29,21 @@ import {
 import { RELIC_DEFINITIONS } from '../../game/deckbattle/relics';
 import { randomSeed } from '../../game/deckbattle/rng';
 import {
+  ALL_LOADOUT_IDS,
+  LOADOUT_DEFINITIONS,
+  MYSTERY_EVENTS,
+  SECURITY_LEVELS,
+} from '../../game/deckbattle/roguelike';
+import {
   type CoinShopAction,
+  type RestAction,
   MAX_EVENT_STREAK,
+  REST_HEAL_RATIO,
   advanceToNextNode,
   applyBattleResult,
   applyPatchBonus,
   applyQuizXpReward,
+  applyRestAction,
   chooseEvolution,
   createBattleForCurrentNode,
   createRun,
@@ -44,6 +53,7 @@ import {
   grantRelic,
   pickAvailableRelic,
   pickEventQuestion,
+  pickMysteryEvent,
   pickRarePool,
   pickRewardCard,
   pickRewardPool,
@@ -51,6 +61,7 @@ import {
   previewQuizXpReward,
   removeCardFromDeck,
   resolveEventQuiz,
+  resolveMysteryChoice,
   spendCoinShop,
   spendReconCoin,
 } from '../../game/deckbattle/run';
@@ -62,6 +73,8 @@ import type {
   EnemyActionEvent,
   EnemyMove,
   EnemyState,
+  LoadoutId,
+  MysteryEventId,
   RelicId,
   RunEventId,
   RunNode,
@@ -111,7 +124,23 @@ interface Playback {
   final: BattleState;
 }
 
-type StagePhase = 'battle' | 'elite_choice' | 'post_battle' | 'evolve' | 'reward' | 'event' | 'shop' | 'run_result';
+type StagePhase =
+  | 'setup'
+  | 'battle'
+  | 'elite_choice'
+  | 'post_battle'
+  | 'evolve'
+  | 'reward'
+  | 'event'
+  | 'mystery'
+  | 'rest'
+  | 'shop'
+  | 'run_result';
+
+interface MysteryViewState {
+  eventId: MysteryEventId;
+  summary: string | null;
+}
 
 interface PostBattleSummary {
   xpGains: XpGainEntry[];
@@ -143,12 +172,16 @@ interface DeckBattleProps {
 const RUN_NODE_ICONS: Record<RunNode['kind'], { icon: string; label: string }> = {
   battle: { icon: '🤖', label: '戦闘' },
   event: { icon: '📋', label: 'イベント' },
+  mystery: { icon: '🎲', label: 'ハプニング' },
+  rest: { icon: '🔧', label: '休憩・保守' },
   shop: { icon: '🏪', label: '闇市' },
   boss: { icon: '💀', label: 'ボス' },
 };
 
 function describeNodeShort(node: RunNode, index: number): string {
   if (node.kind === 'shop') return `${index + 1}. 解析コイン闇市`;
+  if (node.kind === 'mystery') return `${index + 1}. ハプニング`;
+  if (node.kind === 'rest') return `${index + 1}. 休憩・システム保守`;
   if (node.kind === 'boss') return `${index + 1}. ボス:ARGUS`;
   if (node.kind === 'event') return `${index + 1}. ${node.eventId === 'vuln_check' ? '診断クイズ' : 'パッチ適用'}`;
   const first = ENEMY_DEFINITIONS[node.enemyIds[0]];
@@ -372,8 +405,12 @@ function updateProfile(mutator: (p: DeckProfile) => DeckProfile): void {
   saveDeckProfile(next);
 }
 
-function createRunWithProfileCoins(fastGrowth: boolean): RunState {
-  const fresh = createRun({ fastGrowth });
+function createRunWithProfileCoins(
+  fastGrowth: boolean,
+  loadoutId: LoadoutId = 'balanced',
+  securityLevel = 0,
+): RunState {
+  const fresh = createRun({ fastGrowth, loadoutId, securityLevel });
   const { profile, coins } = consumeBonusStartCoins(loadDeckProfile());
   if (coins > 0) saveDeckProfile(profile);
   return coins > 0 ? { ...fresh, reconCoins: fresh.reconCoins + coins } : fresh;
@@ -391,10 +428,12 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   // 読むのは初期化で、消費は下の useEffect で1回だけ行う
   const [run, setRun] = useState<RunState>(createInitialRun);
   const [battle, setBattle] = useState<BattleState>(() => createBattleForCurrentNode(run, randomSeed()));
-  const [phase, setPhase] = useState<StagePhase>('battle');
+  const [phase, setPhase] = useState<StagePhase>('setup');
   const [postBattle, setPostBattle] = useState<PostBattleSummary | null>(null);
-  const [evolveOrigin, setEvolveOrigin] = useState<'post_battle' | 'event'>('post_battle');
+  const [evolveOrigin, setEvolveOrigin] = useState<'post_battle' | 'event' | 'rest' | 'mystery'>('post_battle');
   const [eventView, setEventView] = useState<EventViewState | null>(null);
+  const [mysteryView, setMysteryView] = useState<MysteryViewState | null>(null);
+  const [restSummary, setRestSummary] = useState<string | null>(null);
   const [showDeckModal, setShowDeckModal] = useState(false);
   // 遊び方:初めて戦闘画面を開いたときだけ自動で出す
   const [showHowToPlay, setShowHowToPlay] = useState(() => !hasSeenHowToPlay());
@@ -511,14 +550,31 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const startRun = (fastGrowth = run.fastGrowth) => {
-    playSound('click');
-    const fresh = createRunWithProfileCoins(fastGrowth);
+  const startRun = (loadoutId: LoadoutId = run.loadoutId, securityLevel: number = run.securityLevel, fastGrowth = run.fastGrowth) => {
+    playSound('breach');
+    const fresh = createRunWithProfileCoins(fastGrowth, loadoutId, securityLevel);
+    updateProfile((p) => recordDiscovery(p, fresh.deck.map((c) => c.defId), []));
     setRun(fresh);
     setBattle(createBattleForCurrentNode(fresh, randomSeed()));
     setPhase('battle');
     setPostBattle(null);
     setEventView(null);
+    setMysteryView(null);
+    setRestSummary(null);
+    setSelectedUid(null);
+    setNotice(null);
+    setPlayback(null);
+    setFx([]);
+    setBanner(null);
+  };
+
+  const openSetupScreen = () => {
+    playSound('click');
+    setPhase('setup');
+    setPostBattle(null);
+    setEventView(null);
+    setMysteryView(null);
+    setRestSummary(null);
     setSelectedUid(null);
     setNotice(null);
     setPlayback(null);
@@ -547,6 +603,16 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       setPhase('event');
       return;
     }
+    if (node.kind === 'mystery') {
+      setMysteryView({ eventId: pickMysteryEvent(nextRun, randomSeed()), summary: null });
+      setPhase('mystery');
+      return;
+    }
+    if (node.kind === 'rest') {
+      setRestSummary(null);
+      setPhase('rest');
+      return;
+    }
     if (node.kind === 'shop') {
       setPhase('shop');
       return;
@@ -557,6 +623,50 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     }
     setBattle(createBattleForCurrentNode(nextRun, randomSeed()));
     setPhase('battle');
+  };
+
+  const onResolveMystery = (choiceId: string) => {
+    if (!mysteryView || mysteryView.summary) return;
+    playSound('extract');
+    const res = resolveMysteryChoice(run, mysteryView.eventId, choiceId, randomSeed());
+    if (res.discoveredCardId) {
+      const cardId = res.discoveredCardId;
+      updateProfile((p) => recordDiscovery(p, [cardId], []));
+    }
+    setRun(res.run);
+    setMysteryView({ ...mysteryView, summary: res.summary });
+    if (res.run.pendingEvolutions.length > 0) {
+      setEvolveOrigin('mystery');
+      setPhase('evolve');
+    }
+  };
+
+  const onFinishMystery = () => {
+    playSound('click');
+    const nextRun = advanceToNextNode(run);
+    setRun(nextRun);
+    setMysteryView(null);
+    enterNode(nextRun);
+  };
+
+  const onApplyRest = (action: RestAction) => {
+    if (restSummary) return;
+    playSound('recover');
+    const res = applyRestAction(run, action);
+    setRun(res.run);
+    setRestSummary(res.summary);
+    if (res.run.pendingEvolutions.length > 0) {
+      setEvolveOrigin('rest');
+      setPhase('evolve');
+    }
+  };
+
+  const onFinishRest = () => {
+    playSound('click');
+    const nextRun = advanceToNextNode(run);
+    setRun(nextRun);
+    setRestSummary(null);
+    enterNode(nextRun);
   };
 
   const onChooseRoute = (useElite: boolean) => {
@@ -702,6 +812,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (updated.pendingEvolutions.length > 0) return;
     if (evolveOrigin === 'event') {
       setPhase('event');
+      return;
+    }
+    if (evolveOrigin === 'rest') {
+      setPhase('rest');
+      return;
+    }
+    if (evolveOrigin === 'mystery') {
+      setPhase('mystery');
       return;
     }
     if (updated.status === 'won') {
@@ -863,6 +981,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         </ol>
 
         <div className="db-topbar__right">
+          {run.securityLevel > 0 && (
+            <span className="db-chip db-chip--bad" title={`セキュリティLv.${run.securityLevel}`}>
+              🔒 SEC Lv.{run.securityLevel}
+            </span>
+          )}
           <span className="db-chip db-chip--buff">🪙 解析コイン {run.reconCoins}枚</span>
           <button
             type="button"
@@ -901,7 +1024,28 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         )}
       </div>
 
-      {phase === 'event' && eventView ? (
+      {phase === 'setup' ? (
+        <RunSetupScreen
+          initialLoadout={run.loadoutId}
+          initialSecurityLevel={run.securityLevel}
+          onDeploy={(loadoutId, securityLevel) => startRun(loadoutId, securityLevel)}
+          onBack={onBackToMissions}
+        />
+      ) : phase === 'mystery' && mysteryView ? (
+        <MysteryScreen
+          run={run}
+          mysteryView={mysteryView}
+          onChoose={onResolveMystery}
+          onContinue={onFinishMystery}
+        />
+      ) : phase === 'rest' ? (
+        <RestScreen
+          run={run}
+          summary={restSummary}
+          onAction={onApplyRest}
+          onContinue={onFinishRest}
+        />
+      ) : phase === 'event' && eventView ? (
         <EventScreen
           run={run}
           eventView={eventView}
@@ -1194,7 +1338,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       )}
 
       {phase === 'run_result' && (
-        <RunResultOverlay run={run} onRetry={() => startRun()} onBack={onBackToMissions} />
+        <RunResultOverlay run={run} onRetry={openSetupScreen} onBack={onBackToMissions} />
       )}
 
       {phase === 'shop' && (
@@ -2095,6 +2239,337 @@ function CoinShopScreen({
             );
           })}
         </div>
+      </section>
+      {previewNode}
+    </main>
+  );
+}
+
+
+function RunSetupScreen({
+  initialLoadout,
+  initialSecurityLevel,
+  onDeploy,
+  onBack,
+}: {
+  initialLoadout: LoadoutId;
+  initialSecurityLevel: number;
+  onDeploy: (loadoutId: LoadoutId, securityLevel: number) => void;
+  onBack: () => void;
+}) {
+  const [loadoutId, setLoadoutId] = useState<LoadoutId>(initialLoadout);
+  const [secLevel, setSecLevel] = useState<number>(initialSecurityLevel);
+  const activeSec = SECURITY_LEVELS[secLevel] ?? SECURITY_LEVELS[0];
+
+  return (
+    <main className="db-event-wrap" aria-label="出撃構成の選択">
+      <section className="db-event-card db-setup-card">
+        <div className="db-event-head">
+          <div className="db-event-head__left">
+            <span className="db-event-pill db-event-pill--type">OPERATION BRIEFING</span>
+            <span className="db-event-pill db-event-pill--step">初期ビルド ＆ 難易度選択</span>
+          </div>
+          <button type="button" className="db-btn db-btn--ghost" onClick={onBack}>
+            ← 戻る
+          </button>
+        </div>
+
+        <h2 className="db-setup-heading">1. 初期ビルド（オペレーター）を選ぶ</h2>
+        <div className="db-setup-grid">
+          {ALL_LOADOUT_IDS.map((id) => {
+            const def = LOADOUT_DEFINITIONS[id];
+            const selected = loadoutId === id;
+            const relicNames = def.relics.map((r) => `${RELIC_DEFINITIONS[r].icon}${RELIC_DEFINITIONS[r].name}`).join(' / ');
+            const toolNames = def.tools.map((t) => `${TOOL_DEFINITIONS[t].icon}${TOOL_DEFINITIONS[t].name}`).join(' / ');
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`db-setup-loadout${selected ? ' db-setup-loadout--selected' : ''}`}
+                onClick={() => {
+                  playSound('click');
+                  setLoadoutId(id);
+                }}
+              >
+                <div className="db-setup-loadout__top">
+                  <span className="db-setup-loadout__icon">{def.icon}</span>
+                  <span className="db-setup-loadout__tag">{def.tag}</span>
+                </div>
+                <div className="db-setup-loadout__name">{def.name}</div>
+                <p className="db-setup-loadout__desc">{def.description}</p>
+                <div className="db-setup-loadout__meta">
+                  <span>❤ HP {Math.max(25, def.maxHp - (secLevel >= 3 ? 10 : 0))}</span>
+                  <span>🧰 {toolNames}</span>
+                </div>
+                <div className="db-setup-loadout__relic">
+                  {relicNames ? `常駐装備: ${relicNames}` : '常駐装備: なし（汎用デッキ）'}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <h2 className="db-setup-heading" style={{ marginTop: 16 }}>
+          2. セキュリティレベル（高難度モード）
+        </h2>
+        <div className="db-sec-bar" role="radiogroup" aria-label="セキュリティレベル">
+          {SECURITY_LEVELS.map((info) => (
+            <button
+              key={info.level}
+              type="button"
+              className={`db-sec-pill${secLevel === info.level ? ' db-sec-pill--active' : ''}`}
+              onClick={() => {
+                playSound('click');
+                setSecLevel(info.level);
+              }}
+            >
+              {info.label}
+            </button>
+          ))}
+        </div>
+        <div className="db-sec-desc">
+          <strong>{activeSec.label}:</strong> {activeSec.summary}
+        </div>
+
+        <div className="db-result__actions" style={{ marginTop: 18 }}>
+          <button
+            type="button"
+            className="db-btn db-btn--end"
+            style={{ padding: '10px 26px', fontSize: 14 }}
+            onClick={() => onDeploy(loadoutId, secLevel)}
+          >
+            ▶ この構成で出撃する
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function MysteryScreen({
+  run,
+  mysteryView,
+  onChoose,
+  onContinue,
+}: {
+  run: RunState;
+  mysteryView: MysteryViewState;
+  onChoose: (choiceId: string) => void;
+  onContinue: () => void;
+}) {
+  const def = MYSTERY_EVENTS[mysteryView.eventId];
+
+  return (
+    <main className="db-event-wrap" aria-label="ハプニングイベント">
+      <section className="db-event-card">
+        <div className="db-event-head">
+          <div className="db-event-head__left">
+            <span className="db-event-pill db-event-pill--type">🎲 MYSTERY NODE</span>
+            <span className="db-event-pill db-event-pill--step">リスク＆リターン選択</span>
+          </div>
+          <span className="db-event-hp">
+            HP {run.hp} / {run.maxHp} · 🪙 {run.reconCoins}
+          </span>
+        </div>
+
+        <div className="db-event-question-box">
+          <p className="db-event-cat">{def.icon} ハプニング発生</p>
+          <p className="db-event-prompt">{def.title}</p>
+          <p className="db-muted" style={{ margin: 0, lineHeight: 1.6, color: '#cbd5e1' }}>
+            {def.lead}
+          </p>
+        </div>
+
+        {!mysteryView.summary ? (
+          <div className="db-event-choices">
+            {def.choices.map((c) => {
+              const notEnoughCoin = c.id === 'coin_tune' && run.reconCoins < 1;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`db-event-choice db-mystery-choice--${c.tone}`}
+                  disabled={notEnoughCoin}
+                  onClick={() => onChoose(c.id)}
+                >
+                  <span className={`db-mystery-badge db-mystery-badge--${c.tone}`}>{c.riskTag}</span>
+                  <div className="db-event-choice__body">
+                    <div className="db-event-choice__title">{c.label}</div>
+                    <div className="db-event-choice__desc">
+                      {notEnoughCoin ? '解析コインが足りません（必要: 1枚）' : c.description}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="db-event-feedback db-event-feedback--ok" style={{ marginTop: 12 }}>
+              <div className="db-event-feedback__badge">✔ 選択結果</div>
+              <p style={{ margin: '4px 0 0' }}>{mysteryView.summary}</p>
+            </div>
+            <div className="db-result__actions" style={{ marginTop: 16 }}>
+              <button type="button" className="db-btn db-btn--end" onClick={onContinue}>
+                次のマスへ進む →
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function RestScreen({
+  run,
+  summary,
+  onAction,
+  onContinue,
+}: {
+  run: RunState;
+  summary: string | null;
+  onAction: (action: RestAction) => void;
+  onContinue: () => void;
+}) {
+  const [mode, setMode] = useState<'menu' | 'upgrade' | 'remove'>('menu');
+  const { hoverProps, clearPreview, previewNode } = useCardHoverPreview(`${mode}-${Boolean(summary)}`);
+  const healAmt = Math.floor(run.maxHp * REST_HEAL_RATIO);
+  const upgradable = run.deck.filter((c) => c.level < 3 && !getCardDefinition(c.defId).unplayable);
+
+  return (
+    <main className="db-event-wrap" aria-label="休憩・システム保守">
+      <section className="db-event-card">
+        <div className="db-event-head">
+          <div className="db-event-head__left">
+            <span className="db-event-pill db-event-pill--type">🔧 SYSTEM MAINTENANCE</span>
+            <span className="db-event-pill db-event-pill--step">ボス戦前の最終調整</span>
+          </div>
+          <span className="db-event-hp">
+            HP {run.hp} / {run.maxHp}
+          </span>
+        </div>
+
+        <div className="db-event-question-box">
+          <p className="db-event-cat">セーフハウス接続完了</p>
+          <p className="db-event-prompt">監視AI ARGUS との決戦前に、1つだけメンテナンスを実行できます。</p>
+        </div>
+
+        {summary ? (
+          <>
+            <div className="db-event-feedback db-event-feedback--ok">
+              <div className="db-event-feedback__badge">✔ メンテナンス完了</div>
+              <p style={{ margin: '4px 0 0' }}>{summary}</p>
+            </div>
+            <div className="db-result__actions" style={{ marginTop: 16 }}>
+              <button type="button" className="db-btn db-btn--end" onClick={onContinue}>
+                次のマスへ進む →
+              </button>
+            </div>
+          </>
+        ) : mode === 'menu' ? (
+          <div className="db-rest-grid">
+            <button
+              type="button"
+              className="db-evo-card"
+              disabled={run.hp >= run.maxHp}
+              onClick={() => onAction({ type: 'heal' })}
+            >
+              <div className="db-evo-card__head">
+                <span className="db-evo-card__icon">💚</span>
+                <span className="db-evo-card__cost">HP +{healAmt}</span>
+              </div>
+              <div className="db-evo-card__name">回線メンテ（大幅回復）</div>
+              <div className="db-evo-card__text">
+                最大HPの35%を回復する（{run.hp} → {Math.min(run.maxHp, run.hp + healAmt)}）。
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="db-evo-card db-evo-card--elite"
+              disabled={upgradable.length === 0}
+              onClick={() => {
+                playSound('click');
+                setMode('upgrade');
+              }}
+            >
+              <div className="db-evo-card__head">
+                <span className="db-evo-card__icon">⚡</span>
+                <span className="db-evo-card__cost">即LvUP / 進化</span>
+              </div>
+              <div className="db-evo-card__name">カード即チューニング</div>
+              <div className="db-evo-card__text">
+                好きなカード1枚を即座に次のレベルへ強化（Lv.2なら即Lv.3分岐進化）。
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="db-evo-card"
+              disabled={run.deck.length <= 1}
+              onClick={() => {
+                playSound('click');
+                setMode('remove');
+              }}
+            >
+              <div className="db-evo-card__head">
+                <span className="db-evo-card__icon">🗑</span>
+                <span className="db-evo-card__cost">デッキ圧縮</span>
+              </div>
+              <div className="db-evo-card__name">不要カード削除</div>
+              <div className="db-evo-card__text">
+                デッキから不要なカードを1枚削除して、主力カードを引きやすくする。
+              </div>
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span className="db-muted">
+                {mode === 'upgrade' ? 'レベルアップするカードを1枚選択:' : '削除するカードを1枚選択:'}
+              </span>
+              <button
+                type="button"
+                className="db-btn db-btn--ghost"
+                onClick={() => {
+                  clearPreview();
+                  setMode('menu');
+                }}
+              >
+                ← 戻る
+              </button>
+            </div>
+            <div className="db-deck-grid">
+              {(mode === 'upgrade' ? upgradable : run.deck).map((card) => {
+                const stats = getCardStats(card);
+                return (
+                  <button
+                    key={card.uid}
+                    type="button"
+                    className={`db-deck-pill${mode === 'remove' ? ' db-deck-pill--danger' : ''}`}
+                    onClick={() => {
+                      clearPreview();
+                      onAction(mode === 'upgrade' ? { type: 'upgrade', cardUid: card.uid } : { type: 'remove', cardUid: card.uid });
+                    }}
+                    {...hoverProps(card)}
+                  >
+                    <span>
+                      {mode === 'upgrade' ? '⚡' : '🗑'} {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
+                    </span>
+                    <span className="db-muted">
+                      {mode === 'upgrade'
+                        ? card.level === 2
+                          ? '🌟 即 Lv.3 分岐進化！'
+                          : '🎉 即 Lv.2 強化！'
+                        : `${stats.cost}EN / ${stats.text}`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
       {previewNode}
     </main>

@@ -2,7 +2,7 @@
 // すべて「今の状態を受け取って、新しい状態を返す」純粋な関数。画面からもテストからも同じように呼ぶ。
 import { CARD_DEFINITIONS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
-import { ADAPTIVE_FILTER_FW, RELIC_DEFINITIONS } from './relics';
+import { ADAPTIVE_FILTER_FW, RELIC_DEFINITIONS, THERMAL_CORE_BURN, THORN_DAEMON_RETALIATE } from './relics';
 import { shuffled } from './rng';
 import { TOOL_DEFINITIONS } from './tools';
 import type {
@@ -114,9 +114,19 @@ export interface CreateBattleOptions {
   seed: number;
   relics?: RelicId[];
   tools?: ToolId[];
+  securityLevel?: number;
 }
 
-export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, relics = [], tools = [] }: CreateBattleOptions): BattleState {
+export function createBattle({
+  deck,
+  playerHp,
+  playerMaxHp,
+  enemyIds,
+  seed,
+  relics = [],
+  tools = [],
+  securityLevel = 0,
+}: CreateBattleOptions): BattleState {
   const seen: Record<string, number> = {};
   const total = (id: string) => enemyIds.filter((x) => x === id).length;
   const enemies: EnemyState[] = enemyIds.map((id, index) => {
@@ -125,23 +135,37 @@ export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, reli
     // 同じ敵が2体いるときは、1ターンずつずらして動かす(8章)
     const offset = seen[id] ?? 0;
     seen[id] = offset + 1;
+    let maxHp = securityLevel >= 1 ? Math.round(def.maxHp * 1.15) : def.maxHp;
+    let attackBonus = securityLevel >= 2 ? 2 : 0;
+    if (securityLevel >= 5 && def.phase2) {
+      maxHp = Math.round(maxHp * 1.2);
+      attackBonus += 2;
+    }
     return {
       uid: `e${index + 1}`,
       defId: id,
       name: total(id) > 1 ? `${def.name} ${String.fromCharCode(65 + offset)}` : def.name,
       icon: def.icon,
-      hp: def.maxHp,
-      maxHp: def.maxHp,
+      hp: maxHp,
+      maxHp,
       block: 0,
       weakness: def.weakness,
-      attackBonus: 0,
+      attackBonus,
       moveIndex: offset % def.pattern.length,
       phase: 1,
+      vulnerable: relics.includes('weak_scanner') ? 2 : undefined,
     };
   });
   const cards: Record<string, CardInstance> = {};
   for (const card of deck) cards[card.uid] = { ...card };
   const { items: drawPile, state: rngState } = shuffled(deck.map((c) => c.uid), seed);
+  const discard: string[] = [];
+  let nextUid = 1;
+  if (securityLevel >= 4) {
+    const noiseUid = `n${nextUid++}`;
+    cards[noiseUid] = { uid: noiseUid, defId: 'noise', level: 1, xp: 0 };
+    discard.push(noiseUid);
+  }
 
   const state: BattleState = {
     status: 'playing',
@@ -163,18 +187,24 @@ export function createBattle({ deck, playerHp, playerMaxHp, enemyIds, seed, reli
     cards,
     drawPile,
     hand: [],
-    discard: [],
+    discard,
     modifiers: { nextAttackBonus: 0, repeatNextAttack: false, nextCardDiscount: 0, reconCombo: 'none' },
     usesThisBattle: {},
     relics: [...relics],
     tools: [...tools],
     log: [],
     lastEnemyActions: [],
-    nextUid: 1,
+    nextUid,
     rngState,
   };
   startPlayerTurn(state);
   addLog(state, `戦闘開始:${enemies.map((e) => e.name).join('・')}`, 'info');
+  if (relics.includes('weak_scanner')) {
+    addLog(state, '🎯 脆弱スキャナー発動: 敵全体に脆弱(2T)!', 'good', 'player');
+  }
+  if (securityLevel >= 4) {
+    addLog(state, '⚠ セキュリティLv.4 攪乱: 捨て札にノイズ1枚が混入した。', 'bad', 'enemy');
+  }
   return state;
 }
 
@@ -212,14 +242,27 @@ function drawCards(state: BattleState, count: number): void {
 function startPlayerTurn(state: BattleState): void {
   state.turn += 1;
   state.player.block = state.player.turnBlockBonus;
-  state.player.energy = Math.max(0, state.player.maxEnergy + state.player.turnEnergyBonus - state.player.energyPenalty);
+  const firstTurnBonusEnergy = state.turn === 1 && state.relics.includes('overclock_bus') ? 2 : 0;
+  const firstTurnBonusDraw = state.turn === 1 && state.relics.includes('overclock_bus') ? 1 : 0;
+  state.player.energy = Math.max(
+    0,
+    state.player.maxEnergy + state.player.turnEnergyBonus + firstTurnBonusEnergy - state.player.energyPenalty,
+  );
   if (state.player.energyPenalty > 0) addLog(state, `検知されたため、帯域が ${state.player.energyPenalty} 減った。`, 'bad', 'enemy');
   state.player.energyPenalty = 0;
   state.modifiers.reconCombo = 'none';
   if (state.player.turnAttackBonus > 0) {
     state.modifiers.nextAttackBonus += state.player.turnAttackBonus;
   }
-  drawCards(state, DRAW_PER_TURN + state.player.turnDrawBonus);
+  if (state.relics.includes('thorn_daemon')) {
+    state.player.retaliate += THORN_DAEMON_RETALIATE;
+  }
+  if (state.relics.includes('thermal_core')) {
+    for (const enemy of livingEnemies(state)) {
+      enemy.burn = { amount: (enemy.burn?.amount ?? 0) + THERMAL_CORE_BURN, turns: BURN_TURNS };
+    }
+  }
+  drawCards(state, DRAW_PER_TURN + state.player.turnDrawBonus + firstTurnBonusDraw);
 }
 
 /** 敵にダメージ(脆弱1.5倍・FW から先に削る)。実際に HP が減った量を返す */
