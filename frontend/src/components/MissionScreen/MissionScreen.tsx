@@ -3,6 +3,7 @@ import { loadDeckProfile } from '../../game/deckbattle/profile';
 import { DEFAULT_RUN_NODES, STARTING_RECON_COINS } from '../../game/deckbattle/run';
 import { playSound } from '../../game/sound/soundEffects';
 import { DeckHubModal } from '../DeckBattle/DeckHubModal';
+import { HowToPlayModal } from '../DeckBattle/HowToPlayModal';
 import { usePlayerSync } from '../DeckBattle/usePlayerSync';
 import { PlayerPanel } from './PlayerPanel';
 import './MissionScreen.css';
@@ -14,6 +15,7 @@ interface MissionScreenProps {
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
   const [hubOpen, setHubOpen] = useState(false);
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   // サーバーからカード基地を読み込んだら再描画して、最新の戦績を出す
   usePlayerSync();
   const profile = loadDeckProfile();
@@ -36,13 +38,24 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
             <PlayerPanel />
             <button
               type="button"
+              className="ms-hub-btn ms-hub-btn--ghost"
+              onClick={() => {
+                playSound('click');
+                setHowToPlayOpen(true);
+              }}
+            >
+              ❓ 遊び方
+            </button>
+            <button
+              type="button"
               className="ms-hub-btn"
+              title="図鑑・弱点ノート・戦績・実績"
               onClick={() => {
                 playSound('click');
                 setHubOpen(true);
               }}
             >
-              🎴 カード基地（図鑑・弱点・戦績・実績）
+              🎴 カード基地
             </button>
             <span className="ms-status-dot" />
             <span>STEALTH LINK: ACTIVE</span>
@@ -131,6 +144,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
       </div>
 
       {hubOpen && <DeckHubModal onClose={() => setHubOpen(false)} />}
+      {howToPlayOpen && <HowToPlayModal onClose={() => setHowToPlayOpen(false)} />}
     </main>
   );
 }

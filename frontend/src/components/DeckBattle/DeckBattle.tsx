@@ -71,6 +71,8 @@ import type {
 } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import { HowToPlayModal } from './HowToPlayModal';
+import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
 import idlePose from '../../assets/player-idle.png';
 import attackPose from '../../assets/player-attack.png';
 import './DeckBattle.css';
@@ -278,6 +280,12 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const [evolveOrigin, setEvolveOrigin] = useState<'post_battle' | 'event'>('post_battle');
   const [eventView, setEventView] = useState<EventViewState | null>(null);
   const [showDeckModal, setShowDeckModal] = useState(false);
+  // 遊び方:初めて戦闘画面を開いたときだけ自動で出す
+  const [showHowToPlay, setShowHowToPlay] = useState(() => !hasSeenHowToPlay());
+  const closeHowToPlay = useCallback(() => {
+    markHowToPlaySeen();
+    setShowHowToPlay(false);
+  }, []);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -713,6 +721,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowDeckModal(true)}>
             デッキ ({run.deck.length})
           </button>
+          <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowHowToPlay(true)} title="遊び方と用語の説明">
+            ❓ 遊び方
+          </button>
           {phase === 'battle' && <span className="db-turn">TURN {shown.turn}</span>}
           <button type="button" className="db-btn db-btn--ghost" onClick={onBackToMissions}>
             ミッション選択へ
@@ -1027,6 +1038,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         />
       )}
       {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
+      {showHowToPlay && <HowToPlayModal onClose={closeHowToPlay} />}
     </div>
   );
 }

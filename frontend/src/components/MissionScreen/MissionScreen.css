@@ -126,6 +126,7 @@
 
 .ms-status {
   display: flex;
+  white-space: nowrap;
   align-items: center;
   gap: 8px;
   font-size: 11px;
@@ -644,6 +645,7 @@
 /* ---- カード基地ボタン・プレイヤー名(右上) ---- */
 .ms-hub-btn {
   padding: 7px 12px;
+  white-space: nowrap;
   border: 1.5px solid #00ff64;
   border-radius: 4px;
   background: linear-gradient(180deg, #065f46 0%, #064e3b 100%);
@@ -661,6 +663,7 @@
 
 .ms-player {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
@@ -790,4 +793,10 @@
 .ms-modal__btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.ms-hub-btn--ghost {
+  border-color: rgba(126, 240, 168, 0.45);
+  background: rgba(2, 16, 9, 0.8);
+  color: #c8f7da;
 }
