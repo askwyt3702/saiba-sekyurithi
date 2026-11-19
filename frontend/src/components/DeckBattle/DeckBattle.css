@@ -799,6 +799,10 @@
   --route-color: #38bdf8;
 }
 
+.db-route-node--shop {
+  --route-color: #4ade80;
+}
+
 .db-route-node--boss {
   --route-color: #f472b6;
 }

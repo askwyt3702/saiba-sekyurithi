@@ -3,7 +3,7 @@
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
 import { createBattle, getCardDefinition } from './battle';
 import { RARE_CARD_IDS, REWARD_CARD_IDS, STARTER_DECK_IDS } from './cards';
-import { ALL_RELIC_IDS } from './relics';
+import { ALL_RELIC_IDS, FORENSICS_LAB_XP } from './relics';
 import { nextRandom, shuffled } from './rng';
 import { ALL_TOOL_IDS, MAX_TOOLS } from './tools';
 import type {
@@ -28,11 +28,13 @@ export const VULN_EVENT_FAIL_DAMAGE = 5;
 export const PATCH_EVENT_HEAL = 15;
 export const MAX_EVENT_STREAK = 3;
 export const RECON_COIN_DROP_RATE = 0.2;
+export const STARTING_RECON_COINS = 2;
 
 /** 1回のランのマスの並び(戦闘3では通常/エリートの2択が可能) */
 export const DEFAULT_RUN_NODES: RunNode[] = [
   { kind: 'battle', enemyIds: ['scanner_bot'] },
   { kind: 'event', eventId: 'vuln_check' },
+  { kind: 'shop' },
   { kind: 'battle', enemyIds: ['ids_sensor', 'ids_sensor'] },
   { kind: 'event', eventId: 'patch' },
   { kind: 'battle', enemyIds: ['firewall_ai'], eliteEnemyIds: ['zero_trust_gate'] },
@@ -54,7 +56,7 @@ export function createRun(options: { fastGrowth?: boolean } = {}): RunState {
     nodeIndex: 0,
     relics: [],
     tools: ['hotfix'],
-    reconCoins: 0,
+    reconCoins: STARTING_RECON_COINS,
     currentBattleElite: false,
     pendingEvolutions: [],
     askedQuestionIds: [],
@@ -89,7 +91,7 @@ export function getXpProgress(card: CardInstance): { label: string; remainingToN
 /** 今のマスが戦闘(またはボス)なら、その戦闘を作る */
 export function createBattleForCurrentNode(run: RunState, seed: number, useElite = false): BattleState {
   const node = run.nodes[run.nodeIndex];
-  if (!node || node.kind === 'event') throw new Error('current node is not a battle');
+  if (node?.kind !== 'battle' && node?.kind !== 'boss') throw new Error('current node is not a battle');
   const enemyIds = useElite && node.kind === 'battle' && node.eliteEnemyIds ? node.eliteEnemyIds : node.enemyIds;
   return createBattle({
     deck: run.deck,
@@ -250,6 +252,9 @@ export type CoinShopAction =
 
 /** 解析コインの闇市ショップで交換する */
 export function spendCoinShop(run: RunState, action: CoinShopAction): RunState {
+  if (run.status !== 'playing' || run.nodes[run.nodeIndex]?.kind !== 'shop') {
+    throw new Error('闇市マスでのみ交換できます');
+  }
   switch (action.type) {
     case 'heal':
       if (run.reconCoins < 1) throw new Error('解析コインが足りません');
@@ -380,11 +385,16 @@ export interface QuizXpPreview {
   willEvolve: boolean;
 }
 
+export function getQuizXpReward(run: RunState): number {
+  if (run.fastGrowth) return XP_TO_LV3;
+  return QUIZ_XP_REWARD + (run.relics.includes('forensics_lab') ? FORENSICS_LAB_XP : 0);
+}
+
 /** クイズ正解報酬のEXPをカードに与えた場合の変化(進化・強化プレビューおよびLv.3 MAX判定)を返す */
 export function previewQuizXpReward(run: RunState, cardUid: string): QuizXpPreview {
   const card = run.deck.find((c) => c.uid === cardUid);
   if (!card) throw new Error(`card not found: ${cardUid}`);
-  const xpDelta = run.fastGrowth ? XP_TO_LV3 : QUIZ_XP_REWARD;
+  const xpDelta = getQuizXpReward(run);
   const isMaxed = card.level === 3 && Boolean(card.branchId);
   if (isMaxed) {
     return {
@@ -412,7 +422,7 @@ export function previewQuizXpReward(run: RunState, cardUid: string): QuizXpPrevi
   };
 }
 
-/** クイズ正解報酬:好きなカード1枚に経験値 +2(試用ブースト時は+5) */
+/** クイズ正解報酬を選んだカードに適用する */
 export function applyQuizXpReward(run: RunState, cardUid: string): { run: RunState; gain: XpGainEntry | null } {
   const target = run.deck.find((c) => c.uid === cardUid);
   if (!target) throw new Error(`card not found: ${cardUid}`);
@@ -420,8 +430,7 @@ export function applyQuizXpReward(run: RunState, cardUid: string): { run: RunSta
   if (target.level === 3 && Boolean(target.branchId) && hasNonMaxedCard) {
     throw new Error('すでに最終進化(Lv.3 MAX)済みのカードには経験値を付与できません');
   }
-  const delta = run.fastGrowth ? XP_TO_LV3 : QUIZ_XP_REWARD;
-  const res = addXp(run.deck, run.pendingEvolutions, cardUid, delta);
+  const res = addXp(run.deck, run.pendingEvolutions, cardUid, getQuizXpReward(run));
   return {
     run: {
       ...run,

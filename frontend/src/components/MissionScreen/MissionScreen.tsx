@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { loadDeckProfile } from '../../game/deckbattle/profile';
+import { DEFAULT_RUN_NODES, STARTING_RECON_COINS } from '../../game/deckbattle/run';
 import { playSound } from '../../game/sound/soundEffects';
 import { DeckHubModal } from '../DeckBattle/DeckHubModal';
 import './MissionScreen.css';
@@ -76,14 +77,14 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           >
             <div className="ms-card-top">
               <span className="ms-card-code">OPERATION // DECK BREACH</span>
-              <span className="ms-card-badge">6 NODES / 40 CARDS</span>
+              <span className="ms-card-badge">{DEFAULT_RUN_NODES.length} NODES / 40 CARDS</span>
             </div>
 
             <div className="ms-card-hazard">TARGET: 監視AI ARGUS</div>
 
             <h2 className="ms-card-title">デッキ構築ローグライト</h2>
             <p className="ms-card-desc">
-              全40種類の実在サイバー攻撃・防御カードを1枚ずつ育て、Lv.3で分岐進化させながら進む6マスラン。連続セキュリティ診断クイズや解析コイン闇市、常駐ツールを駆使してARGUSを撃破する。
+              全40種類のカードを育て、Lv.3で分岐進化させながらARGUS撃破を目指す。解析コイン{STARTING_RECON_COINS}枚を持って出発し、診断クイズのあとに闇市へ立ち寄れる。
             </p>
 
             <div className="ms-card-meta">

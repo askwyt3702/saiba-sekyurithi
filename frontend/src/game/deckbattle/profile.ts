@@ -16,7 +16,7 @@ export interface AchievementDef {
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'first_clear', icon: '🏆', title: 'ARGUS 撃破', description: '6マスランを最後までクリアし、監視AI ARGUSを倒す。' },
+  { id: 'first_clear', icon: '🏆', title: 'ARGUS 撃破', description: 'ランを最後まで進め、監視AI ARGUSを倒す。' },
   { id: 'elite_slayer', icon: '⛩️', title: '強敵突破', description: 'エリート敵「ゼロトラストゲート」を撃破する。' },
   { id: 'quiz_streak_3', icon: '🧠', title: '連続診断パーフェクト', description: 'イベントマスの連続クイズで3問連続正解を達成する。' },
   { id: 'evo_collector', icon: '🌟', title: '進化の探求者', description: 'Lv.3 進化先を累計5種類以上解放する。' },

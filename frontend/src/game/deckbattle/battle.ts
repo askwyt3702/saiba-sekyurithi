@@ -2,6 +2,7 @@
 // すべて「今の状態を受け取って、新しい状態を返す」純粋な関数。画面からもテストからも同じように呼ぶ。
 import { CARD_DEFINITIONS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
+import { ADAPTIVE_FILTER_FW, RELIC_DEFINITIONS } from './relics';
 import { shuffled } from './rng';
 import { TOOL_DEFINITIONS } from './tools';
 import type {
@@ -463,6 +464,10 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
     state.modifiers.reconCombo = 'done';
     state.player.energy += 1;
     addLog(state, '🔍 解析コンボ発動! 帯域 +1', 'good');
+    if (state.relics.includes('adaptive_filter')) {
+      state.player.block += ADAPTIVE_FILTER_FW;
+      addLog(state, `[${RELIC_DEFINITIONS.adaptive_filter.name}] FW+${ADAPTIVE_FILTER_FW}`, 'good');
+    }
   }
 
   const hits = state.enemies

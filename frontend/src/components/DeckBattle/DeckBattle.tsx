@@ -1,4 +1,4 @@
-// SECTOR 06 のゲーム画面(M1:戦闘 + M2:成長・進化 + M3:6マスラン・連続クイズ・レリック・エリート分岐)。
+// SECTOR 06 のゲーム画面(戦闘・成長・進化・連続クイズ・闇市・エリート分岐)。
 // ルールはすべて game/deckbattle/ にあり、この画面は表示と操作の受け渡しだけをする。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeckQuizQuestion } from '../../game/data/securityLearningData';
@@ -39,6 +39,7 @@ import {
   createBattleForCurrentNode,
   createRun,
   getFilteredOutQuizChoiceId,
+  getQuizXpReward,
   getXpProgress,
   grantRelic,
   pickAvailableRelic,
@@ -92,7 +93,7 @@ interface Playback {
   final: BattleState;
 }
 
-type StagePhase = 'battle' | 'elite_choice' | 'post_battle' | 'evolve' | 'reward' | 'event' | 'run_result';
+type StagePhase = 'battle' | 'elite_choice' | 'post_battle' | 'evolve' | 'reward' | 'event' | 'shop' | 'run_result';
 
 interface PostBattleSummary {
   xpGains: XpGainEntry[];
@@ -124,10 +125,12 @@ interface DeckBattleProps {
 const RUN_NODE_ICONS: Record<RunNode['kind'], { icon: string; label: string }> = {
   battle: { icon: '🤖', label: '戦闘' },
   event: { icon: '📋', label: 'イベント' },
+  shop: { icon: '🏪', label: '闇市' },
   boss: { icon: '💀', label: 'ボス' },
 };
 
 function describeNodeShort(node: RunNode, index: number): string {
+  if (node.kind === 'shop') return `${index + 1}. 解析コイン闇市`;
   if (node.kind === 'boss') return `${index + 1}. ボス:ARGUS`;
   if (node.kind === 'event') return `${index + 1}. ${node.eventId === 'vuln_check' ? '診断クイズ' : 'パッチ適用'}`;
   const first = ENEMY_DEFINITIONS[node.enemyIds[0]];
@@ -269,7 +272,6 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const [evolveOrigin, setEvolveOrigin] = useState<'post_battle' | 'event'>('post_battle');
   const [eventView, setEventView] = useState<EventViewState | null>(null);
   const [showDeckModal, setShowDeckModal] = useState(false);
-  const [showCoinShop, setShowCoinShop] = useState(false);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -399,6 +401,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       setPhase('event');
       return;
     }
+    if (node.kind === 'shop') {
+      setPhase('shop');
+      return;
+    }
     if (node.kind === 'battle' && node.eliteEnemyIds && node.eliteEnemyIds.length > 0) {
       setPhase('elite_choice');
       return;
@@ -486,24 +492,12 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     setRun((prev) => ({ ...prev, tools: [...res.state.tools] }));
   };
 
-  // 戦闘中は run.hp が戦闘開始時の値のままなので、戦闘中の HP・ツールを元に交換する
-  const shopRun: RunState = phase === 'battle' ? { ...run, hp: battle.player.hp, tools: [...battle.tools] } : run;
-
   const onBuyCoinShop = (action: CoinShopAction) => {
-    // 敵のターンの再生中に交換すると、再生後の状態で上書きされて消えるため受け付けない
-    if (playback) return;
     try {
-      const next = spendCoinShop(shopRun, action);
+      const next = spendCoinShop(run, action);
       playSound('extract');
+      setNotice(null);
       setRun(next);
-      if (phase === 'battle') {
-        setBattle((prev) => ({
-          ...prev,
-          player: { ...prev.player, hp: next.hp },
-          tools: [...next.tools],
-          relics: [...next.relics],
-        }));
-      }
     } catch (e) {
       setNotice(e instanceof Error ? e.message : '交換できませんでした。');
       playSound('alert');
@@ -670,7 +664,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <div className="db-brand">
           <span className="db-brand__tag">SECTOR 06</span>
           <span>DECK BREACH</span>
-          <span className="db-brand__proto">6マス試作ラン</span>
+          <span className="db-brand__proto">{run.nodes.length}マス試作ラン</span>
         </div>
 
         <ol className="db-stepper" aria-label="ラン進行">
@@ -696,15 +690,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         </ol>
 
         <div className="db-topbar__right">
-          <button
-            type="button"
-            className="db-btn db-fast-toggle db-fast-toggle--on"
-            onClick={() => setShowCoinShop(true)}
-            disabled={playback !== null}
-            title="解析コインを使って回復・ツール補充・カード削除・パッシブ装備購入ができます"
-          >
-            🪙 闇市 ({run.reconCoins})
-          </button>
+          <span className="db-chip db-chip--buff">🪙 解析コイン {run.reconCoins}枚</span>
           <button
             type="button"
             className={`db-btn db-fast-toggle ${run.fastGrowth ? 'db-fast-toggle--on' : ''}`}
@@ -981,15 +967,20 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <RunResultOverlay run={run} onRetry={() => startRun()} onBack={onBackToMissions} />
       )}
 
-      {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
-      {showCoinShop && (
-        <CoinShopModal
-          run={shopRun}
-          inBattle={phase === 'battle'}
+      {phase === 'shop' && (
+        <CoinShopScreen
+          run={run}
+          notice={notice}
           onBuy={onBuyCoinShop}
-          onClose={() => setShowCoinShop(false)}
+          onContinue={() => {
+            playSound('click');
+            const nextRun = advanceToNextNode(run);
+            setRun(nextRun);
+            enterNode(nextRun);
+          }}
         />
       )}
+      {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
     </div>
   );
 }
@@ -1298,7 +1289,7 @@ function EventScreen({
           <span className="db-event-prompt__rule">
             {`（正解：${
               step === 1
-                ? `好きなカードに EXP +${run.fastGrowth ? 5 : 2}`
+                ? `好きなカードに EXP +${getQuizXpReward(run)}`
                 : step === 2
                   ? 'HP10回復・カード1枚追加・カード1枚削除から1つ'
                   : '常駐ツールかレアカード'
@@ -1375,7 +1366,7 @@ function EventScreen({
 
         {isCorrect === true && !stepRewardDone && step === 1 && (
           <div className="db-event-reward-box">
-            <h3>1問目報酬: 経験値 +{run.fastGrowth ? 5 : 2} を与えるカードを1枚選んでください</h3>
+            <h3>1問目報酬: 経験値 +{getQuizXpReward(run)} を与えるカードを1枚選んでください</h3>
             <div className="db-deck-grid">
               {run.deck.map((card) => {
                 const stats = getCardStats(card);
@@ -1556,7 +1547,7 @@ function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: ()
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className={`db-result db-result--wide ${won ? 'db-result--won' : 'db-result--lost'}`}>
         <div className="db-result__title">{won ? 'RUN COMPLETE // ARGUS 撃破' : 'CONNECTION LOST'}</div>
-        <p className="db-result__sub">{won ? '6マスすべてを突破し、監視AI ARGUSを攻略した！' : '回線耐久が尽きた…。'}</p>
+        <p className="db-result__sub">{won ? `${run.nodes.length}マスすべてを突破し、監視AI ARGUSを攻略した！` : '回線耐久が尽きた…。'}</p>
         <div className="db-result__stats">
           <span>
             到達マス {run.nodeIndex + 1} / {run.nodes.length}
@@ -1632,23 +1623,23 @@ function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => voi
 }
 
 
-function CoinShopModal({
+function CoinShopScreen({
   run,
-  inBattle,
+  notice,
   onBuy,
-  onClose,
+  onContinue,
 }: {
   run: RunState;
-  inBattle: boolean;
+  notice: string | null;
   onBuy: (action: CoinShopAction) => void;
-  onClose: () => void;
+  onContinue: () => void;
 }) {
   const [shopTools] = useState<ToolId[]>(() => pickShopTools(run.nodeIndex * 31 + run.reconCoins + 7));
   const offeredRelic = pickAvailableRelic(run, run.nodeIndex * 17 + 5);
 
   return (
-    <div className="db-overlay" role="dialog" aria-modal="true" aria-label="解析コイン闇市" onClick={onClose}>
-      <div className="db-result db-result--wide db-hub" onClick={(e) => e.stopPropagation()}>
+    <main className="db-event-wrap" aria-label="解析コイン闇市">
+      <section className="db-result db-result--wide db-hub">
         <div className="db-hub__head">
           <div>
             <div className="db-result__title" style={{ fontSize: 18 }}>
@@ -1658,10 +1649,12 @@ function CoinShopModal({
               所持コイン: 🪙 {run.reconCoins} 枚（イベントの事前調査にも使えます）
             </p>
           </div>
-          <button type="button" className="db-btn db-btn--ghost" onClick={onClose}>
-            閉じる
+          <button type="button" className="db-btn db-btn--end" onClick={onContinue}>
+            次のマスへ進む →
           </button>
         </div>
+
+        {notice && <p className="db-notice" role="status">{notice}</p>}
 
         <div className="db-codex-grid" style={{ marginBottom: 14 }}>
           <button
@@ -1706,7 +1699,7 @@ function CoinShopModal({
             <button
               type="button"
               className="db-evo-card db-evo-card--elite"
-              disabled={run.reconCoins < 3 || inBattle}
+              disabled={run.reconCoins < 3}
               onClick={() => onBuy({ type: 'relic', relicId: offeredRelic })}
             >
               <div className="db-evo-card__head">
@@ -1716,7 +1709,6 @@ function CoinShopModal({
               <div className="db-evo-card__name">{RELIC_DEFINITIONS[offeredRelic].name}</div>
               <div className="db-evo-card__text">
                 {RELIC_DEFINITIONS[offeredRelic].description}
-                {inBattle ? '（戦闘中は購入不可）' : ''}
               </div>
             </button>
           )}
@@ -1731,18 +1723,18 @@ function CoinShopModal({
                 key={card.uid}
                 type="button"
                 className="db-deck-pill db-deck-pill--danger"
-                disabled={run.reconCoins < 2 || run.deck.length <= 1 || inBattle}
+                disabled={run.reconCoins < 2 || run.deck.length <= 1}
                 onClick={() => onBuy({ type: 'remove', cardUid: card.uid })}
               >
                 <span>
                   🗑 {stats.icon} {stats.name} ({card.uid})
                 </span>
-                <span className="db-muted">{inBattle ? '戦闘中は削除不可' : '🪙 2枚で削除'}</span>
+                <span className="db-muted">🪙 2枚で削除</span>
               </button>
             );
           })}
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
