@@ -71,10 +71,13 @@ import type {
 } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import idlePose from '../../assets/player-idle.png';
+import attackPose from '../../assets/player-attack.png';
 import './DeckBattle.css';
 
 const ENEMY_STEP_MS = 900;
 const FX_MS = 1100;
+const PLAYER_ATTACK_MS = 340;
 const KIND_LABEL: Record<CardKind, string> = { attack: '攻撃', defense: '防御', utility: '補助' };
 
 type FxTone = 'hit' | 'shield' | 'heal' | 'buff' | 'bad' | 'burn';
@@ -83,6 +86,7 @@ interface Fx {
   at: string;
   text: string;
   tone: FxTone;
+  impact?: 'strike' | 'guard';
 }
 type FxSpec = Omit<Fx, 'id'>;
 
@@ -163,7 +167,9 @@ function describeIntent(move: EnemyMove): { icon: string; text: string; title: s
 function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
   switch (ev.kind) {
     case 'attack':
-      return [ev.damage > 0 ? { at: 'player', text: `-${ev.damage}`, tone: 'hit' } : { at: 'player', text: '防いだ', tone: 'shield' }];
+      return [ev.damage > 0
+        ? { at: 'player', text: `-${ev.damage}`, tone: 'hit', impact: 'strike' }
+        : { at: 'player', text: '防いだ', tone: 'shield', impact: 'guard' }];
     case 'block':
       return [{ at: ev.enemyUid, text: `+FW${ev.amount}`, tone: 'shield' }];
     case 'buff':
@@ -173,7 +179,7 @@ function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
     case 'noise':
       return [{ at: 'player', text: `ノイズ+${ev.count}`, tone: 'bad' }];
     case 'retaliate':
-      return [{ at: ev.enemyUid, text: `反撃-${ev.damage}`, tone: 'hit' }];
+      return [{ at: ev.enemyUid, text: `反撃-${ev.damage}`, tone: 'hit', impact: 'strike' }];
     case 'burn':
       return [{ at: ev.enemyUid, text: `過熱-${ev.damage}`, tone: 'burn' }];
   }
@@ -186,8 +192,8 @@ function fxForPlay(before: BattleState, after: BattleState): FxSpec[] {
     if (!prev) continue;
     const hpLost = prev.hp - enemy.hp;
     const blockLost = prev.block - enemy.block;
-    if (hpLost > 0) specs.push({ at: enemy.uid, text: `-${hpLost}`, tone: 'hit' });
-    else if (blockLost > 0) specs.push({ at: enemy.uid, text: `FW-${blockLost}`, tone: 'shield' });
+    if (hpLost > 0) specs.push({ at: enemy.uid, text: `-${hpLost}`, tone: 'hit', impact: 'strike' });
+    else if (blockLost > 0) specs.push({ at: enemy.uid, text: `FW-${blockLost}`, tone: 'shield', impact: 'guard' });
     if (enemy.burn && !prev.burn) specs.push({ at: enemy.uid, text: `過熱${enemy.burn.amount}`, tone: 'burn' });
     else if (enemy.burn && prev.burn && enemy.burn.amount > prev.burn.amount) {
       specs.push({ at: enemy.uid, text: `過熱+${enemy.burn.amount - prev.burn.amount}`, tone: 'burn' });
@@ -280,7 +286,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const fxId = useRef(1);
 
   const shown = playback ? (playback.index >= 0 ? snapshotState(playback.base, playback.events[playback.index]) : playback.base) : battle;
-  const actingUid = playback && playback.index >= 0 ? playback.events[playback.index].enemyUid : null;
+  const activeEnemyAction = playback?.events[playback.index];
+  const actingUid = activeEnemyAction?.enemyUid;
   const busy = playback !== null || battle.status !== 'playing' || phase !== 'battle';
 
   // 最初のランに渡した開始コインを、プロフィールから消費する
@@ -289,12 +296,12 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (profile.bonusStartCoins > 0) saveDeckProfile(consumeBonusStartCoins(profile).profile);
   }, []);
 
-  const pushFx = useCallback((specs: FxSpec[]) => {
+  const pushFx = useCallback((specs: FxSpec[], duration = FX_MS) => {
     if (specs.length === 0) return;
     const added = specs.map((s) => ({ ...s, id: fxId.current++ }));
     setFx((prev) => [...prev, ...added]);
     const ids = new Set(added.map((a) => a.id));
-    window.setTimeout(() => setFx((prev) => prev.filter((f) => !ids.has(f.id))), FX_MS);
+    window.setTimeout(() => setFx((prev) => prev.filter((f) => !ids.has(f.id))), duration);
   }, []);
 
   const handleBattleFinished = useCallback(
@@ -431,6 +438,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     const kind = getCardDefinition(battle.cards[uid].defId).kind;
     playSound(kind === 'attack' ? 'breach' : kind === 'defense' ? 'recover' : 'scan');
     pushFx(fxForPlay(battle, result.state));
+    if (kind === 'attack') pushFx([{ at: 'player-launch', text: '', tone: 'buff' }], PLAYER_ATTACK_MS);
     setBattle(result.state);
     setSelectedUid(null);
     setNotice(null);
@@ -655,6 +663,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const fxAt = (at: string) => fx.filter((f) => f.at === at);
+  const playerMotion = fx.filter((f) => f.at === 'player-launch' || (f.at === 'player' && f.impact)).at(-1);
+  const playerImpact = playerMotion?.impact;
+  const playerAttacking = playerMotion?.at === 'player-launch';
   const { player, modifiers } = shown;
   const hpRatio = Math.max(0, player.hp / player.maxHp);
 
@@ -737,14 +748,28 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           onNextQuestion={onChallengeNextQuestion}
           onContinue={onFinishEvent}
         />
-      ) : (
+      ) : phase !== 'shop' && (
         <div className="db-main">
           <section className="db-left">
             <div className={`db-arena ${selectedUid ? 'db-arena--targeting' : ''}`}>
+              <div className="db-fighter" aria-hidden="true">
+                <span
+                  key={playerMotion?.id ?? 'idle'}
+                  className={`db-fighter__avatar ${playerImpact === 'strike' ? 'db-fighter__avatar--hit' : playerAttacking ? 'db-fighter__avatar--launch' : ''}`}
+                >
+                  <span className="db-fighter__poses">
+                    <img src={idlePose} alt="" draggable={false} hidden={playerAttacking} />
+                    <img src={attackPose} alt="" draggable={false} hidden={!playerAttacking} />
+                  </span>
+                </span>
+                {playerImpact && <span key={`impact-${playerMotion?.id}`} className={`db-impact db-impact--${playerImpact}`} />}
+              </div>
               {shown.enemies.map((enemy) => {
                 const dead = enemy.hp <= 0;
                 const intent = describeIntent(getEnemyIntent(enemy));
-                const hit = fxAt(enemy.uid).some((f) => f.tone === 'hit' || f.tone === 'burn');
+                const enemyFx = fxAt(enemy.uid);
+                const impact = enemyFx.filter((f) => f.impact).at(-1);
+                const attacking = activeEnemyAction?.kind === 'attack' && actingUid === enemy.uid;
                 const def = ENEMY_DEFINITIONS[enemy.defId];
                 return (
                   <button
@@ -755,7 +780,6 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       dead ? 'db-enemy--dead' : '',
                       selectedUid && !dead ? 'db-enemy--targetable' : '',
                       actingUid === enemy.uid ? 'db-enemy--acting' : '',
-                      hit ? 'db-enemy--hit' : '',
                       def.phase2 ? 'db-enemy--boss' : '',
                     ].join(' ')}
                     onClick={() => onEnemyClick(enemy)}
@@ -768,7 +792,12 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                         <span>{intent.text}</span>
                       </span>
                     )}
-                    <span className="db-enemy__icon">{dead ? '💀' : enemy.icon}</span>
+                    <span
+                      key={attacking ? `attack-${playback?.index}` : impact?.id ?? 'idle'}
+                      className={`db-enemy__icon ${attacking ? 'db-enemy__icon--launch' : impact?.impact === 'strike' ? 'db-enemy__icon--hit' : ''}`}
+                    >
+                      {dead ? '💀' : enemy.icon}
+                    </span>
                     <span className="db-enemy__name">
                       {enemy.name}
                       {enemy.phase === 2 && <span className="db-enemy__phase">本気</span>}
@@ -806,8 +835,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                         </span>
                       )}
                     </span>
+                    {impact && <span key={`impact-${impact.id}`} className={`db-impact db-impact--${impact.impact}`} aria-hidden="true" />}
                     <span className="db-fx">
-                      {fxAt(enemy.uid).map((f) => (
+                      {enemyFx.map((f) => (
                         <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}`}>
                           {f.text}
                         </span>
