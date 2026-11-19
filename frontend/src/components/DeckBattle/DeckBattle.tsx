@@ -1148,6 +1148,57 @@ function EvolutionOverlay({
   );
 }
 
+function FloatingCardPreview({ card, side }: { card: CardInstance; side: 'left' | 'right' }) {
+  const def = getCardDefinition(card.defId);
+  const stats = getCardStats(card);
+  const xpProg = getXpProgress(card);
+
+  return (
+    <aside className={`db-card-preview-float db-card-preview-float--${side}`} aria-label="カードプレビュー">
+      <div className="db-card-preview-float__tag">CARD PREVIEW // {card.uid}</div>
+      <div className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--preview-large`}>
+        <span className="db-card__cost">{stats.cost}</span>
+        <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
+        <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
+        <span className="db-card__name">{stats.name}</span>
+        <span className="db-card__desc">{stats.text}</span>
+        <span className="db-card__lore">{def.lore}</span>
+        <span className="db-card__level">{xpProg.label}</span>
+      </div>
+      <div className="db-card-preview-float__next">
+        {card.level === 1 && (
+          <span>
+            <strong>Lv.2 強化後:</strong> {def.levels[2].cost}EN / {def.levels[2].text}
+          </span>
+        )}
+        {card.level === 2 && def.branches.length > 0 && (
+          <span>
+            <strong>Lv.3 進化先:</strong> {def.branches.map((b) => `${b.name}(${b.cost}EN)`).join(' / ')}
+          </span>
+        )}
+        {card.level === 3 && <span><strong>Lv.3 最終進化形態</strong></span>}
+      </div>
+    </aside>
+  );
+}
+
+function useCardHoverPreview() {
+  const [hovered, setHovered] = useState<{ card: CardInstance; side: 'left' | 'right' } | null>(null);
+  const hoverProps = (card: CardInstance) => ({
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const mid = typeof window !== 'undefined' ? window.innerWidth / 2 : 640;
+      const side: 'left' | 'right' = rect.left + rect.width / 2 > mid ? 'left' : 'right';
+      setHovered({ card, side });
+    },
+    onMouseLeave: () => setHovered((prev) => (prev?.card.uid === card.uid ? null : prev)),
+    onFocus: () => setHovered({ card, side: 'right' }),
+    onBlur: () => setHovered((prev) => (prev?.card.uid === card.uid ? null : prev)),
+  });
+  const previewNode = hovered ? <FloatingCardPreview card={hovered.card} side={hovered.side} /> : null;
+  return { hoverProps, previewNode };
+}
+
 function RewardOverlay({
   run,
   rewardDefIds,
@@ -1160,6 +1211,7 @@ function RewardOverlay({
   onRemove: (cardUid: string) => void;
 }) {
   const [compressMode, setCompressMode] = useState(false);
+  const { hoverProps, previewNode } = useCardHoverPreview();
 
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
@@ -1212,11 +1264,12 @@ function RewardOverlay({
                     type="button"
                     className="db-deck-pill db-deck-pill--danger"
                     onClick={() => onRemove(card.uid)}
+                    {...hoverProps(card)}
                   >
                     <span>
-                      🗑 {stats.icon} {stats.name} ({card.uid})
+                      🗑 {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
                     </span>
-                    <span className="db-muted">{getXpProgress(card).label}</span>
+                    <span className="db-muted">{getXpProgress(card).label} / {stats.text}</span>
                   </button>
                 );
               })}
@@ -1229,6 +1282,7 @@ function RewardOverlay({
           </>
         )}
       </div>
+      {previewNode}
     </div>
   );
 }
@@ -1275,6 +1329,7 @@ function EventScreen({
   const allDeckMaxed = run.deck.every((c) => c.level === 3 && Boolean(c.branchId));
   const canChallengeMore = isCorrect === true && stepRewardDone && step < MAX_EVENT_STREAK && run.status === 'playing' && !finished;
   const canLeave = (selectedChoiceId !== null && !isCorrect && run.status === 'playing') || (isCorrect === true && stepRewardDone && run.status === 'playing');
+  const { hoverProps, previewNode } = useCardHoverPreview();
 
   return (
     <main className="db-event-wrap">
@@ -1432,6 +1487,7 @@ function EventScreen({
                       .filter(Boolean)
                       .join(' ')}
                     onClick={() => onPickXpCard(card.uid)}
+                    {...hoverProps(card)}
                   >
                     <span className="db-deck-pill__title">
                       {stats.icon} {stats.name} ({card.uid})
@@ -1514,10 +1570,12 @@ function EventScreen({
                         type="button"
                         className="db-deck-pill db-deck-pill--danger"
                         onClick={() => onStep2Reward({ type: 'remove', cardUid: card.uid })}
+                        {...hoverProps(card)}
                       >
                         <span>
-                          🗑 {stats.icon} {stats.name} ({card.uid})
+                          🗑 {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
                         </span>
+                        <span className="db-muted">{stats.cost}EN / {stats.text}</span>
                       </button>
                     );
                   })}
@@ -1583,12 +1641,14 @@ function EventScreen({
           </div>
         )}
       </section>
+      {previewNode}
     </main>
   );
 }
 
 function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: () => void; onBack: () => void }) {
   const won = run.status === 'won';
+  const { hoverProps, previewNode } = useCardHoverPreview();
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className={`db-result db-result--wide ${won ? 'db-result--won' : 'db-result--lost'}`}>
@@ -1604,12 +1664,12 @@ function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: ()
           <span>デッキ {run.deck.length} 枚</span>
         </div>
         <div className="db-result__used">
-          <div className="db-result__used-title">育てたカード一覧</div>
+          <div className="db-result__used-title">育てたカード一覧（カーソルを合わせるとカード詳細を表示）</div>
           <div className="db-deck-grid">
             {run.deck.map((card) => {
               const stats = getCardStats(card);
               return (
-                <div key={card.uid} className="db-deck-pill">
+                <div key={card.uid} className="db-deck-pill" tabIndex={0} {...hoverProps(card)}>
                   <span>
                     {stats.icon} {stats.name}
                   </span>
@@ -1630,11 +1690,13 @@ function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: ()
           </button>
         </div>
       </div>
+      {previewNode}
     </div>
   );
 }
 
 function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => void }) {
+  const { hoverProps, previewNode } = useCardHoverPreview();
   return (
     <div className="db-overlay" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="db-result db-result--wide" onClick={(e) => e.stopPropagation()}>
@@ -1644,7 +1706,7 @@ function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => voi
             const def = getCardDefinition(card.defId);
             const stats = getCardStats(card);
             return (
-              <div key={card.uid} className="db-deck-pill">
+              <div key={card.uid} className="db-deck-pill" tabIndex={0} {...hoverProps(card)}>
                 <span>
                   {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
                 </span>
@@ -1664,6 +1726,7 @@ function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => voi
           </button>
         </div>
       </div>
+      {previewNode}
     </div>
   );
 }
@@ -1682,6 +1745,7 @@ function CoinShopScreen({
 }) {
   const [shopTools] = useState<ToolId[]>(() => pickShopTools(run.nodeIndex * 31 + run.reconCoins + 7));
   const offeredRelic = pickAvailableRelic(run, run.nodeIndex * 17 + 5);
+  const { hoverProps, previewNode } = useCardHoverPreview();
 
   return (
     <main className="db-event-wrap" aria-label="解析コイン闇市">
@@ -1771,16 +1835,18 @@ function CoinShopScreen({
                 className="db-deck-pill db-deck-pill--danger"
                 disabled={run.reconCoins < 2 || run.deck.length <= 1}
                 onClick={() => onBuy({ type: 'remove', cardUid: card.uid })}
+                {...hoverProps(card)}
               >
                 <span>
-                  🗑 {stats.icon} {stats.name} ({card.uid})
+                  🗑 {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
                 </span>
-                <span className="db-muted">🪙 2枚で削除</span>
+                <span className="db-muted">🪙 2枚で削除 / {stats.cost}EN · {stats.text}</span>
               </button>
             );
           })}
         </div>
       </section>
+      {previewNode}
     </main>
   );
 }
