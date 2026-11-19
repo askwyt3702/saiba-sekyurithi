@@ -11,10 +11,10 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  /* ゲーム全体の文字。英数字は等幅、日本語は M PLUS 1 Code(index.html で読み込む) */
-  --font-cyber: ui-monospace, Consolas, 'M PLUS 1 Code', monospace;
+  /* ゲーム全体の文字。英数字は Chakra Petch、日本語は Zen Kaku Gothic New(どちらも角ばった形。index.html で読み込む) */
+  --font-cyber: 'Chakra Petch', 'Zen Kaku Gothic New', ui-monospace, Consolas, sans-serif;
   /* HP・帯域・ダメージなどの数字 */
-  --font-digits: 'Orbitron', ui-monospace, Consolas, monospace;
+  --font-digits: 'Chakra Petch', 'Zen Kaku Gothic New', ui-monospace, Consolas, monospace;
   --sans: var(--font-cyber);
   --heading: var(--font-cyber);
   --mono: var(--font-cyber);

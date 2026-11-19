@@ -2851,3 +2851,66 @@
 .db-topbar .db-brand {
   letter-spacing: 2px;
 }
+
+/* ==========================================================================
+   角ばった見た目(ミッション選択画面と同じ):角の丸みをなくし、四隅に L 字の飾りを付ける
+   ========================================================================== */
+
+/* 角の丸みは 2px に統一する(あとから足した部品も同じ見た目になるよう、まとめて指定) */
+.db-shell [class],
+.db-overlay,
+.db-overlay [class] {
+  border-radius: 2px !important;
+}
+
+/* 丸いままにするもの(帯域の玉・コストの宝石・番号・小さな点・演出の輪・足元の影) */
+.db-shell :is(.db-energy, .db-card__cost, .db-event-choice__num, .db-route-node__check, .db-log__legend-dot, .db-impact--buff, .db-impact--burn, .db-impact--guard, .db-impact--heal),
+.db-overlay :is(.db-card__cost, .db-event-choice__num),
+.db-fighter::before {
+  border-radius: 50% !important;
+}
+
+/* パネルの上辺を明るい線にする(ミッション選択画面のカードと同じ) */
+.db-enemy {
+  border-top: 2px solid #f43f5e;
+}
+.db-log {
+  border-top: 2px solid rgba(0, 255, 100, 0.7);
+}
+.db-result {
+  border-top-width: 2px;
+}
+
+/* 四隅の L 字の飾り(1つの疑似要素に、背景のグラデーションで8本の線を描く) */
+.db-enemy,
+.db-log,
+.db-result {
+  position: relative;
+}
+.db-enemy::after,
+.db-log::after,
+.db-result::after {
+  --corner: rgba(0, 255, 100, 0.55);
+  content: '';
+  position: absolute;
+  inset: 5px;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    linear-gradient(var(--corner), var(--corner)) top left / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top left / 2px 10px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top right / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top right / 2px 10px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom left / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom left / 2px 10px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom right / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom right / 2px 10px no-repeat;
+}
+.db-enemy::after {
+  --corner: rgba(244, 63, 94, 0.6);
+}
+
+/* マスが9つに増えて上のバーがはみ出すので、「◯マス試作ラン」の表示は隠す(進み具合はマスの絵柄で分かる) */
+.db-topbar .db-brand__proto {
+  display: none;
+}
