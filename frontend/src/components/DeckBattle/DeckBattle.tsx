@@ -1208,21 +1208,36 @@ function FloatingCardPreview({ card, side }: { card: CardInstance; side: 'left' 
   return <CardPreviewPanel card={card} className={`db-card-preview-float db-card-preview-float--${side}`} />;
 }
 
-function useCardHoverPreview() {
-  const [hovered, setHovered] = useState<{ card: CardInstance; side: 'left' | 'right' } | null>(null);
+function useCardHoverPreview(resetKey?: string | number | boolean) {
+  const [hovered, setHovered] = useState<{
+    card: CardInstance;
+    side: 'left' | 'right';
+    target: HTMLElement | null;
+    key: string | number | boolean | undefined;
+  } | null>(null);
+
   const hoverProps = (card: CardInstance) => ({
     onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
       const mid = typeof window !== 'undefined' ? window.innerWidth / 2 : 640;
       const side: 'left' | 'right' = rect.left + rect.width / 2 > mid ? 'left' : 'right';
-      setHovered({ card, side });
+      setHovered({ card, side, target: e.currentTarget, key: resetKey });
     },
     onMouseLeave: () => setHovered((prev) => (prev?.card.uid === card.uid ? null : prev)),
-    onFocus: () => setHovered({ card, side: 'right' }),
+    onFocus: (e: React.FocusEvent<HTMLElement>) =>
+      setHovered({ card, side: 'right', target: e.currentTarget, key: resetKey }),
     onBlur: () => setHovered((prev) => (prev?.card.uid === card.uid ? null : prev)),
   });
-  const previewNode = hovered ? <FloatingCardPreview card={hovered.card} side={hovered.side} /> : null;
-  return { hoverProps, previewNode };
+
+  const clearPreview = () => setHovered(null);
+  const activeHovered =
+    hovered && hovered.key === resetKey && (!hovered.target || hovered.target.isConnected)
+      ? hovered
+      : null;
+  const previewNode = activeHovered ? (
+    <FloatingCardPreview card={activeHovered.card} side={activeHovered.side} />
+  ) : null;
+  return { hoverProps, clearPreview, previewNode };
 }
 
 function RewardOverlay({
@@ -1237,7 +1252,7 @@ function RewardOverlay({
   onRemove: (cardUid: string) => void;
 }) {
   const [compressMode, setCompressMode] = useState(false);
-  const { hoverProps, previewNode } = useCardHoverPreview();
+  const { hoverProps, clearPreview, previewNode } = useCardHoverPreview(compressMode);
 
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
@@ -1289,7 +1304,10 @@ function RewardOverlay({
                     key={card.uid}
                     type="button"
                     className="db-deck-pill db-deck-pill--danger"
-                    onClick={() => onRemove(card.uid)}
+                    onClick={() => {
+                      clearPreview();
+                      onRemove(card.uid);
+                    }}
                     {...hoverProps(card)}
                   >
                     <span>
@@ -1355,7 +1373,9 @@ function EventScreen({
   const allDeckMaxed = run.deck.every((c) => c.level === 3 && Boolean(c.branchId));
   const canChallengeMore = isCorrect === true && stepRewardDone && step < MAX_EVENT_STREAK && run.status === 'playing' && !finished;
   const canLeave = (selectedChoiceId !== null && !isCorrect && run.status === 'playing') || (isCorrect === true && stepRewardDone && run.status === 'playing');
-  const { hoverProps, previewNode } = useCardHoverPreview();
+  const { hoverProps, clearPreview, previewNode } = useCardHoverPreview(
+    `${eventId}-${step}-${stepRewardDone}-${selectedChoiceId ?? ''}`,
+  );
 
   return (
     <main className="db-event-wrap">
@@ -1508,7 +1528,10 @@ function EventScreen({
                     ]
                       .filter(Boolean)
                       .join(' ')}
-                    onClick={() => onPickXpCard(card.uid)}
+                    onClick={() => {
+                      clearPreview();
+                      onPickXpCard(card.uid);
+                    }}
                     {...hoverProps(card)}
                   >
                     <span className="db-deck-pill__title">
@@ -1591,7 +1614,10 @@ function EventScreen({
                         key={card.uid}
                         type="button"
                         className="db-deck-pill db-deck-pill--danger"
-                        onClick={() => onStep2Reward({ type: 'remove', cardUid: card.uid })}
+                        onClick={() => {
+                          clearPreview();
+                          onStep2Reward({ type: 'remove', cardUid: card.uid });
+                        }}
                         {...hoverProps(card)}
                       >
                         <span>
@@ -1670,7 +1696,7 @@ function EventScreen({
 
 function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: () => void; onBack: () => void }) {
   const won = run.status === 'won';
-  const { hoverProps, previewNode } = useCardHoverPreview();
+  const { hoverProps, previewNode } = useCardHoverPreview(run.deck.length);
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className={`db-result db-result--wide ${won ? 'db-result--won' : 'db-result--lost'}`}>
@@ -1791,7 +1817,9 @@ function CoinShopScreen({
 }) {
   const [shopTools] = useState<ToolId[]>(() => pickShopTools(run.nodeIndex * 31 + run.reconCoins + 7));
   const offeredRelic = pickAvailableRelic(run, run.nodeIndex * 17 + 5);
-  const { hoverProps, previewNode } = useCardHoverPreview();
+  const { hoverProps, clearPreview, previewNode } = useCardHoverPreview(
+    `${run.deck.length}-${run.reconCoins}`,
+  );
 
   return (
     <main className="db-event-wrap" aria-label="解析コイン闇市">
@@ -1880,7 +1908,10 @@ function CoinShopScreen({
                 type="button"
                 className="db-deck-pill db-deck-pill--danger"
                 disabled={run.reconCoins < 2 || run.deck.length <= 1}
-                onClick={() => onBuy({ type: 'remove', cardUid: card.uid })}
+                onClick={() => {
+                  clearPreview();
+                  onBuy({ type: 'remove', cardUid: card.uid });
+                }}
                 {...hoverProps(card)}
               >
                 <span>
