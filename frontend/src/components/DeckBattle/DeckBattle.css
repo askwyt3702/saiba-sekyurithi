@@ -2300,3 +2300,226 @@
   border-color: #fb7185;
   color: #fff1f2;
 }
+
+/* ---------- 戦闘エフェクト強化（行動バナー・光線・種別インパクト） ---------- */
+.db-arena {
+  position: relative;
+  overflow: hidden;
+}
+
+.db-impact--guard {
+  border: 2.5px solid #67e8f9;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, transparent 38%, #38bdf899 84%);
+  box-shadow: 0 0 22px #22d3eeaa, inset 0 0 14px #7dd3fc88;
+}
+
+.db-impact--burn {
+  border-radius: 50%;
+  background: radial-gradient(circle at center, #fef08a 0%, #fb923c 38%, #ef444488 68%, transparent 82%);
+  box-shadow: 0 0 26px rgba(251, 146, 60, 0.75);
+}
+
+.db-impact--debuff {
+  border: 2px dashed #c084fc;
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(0deg, rgba(192, 132, 252, 0.28) 0 4px, transparent 4px 9px),
+    radial-gradient(ellipse, rgba(168, 85, 247, 0.45), transparent 72%);
+  box-shadow: 0 0 22px rgba(192, 132, 252, 0.65);
+}
+
+.db-impact--buff {
+  border: 2px solid #fde047;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(253, 224, 71, 0.5) 0%, rgba(56, 189, 248, 0.25) 55%, transparent 78%);
+  box-shadow: 0 0 24px rgba(250, 204, 21, 0.65);
+}
+
+.db-impact--heal {
+  border: 2px solid #34d399;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(110, 231, 183, 0.55) 0%, rgba(16, 185, 129, 0.22) 60%, transparent 80%);
+  box-shadow: 0 0 24px rgba(52, 211, 153, 0.7);
+}
+
+.db-action-banner {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 92%;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(56, 189, 248, 0.75);
+  background: rgba(6, 18, 32, 0.92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.35);
+  white-space: nowrap;
+  animation: db-banner-pop 1.05s ease-out forwards;
+}
+
+.db-action-banner--attack {
+  border-color: #fb7185;
+  background: linear-gradient(90deg, rgba(68, 12, 28, 0.94), rgba(20, 12, 30, 0.94));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 20px rgba(244, 63, 94, 0.45);
+}
+
+.db-action-banner--defense {
+  border-color: #38bdf8;
+  background: linear-gradient(90deg, rgba(8, 42, 66, 0.94), rgba(10, 24, 42, 0.94));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.45);
+}
+
+.db-action-banner--utility {
+  border-color: #fbbf24;
+  background: linear-gradient(90deg, rgba(58, 36, 8, 0.94), rgba(22, 18, 34, 0.94));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 20px rgba(251, 191, 36, 0.4);
+}
+
+.db-action-banner--enemy {
+  border-color: #f43f5e;
+  background: linear-gradient(90deg, rgba(86, 12, 32, 0.95), rgba(34, 8, 20, 0.95));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 22px rgba(244, 63, 94, 0.55);
+}
+
+.db-action-banner__icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.db-action-banner__title {
+  font-size: 13px;
+  font-weight: 900;
+  color: #f8fafc;
+  letter-spacing: 0.4px;
+}
+
+.db-action-banner__detail {
+  padding-left: 8px;
+  border-left: 1px solid rgba(148, 163, 184, 0.4);
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-arena-beam {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.db-arena-beam--attack {
+  background: linear-gradient(
+    90deg,
+    transparent 10%,
+    rgba(251, 113, 133, 0.08) 28%,
+    rgba(254, 240, 138, 0.55) 52%,
+    rgba(244, 63, 94, 0.45) 68%,
+    transparent 88%
+  );
+  animation: db-beam-sweep-right 380ms ease-out forwards;
+}
+
+.db-arena-beam--aoe {
+  background: radial-gradient(
+    ellipse at 65% 50%,
+    rgba(251, 113, 133, 0.42) 0%,
+    rgba(251, 191, 36, 0.24) 40%,
+    transparent 74%
+  );
+  animation: db-beam-pulse 440ms ease-out forwards;
+}
+
+.db-arena-beam--defense {
+  background: radial-gradient(
+    ellipse at 26% 56%,
+    rgba(56, 189, 248, 0.36) 0%,
+    rgba(34, 211, 238, 0.16) 40%,
+    transparent 72%
+  );
+  animation: db-beam-pulse 420ms ease-out forwards;
+}
+
+.db-arena-beam--utility {
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(251, 191, 36, 0.26) 0%,
+    rgba(168, 85, 247, 0.16) 44%,
+    transparent 76%
+  );
+  animation: db-beam-pulse 420ms ease-out forwards;
+}
+
+.db-arena-beam--enemy {
+  background: linear-gradient(
+    270deg,
+    transparent 10%,
+    rgba(244, 63, 94, 0.12) 30%,
+    rgba(251, 113, 133, 0.48) 56%,
+    transparent 86%
+  );
+  animation: db-beam-sweep-left 400ms ease-out forwards;
+}
+
+.db-fx__float {
+  top: 24%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(4, 10, 20, 0.78);
+  font-size: 21px;
+  animation-duration: 1.15s;
+}
+
+.db-fx__float:nth-child(2) { top: 44%; }
+.db-fx__float:nth-child(3) { top: 64%; }
+.db-fx__float:nth-child(4) { top: 82%; }
+
+.db-fx--player .db-fx__float {
+  font-size: 16px;
+}
+
+.db-fx--player .db-fx__float:nth-child(2) { left: 135px; }
+.db-fx--player .db-fx__float:nth-child(3) { left: 270px; }
+.db-fx--player .db-fx__float:nth-child(4) { top: -26px; left: 60px; }
+.db-fx--player .db-fx__float:nth-child(5) { top: -26px; left: 200px; }
+
+@keyframes db-banner-pop {
+  0% { opacity: 0; transform: translate(-50%, -10px) scale(0.92); }
+  14% { opacity: 1; transform: translate(-50%, 0) scale(1.02); }
+  78% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -6px) scale(0.98); }
+}
+
+@keyframes db-beam-sweep-right {
+  0% { opacity: 0; transform: translateX(-35%) scaleY(0.45); }
+  35% { opacity: 1; transform: translateX(0) scaleY(1); }
+  100% { opacity: 0; transform: translateX(30%) scaleY(0.7); }
+}
+
+@keyframes db-beam-sweep-left {
+  0% { opacity: 0; transform: translateX(35%) scaleY(0.45); }
+  35% { opacity: 1; transform: translateX(0) scaleY(1); }
+  100% { opacity: 0; transform: translateX(-30%) scaleY(0.7); }
+}
+
+@keyframes db-beam-pulse {
+  0% { opacity: 0; transform: scale(0.85); }
+  30% { opacity: 1; transform: scale(1.03); }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-action-banner,
+  .db-arena-beam {
+    animation: none;
+  }
+}

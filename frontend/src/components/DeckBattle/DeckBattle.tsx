@@ -78,19 +78,31 @@ import attackPose from '../../assets/player-attack.png';
 import './DeckBattle.css';
 
 const ENEMY_STEP_MS = 900;
-const FX_MS = 1100;
+const FX_MS = 1150;
+const BANNER_MS = 1050;
 const PLAYER_ATTACK_MS = 340;
 const KIND_LABEL: Record<CardKind, string> = { attack: '攻撃', defense: '防御', utility: '補助' };
 
 type FxTone = 'hit' | 'shield' | 'heal' | 'buff' | 'bad' | 'burn';
+type FxImpact = 'strike' | 'guard' | 'burn' | 'debuff' | 'buff' | 'heal';
 interface Fx {
   id: number;
   at: string;
   text: string;
   tone: FxTone;
-  impact?: 'strike' | 'guard';
+  impact?: FxImpact;
 }
 type FxSpec = Omit<Fx, 'id'>;
+
+interface ActionBanner {
+  id: number;
+  actor: 'player' | 'enemy';
+  kind: 'attack' | 'defense' | 'utility' | 'enemy';
+  icon: string;
+  title: string;
+  detail?: string;
+  isAoe?: boolean;
+}
 
 interface Playback {
   base: BattleState;
@@ -169,25 +181,60 @@ function describeIntent(move: EnemyMove): { icon: string; text: string; title: s
 function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
   switch (ev.kind) {
     case 'attack':
-      return [ev.damage > 0
-        ? { at: 'player', text: `-${ev.damage}`, tone: 'hit', impact: 'strike' }
-        : { at: 'player', text: '防いだ', tone: 'shield', impact: 'guard' }];
+      return [
+        ev.damage > 0
+          ? { at: 'player', text: `-${ev.damage}`, tone: 'hit', impact: 'strike' }
+          : { at: 'player', text: '🛡 防いだ！', tone: 'shield', impact: 'guard' },
+      ];
     case 'block':
-      return [{ at: ev.enemyUid, text: `+FW${ev.amount}`, tone: 'shield' }];
+      return [{ at: ev.enemyUid, text: `🛡 +FW${ev.amount}`, tone: 'shield', impact: 'guard' }];
     case 'buff':
-      return [{ at: ev.enemyUid, text: `攻撃力+${ev.amount}`, tone: 'bad' }];
+      return [{ at: ev.enemyUid, text: `⬆ 攻撃力+${ev.amount}`, tone: 'bad', impact: 'buff' }];
     case 'detect':
-      return [{ at: 'player', text: `検知:帯域-${ev.amount}`, tone: 'bad' }];
+      return [{ at: 'player', text: `👁 検知:帯域-${ev.amount}`, tone: 'bad', impact: 'debuff' }];
     case 'noise':
-      return [{ at: 'player', text: `ノイズ+${ev.count}`, tone: 'bad' }];
+      return [{ at: 'player', text: `☣ ノイズ+${ev.count}`, tone: 'bad', impact: 'debuff' }];
     case 'retaliate':
-      return [{ at: ev.enemyUid, text: `反撃-${ev.damage}`, tone: 'hit', impact: 'strike' }];
+      return [{ at: ev.enemyUid, text: `🪤 反撃-${ev.damage}`, tone: 'hit', impact: 'strike' }];
     case 'burn':
-      return [{ at: ev.enemyUid, text: `過熱-${ev.damage}`, tone: 'burn' }];
+      return [{ at: ev.enemyUid, text: `🔥 過熱-${ev.damage}`, tone: 'burn', impact: 'burn' }];
   }
 }
 
-function fxForPlay(before: BattleState, after: BattleState): FxSpec[] {
+function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<ActionBanner, 'id'> {
+  const enemy = base.enemies.find((e) => e.uid === ev.enemyUid);
+  const name = enemy?.name ?? '敵';
+  const icon = enemy?.icon ?? '⚠';
+  switch (ev.kind) {
+    case 'attack':
+      return {
+        actor: 'enemy',
+        kind: 'enemy',
+        icon,
+        title: `${name} の攻撃`,
+        detail: ev.damage > 0 ? `⚔ ${ev.damage} ダメージ！` : '🛡 FWで完全に防いだ！',
+      };
+    case 'block':
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の防御`, detail: `🛡 FW +${ev.amount}` };
+    case 'buff':
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の強化`, detail: `⬆ 攻撃力 +${ev.amount}` };
+    case 'detect':
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の検知`, detail: `👁 次ターン帯域 -${ev.amount}` };
+    case 'noise':
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の妨害`, detail: `☣ ノイズ ×${ev.count} 混入` };
+    case 'retaliate':
+      return { actor: 'player', kind: 'defense', icon: '🪤', title: '反撃トラップ発動！', detail: `${name} に ${ev.damage} ダメージ` };
+    case 'burn':
+      return { actor: 'player', kind: 'attack', icon: '🔥', title: '過熱ダメージ発動！', detail: `${name} に ${ev.damage} ダメージ` };
+  }
+}
+
+function countNoiseCards(state: BattleState): number {
+  const allUids = [...state.hand, ...state.drawPile, ...state.discard];
+  return allUids.filter((uid) => state.cards[uid]?.defId === 'noise').length;
+}
+
+function fxForPlay(before: BattleState, after: BattleState, playedCard = true): FxSpec[] {
   const specs: FxSpec[] = [];
   for (const enemy of after.enemies) {
     const prev = before.enemies.find((e) => e.uid === enemy.uid);
@@ -195,27 +242,96 @@ function fxForPlay(before: BattleState, after: BattleState): FxSpec[] {
     const hpLost = prev.hp - enemy.hp;
     const blockLost = prev.block - enemy.block;
     if (hpLost > 0) specs.push({ at: enemy.uid, text: `-${hpLost}`, tone: 'hit', impact: 'strike' });
-    else if (blockLost > 0) specs.push({ at: enemy.uid, text: `FW-${blockLost}`, tone: 'shield', impact: 'guard' });
-    if (enemy.burn && !prev.burn) specs.push({ at: enemy.uid, text: `過熱${enemy.burn.amount}`, tone: 'burn' });
-    else if (enemy.burn && prev.burn && enemy.burn.amount > prev.burn.amount) {
-      specs.push({ at: enemy.uid, text: `過熱+${enemy.burn.amount - prev.burn.amount}`, tone: 'burn' });
+    if (blockLost > 0) {
+      specs.push({
+        at: enemy.uid,
+        text: hpLost > 0 ? `FW破壊 -${blockLost}` : `FW-${blockLost}`,
+        tone: 'shield',
+        impact: hpLost > 0 ? undefined : 'guard',
+      });
+    }
+    if (enemy.burn && !prev.burn) {
+      specs.push({ at: enemy.uid, text: `🔥 過熱${enemy.burn.amount}`, tone: 'burn', impact: 'burn' });
+    } else if (enemy.burn && prev.burn && enemy.burn.amount > prev.burn.amount) {
+      specs.push({
+        at: enemy.uid,
+        text: `🔥 過熱+${enemy.burn.amount - prev.burn.amount}`,
+        tone: 'burn',
+        impact: 'burn',
+      });
+    }
+    const prevVuln = prev.vulnerable ?? 0;
+    const nextVuln = enemy.vulnerable ?? 0;
+    if (nextVuln > prevVuln) {
+      specs.push({ at: enemy.uid, text: `💔 脆弱 ${nextVuln}T`, tone: 'bad', impact: 'debuff' });
+    }
+    const prevJam = prev.jammed ?? 0;
+    const nextJam = enemy.jammed ?? 0;
+    if (nextJam > prevJam) {
+      specs.push({ at: enemy.uid, text: `📶 ジャム ${nextJam}T`, tone: 'bad', impact: 'debuff' });
+    }
+    if (prev.attackBonus > enemy.attackBonus) {
+      specs.push({ at: enemy.uid, text: '🚫 攻撃強化解除', tone: 'buff', impact: 'debuff' });
     }
   }
+
   const blockGain = after.player.block - before.player.block;
-  if (blockGain > 0) specs.push({ at: 'player', text: `+FW${blockGain}`, tone: 'shield' });
+  if (blockGain > 0) specs.push({ at: 'player', text: `🛡 +FW${blockGain}`, tone: 'shield', impact: 'guard' });
+
   const hpGain = after.player.hp - before.player.hp;
-  if (hpGain > 0) specs.push({ at: 'player', text: `+HP${hpGain}`, tone: 'heal' });
+  if (hpGain > 0) specs.push({ at: 'player', text: `💚 +HP${hpGain}`, tone: 'heal', impact: 'heal' });
+  const selfDmg = before.player.hp - after.player.hp;
+  if (selfDmg > 0) specs.push({ at: 'player', text: `-${selfDmg} HP`, tone: 'hit', impact: 'strike' });
+
+  const noisePurged = countNoiseCards(before) - countNoiseCards(after);
+  if (noisePurged > 0) {
+    specs.push({ at: 'player', text: `🧹 ノイズ${noisePurged}枚消去`, tone: 'heal', impact: 'buff' });
+  }
+
+  const expectedBaseHand = Math.max(0, before.hand.length - (playedCard ? 1 : 0) - Math.max(0, noisePurged));
+  const drawn = after.hand.length - expectedBaseHand;
+  if (drawn > 0) specs.push({ at: 'player', text: `🃏 +${drawn}枚ドロー`, tone: 'buff', impact: 'buff' });
+
+  const energyGain = after.player.energy - before.player.energy;
+  if (energyGain > 0) specs.push({ at: 'player', text: `⚡ 帯域+${energyGain}`, tone: 'buff', impact: 'buff' });
+
   if (after.modifiers.reconCombo === 'done' && before.modifiers.reconCombo === 'ready') {
-    specs.push({ at: 'player', text: '解析コンボ +1EN', tone: 'buff' });
+    specs.push({ at: 'player', text: '🔍 解析コンボ +1EN', tone: 'buff', impact: 'buff' });
   }
   if (after.modifiers.nextAttackBonus > before.modifiers.nextAttackBonus) {
-    specs.push({ at: 'player', text: `次攻撃+${after.modifiers.nextAttackBonus - before.modifiers.nextAttackBonus}`, tone: 'buff' });
+    specs.push({
+      at: 'player',
+      text: `🎯 次攻撃+${after.modifiers.nextAttackBonus - before.modifiers.nextAttackBonus}`,
+      tone: 'buff',
+      impact: 'buff',
+    });
   }
   if (after.modifiers.repeatNextAttack && !before.modifiers.repeatNextAttack) {
-    specs.push({ at: 'player', text: '2回発動準備', tone: 'buff' });
+    specs.push({ at: 'player', text: '⏩ 次攻撃2回発動', tone: 'buff', impact: 'buff' });
+  }
+  if (after.modifiers.nextCardDiscount > before.modifiers.nextCardDiscount) {
+    specs.push({
+      at: 'player',
+      text: `📜 次カード-${after.modifiers.nextCardDiscount - before.modifiers.nextCardDiscount}EN`,
+      tone: 'buff',
+      impact: 'buff',
+    });
   }
   if (after.player.retaliate > before.player.retaliate) {
-    specs.push({ at: 'player', text: `反撃+${after.player.retaliate - before.player.retaliate}`, tone: 'buff' });
+    specs.push({
+      at: 'player',
+      text: `🪤 反撃+${after.player.retaliate - before.player.retaliate}`,
+      tone: 'buff',
+      impact: 'buff',
+    });
+  }
+  if (
+    after.player.turnBlockBonus > before.player.turnBlockBonus ||
+    after.player.turnDrawBonus > before.player.turnDrawBonus ||
+    after.player.turnEnergyBonus > before.player.turnEnergyBonus ||
+    after.player.turnAttackBonus > before.player.turnAttackBonus
+  ) {
+    specs.push({ at: 'player', text: '🚪 常駐効果セット', tone: 'buff', impact: 'buff' });
   }
   return specs;
 }
@@ -291,7 +407,19 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [fx, setFx] = useState<Fx[]>([]);
+  const [banner, setBanner] = useState<ActionBanner | null>(null);
   const fxId = useRef(1);
+  const bannerTimer = useRef<number | null>(null);
+
+  const showBanner = useCallback((spec: Omit<ActionBanner, 'id'>, duration = BANNER_MS) => {
+    if (bannerTimer.current !== null) window.clearTimeout(bannerTimer.current);
+    const id = fxId.current++;
+    setBanner({ ...spec, id });
+    bannerTimer.current = window.setTimeout(() => {
+      setBanner((prev) => (prev?.id === id ? null : prev));
+      bannerTimer.current = null;
+    }, duration);
+  }, []);
 
   const shown = playback ? (playback.index >= 0 ? snapshotState(playback.base, playback.events[playback.index]) : playback.base) : battle;
   const activeEnemyAction = playback?.events[playback.index];
@@ -366,10 +494,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       else if (ev.kind === 'burn' || ev.kind === 'retaliate') playSound('breach');
       else playSound('scan');
       pushFx(fxForEvent(ev));
+      showBanner(bannerForEnemyEvent(ev, playback.base), ENEMY_STEP_MS - 60);
       setPlayback((p) => (p ? { ...p, index: next } : null));
     }, next === 0 ? 350 : ENEMY_STEP_MS);
     return () => window.clearTimeout(t);
-  }, [playback, pushFx, handleBattleFinished]);
+  }, [playback, pushFx, showBanner, handleBattleFinished]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -394,6 +523,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     setNotice(null);
     setPlayback(null);
     setFx([]);
+    setBanner(null);
   };
 
   const toggleFastGrowth = () => {
@@ -407,6 +537,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     setNotice(null);
     setPlayback(null);
     setFx([]);
+    setBanner(null);
     if (!node) {
       setPhase('run_result');
       return;
@@ -443,9 +574,21 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       playSound('alert');
       return;
     }
-    const kind = getCardDefinition(battle.cards[uid].defId).kind;
+    const card = battle.cards[uid];
+    const def = getCardDefinition(card.defId);
+    const stats = getCardStats(card);
+    const kind = def.kind;
+    const isAoe = stats.effects.some((e) => 'target' in e && e.target === 'all');
     playSound(kind === 'attack' ? 'breach' : kind === 'defense' ? 'recover' : 'scan');
-    pushFx(fxForPlay(battle, result.state));
+    pushFx(fxForPlay(battle, result.state, true));
+    showBanner({
+      actor: 'player',
+      kind,
+      icon: stats.icon,
+      title: stats.name,
+      detail: stats.text,
+      isAoe,
+    });
     if (kind === 'attack') pushFx([{ at: 'player-launch', text: '', tone: 'buff' }], PLAYER_ATTACK_MS);
     setBattle(result.state);
     setSelectedUid(null);
@@ -502,8 +645,19 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       playSound('alert');
       return;
     }
+    const usedToolId = battle.tools[toolIndex];
+    const toolDef = usedToolId ? TOOL_DEFINITIONS[usedToolId] : null;
     playSound('recover');
-    pushFx(fxForPlay(battle, res.state));
+    pushFx(fxForPlay(battle, res.state, false));
+    if (toolDef) {
+      showBanner({
+        actor: 'player',
+        kind: 'utility',
+        icon: toolDef.icon,
+        title: toolDef.name,
+        detail: toolDef.description,
+      });
+    }
     setBattle(res.state);
     setRun((prev) => ({ ...prev, tools: [...res.state.tools] }));
   };
@@ -763,6 +917,25 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <div className="db-main">
           <section className="db-left">
             <div className={`db-arena ${selectedUid ? 'db-arena--targeting' : ''}`}>
+              {banner && (
+                <>
+                  <div
+                    key={`beam-${banner.id}`}
+                    className={`db-arena-beam db-arena-beam--${banner.kind}${banner.isAoe ? ' db-arena-beam--aoe' : ''}`}
+                    aria-hidden="true"
+                  />
+                  <div
+                    key={`banner-${banner.id}`}
+                    className={`db-action-banner db-action-banner--${banner.kind}`}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span className="db-action-banner__icon">{banner.icon}</span>
+                    <span className="db-action-banner__title">{banner.title}</span>
+                    {banner.detail && <span className="db-action-banner__detail">{banner.detail}</span>}
+                  </div>
+                </>
+              )}
               <div className="db-fighter" aria-hidden="true">
                 <span
                   key={playerMotion?.id ?? 'idle'}
