@@ -89,10 +89,10 @@ import { CardArtwork } from './CardArtwork';
 import { EffectText } from './EffectText';
 import { HowToPlayModal } from './HowToPlayModal';
 import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
-import idlePose from '../../assets/player-idle.png';
-import attackPose from '../../assets/player-attack.png';
-import guardPose from '../../assets/player-guard.png';
-import hurtPose from '../../assets/player-hurt.png';
+import idlePose from '../../assets/player-idle.webp';
+import attackPose from '../../assets/player-attack.webp';
+import guardPose from '../../assets/player-guard.webp';
+import hurtPose from '../../assets/player-hurt.webp';
 import './DeckBattle.css';
 
 const ENEMY_STEP_MS = 900;

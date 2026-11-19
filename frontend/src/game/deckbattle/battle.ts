@@ -538,6 +538,8 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
   const recovered = state.player.hp - prev.player.hp;
   const gainedFw = state.player.block - prev.player.block;
   if (recovered > 0) hits.push(`あなた：HPを${recovered}回復`);
+  // HP を払う攻撃カード(例:HP−3／貫通22ダメージ)は、敵へのダメージだけでなく自分の HP 減少も残す
+  if (recovered < 0 && hits.length > 0) hits.push(`あなた：HPを${-recovered}失った`);
   if (gainedFw > 0) hits.push(`あなた：FWを${gainedFw}獲得`);
   const statusEffect = stats.effects.some((effect) => ['burn', 'vulnerable', 'jam'].includes(effect.type));
   const detail = hits.length ? hits.join(' ／ ') : `あなた：${stats.text}`;

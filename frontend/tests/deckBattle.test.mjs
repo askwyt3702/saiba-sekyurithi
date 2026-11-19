@@ -808,10 +808,16 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
 });
 
 test('戦闘ログはHPダメージとFW減少を区別し、実際の回復量を表示する', () => {
+  const { CARD_DEFINITIONS } = load(new URL('../src/game/deckbattle/cards.ts', import.meta.url));
+  const sshDamage = CARD_DEFINITIONS.ssh_brute.levels[1].effects[0].amount;
+  const fw = 2;
   let s = setup([{ defId: 'ssh_brute' }], ['scanner_bot'], ['c1']);
-  s.enemies[0].block = 2;
+  s.enemies[0].block = fw;
   s = play(s, 'c1');
-  assert.match(s.log.at(-1).message, /あなた → スキャナーbot：4ダメージ・FWを2削った/);
+  assert.ok(
+    s.log.at(-1).message.includes(`あなた → ${s.enemies[0].name}：${sshDamage - fw}ダメージ・FWを${fw}削った`),
+    s.log.at(-1).message,
+  );
   s.player.hp = s.player.maxHp - 3;
   s.tools = ['hotfix'];
   const healed = battle.activateBattleTool(s, 0).state;
@@ -845,4 +851,14 @@ test('図鑑の試用表示は実績を解除しない', () => {
   const shown = profileMod.unlockAllCodexEntries(profileMod.createEmptyProfile());
   assert.ok(shown.seenCardIds.length >= 40);
   assert.equal(shown.achievements.length, 0);
+});
+
+test('HPを払う攻撃カードは、敵へのダメージと自分のHP減少を両方ログに残す', () => {
+  const { CARD_DEFINITIONS } = load(new URL('../src/game/deckbattle/cards.ts', import.meta.url));
+  const [selfCost] = CARD_DEFINITIONS.kernel_panic.levels[1].effects;
+  let s = setup([{ defId: 'kernel_panic' }], ['argus'], ['c1']);
+  s = play(s, 'c1');
+  const message = s.log.at(-1).message;
+  assert.match(message, /あなた → .+ダメージ/);
+  assert.ok(message.includes(`あなた：HPを${selfCost.amount}失った`), message);
 });

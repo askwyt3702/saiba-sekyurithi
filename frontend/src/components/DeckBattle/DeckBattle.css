@@ -115,7 +115,7 @@
 
 /* ---------- 本体 ---------- */
 .db-main {
-  --battle-background: url('../../assets/battle-background.png');
+  --battle-background: url('../../assets/battle-background.webp');
   position: relative;
   flex: 1;
   min-height: 0;
@@ -127,7 +127,7 @@
 }
 
 .db-main--boss {
-  --battle-background: url('../../assets/boss-background.png');
+  --battle-background: url('../../assets/boss-background.webp');
 }
 
 .db-left {
