@@ -992,7 +992,7 @@ function EliteChoiceOverlay({ onChoose }: { onChoose: (useElite: boolean) => voi
               <span className="db-evo-card__icon">🧠</span>
               <span className="db-evo-card__cost">通常ルート</span>
             </div>
-            <div className="db-evo-card__name">ファイアウォールAI (HP 40)</div>
+            <div className="db-evo-card__name">ファイアウォールAI (HP {ENEMY_DEFINITIONS.firewall_ai.maxHp})</div>
             <div className="db-evo-card__text">標準的な強さの敵。通常の報酬とEXPを獲得します。</div>
             <div className="db-evo-card__cta">通常ルートへ進む</div>
           </button>
@@ -1001,7 +1001,7 @@ function EliteChoiceOverlay({ onChoose }: { onChoose: (useElite: boolean) => voi
               <span className="db-evo-card__icon">⛩️</span>
               <span className="db-evo-card__cost">エリート(強敵)</span>
             </div>
-            <div className="db-evo-card__name">ゼロトラストゲート (HP 62)</div>
+            <div className="db-evo-card__name">ゼロトラストゲート (HP {ENEMY_DEFINITIONS.zero_trust_gate.maxHp})</div>
             <div className="db-evo-card__text">強敵だが、勝利すると「獲得EXP 2倍」＋「レアカード1枚確定」！</div>
             <div className="db-evo-card__cta">強敵に挑む！</div>
           </button>

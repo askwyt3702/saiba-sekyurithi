@@ -1,4 +1,5 @@
 // 敵(docs/deckbattle-plan-v0.3.md の8章)。行動は pattern の順にくり返す(ランダムにしない)。
+// 数値は 2026-11-19 のシミュレーション(1条件400ラン)で調整:上手いプレイで勝率9割前後、適当なプレイで5割前後。
 import type { EnemyDefinition, EnemyWeakness } from './types';
 
 export const WEAKNESS_LABEL: Record<EnemyWeakness, string> = {
@@ -13,22 +14,22 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'scanner_bot',
     name: 'スキャナーbot',
     icon: '🛰️',
-    maxHp: 28,
+    maxHp: 42,
     weakness: 'burn',
     pattern: [
-      { type: 'attack', amount: 6 },
-      { type: 'block', amount: 6 },
-      { type: 'attack', amount: 8 },
+      { type: 'attack', amount: 9 },
+      { type: 'block', amount: 9 },
+      { type: 'attack', amount: 12 },
     ],
   },
   ids_sensor: {
     id: 'ids_sensor',
     name: 'IDSセンサー',
     icon: '👁️',
-    maxHp: 16,
+    maxHp: 32,
     weakness: 'pierce',
     pattern: [
-      { type: 'attack', amount: 4, hits: 2 },
+      { type: 'attack', amount: 8, hits: 2 },
       { type: 'detect', amount: 1 },
     ],
   },
@@ -36,30 +37,30 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'firewall_ai',
     name: 'ファイアウォールAI',
     icon: '🧠',
-    maxHp: 40,
+    maxHp: 80,
     weakness: 'pierce',
     pattern: [
-      { type: 'blockAttack', block: 10, amount: 5 },
+      { type: 'blockAttack', block: 20, amount: 10 },
       { type: 'buff', amount: 3 },
-      { type: 'attack', amount: 12 },
+      { type: 'attack', amount: 24 },
     ],
   },
   argus: {
     id: 'argus',
     name: '監視AI ARGUS',
     icon: '🔺',
-    maxHp: 120,
+    maxHp: 240,
     weakness: 'pierce',
     pattern: [
-      { type: 'attack', amount: 10 },
-      { type: 'block', amount: 12 },
+      { type: 'attack', amount: 20 },
+      { type: 'block', amount: 24 },
       { type: 'noise', count: 2 },
     ],
     phase2: {
       hpRatio: 0.5,
       pattern: [
-        { type: 'attack', amount: 7, hits: 2 },
-        { type: 'attack', amount: 18 },
+        { type: 'attack', amount: 14, hits: 2 },
+        { type: 'attack', amount: 36 },
         { type: 'noise', count: 2 },
       ],
     },
@@ -68,12 +69,12 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'zero_trust_gate',
     name: 'ゼロトラストゲート(強敵)',
     icon: '⛩️',
-    maxHp: 62,
+    maxHp: 124,
     weakness: 'multi',
     pattern: [
-      { type: 'blockAttack', block: 12, amount: 7 },
+      { type: 'blockAttack', block: 24, amount: 14 },
       { type: 'detect', amount: 1 },
-      { type: 'attack', amount: 14 },
+      { type: 'attack', amount: 28 },
     ],
   },
 };

@@ -30,6 +30,11 @@ function load(url) {
 
 const battle = load(new URL('../src/game/deckbattle/battle.ts', import.meta.url));
 const run = load(new URL('../src/game/deckbattle/run.ts', import.meta.url));
+const { ENEMY_DEFINITIONS } = load(new URL('../src/game/deckbattle/enemies.ts', import.meta.url));
+
+// 敵の数値は調整で変わるので、テストでは定義から読む
+const hp = (id) => ENEMY_DEFINITIONS[id].maxHp;
+const move = (id, index) => ENEMY_DEFINITIONS[id].pattern[index];
 
 /** 手札を指定した戦闘を作る(山札は残りのカード) */
 function setup(cards, enemyIds, hand) {
@@ -55,7 +60,7 @@ test('戦闘開始:手札4枚・帯域4・山札6枚、敵は定義どおりのH
   assert.equal(s.drawPile.length, 6);
   assert.equal(s.player.energy, 4);
   assert.equal(s.player.hp, 65);
-  assert.equal(s.enemies[0].hp, 28);
+  assert.equal(s.enemies[0].hp, hp('scanner_bot'));
   assert.equal(s.turn, 1);
 });
 
@@ -69,7 +74,7 @@ test('同じ種から作った戦闘は、同じ手札になる', () => {
 test('攻撃カードで敵のHPが減り、帯域と使用回数が記録される', () => {
   let s = setup([{ defId: 'ssh_brute' }, { defId: 'firewall' }], ['scanner_bot'], ['c1', 'c2']);
   s = play(s, 'c1');
-  assert.equal(s.enemies[0].hp, 22);
+  assert.equal(s.enemies[0].hp, hp('scanner_bot') - 6);
   assert.equal(s.player.energy, 3);
   assert.equal(s.usesThisBattle.c1, 1);
   assert.equal(s.discard.includes('c1'), true);
@@ -87,7 +92,7 @@ test('敵が2体いるときは対象を選ぶ必要があり、2体目は1タ�
   const s = setup([{ defId: 'ssh_brute' }], ['ids_sensor', 'ids_sensor'], ['c1']);
   assert.equal(battle.playCard(s, 'c1').accepted, false);
   const after = play(s, 'c1', 'e2');
-  assert.equal(after.enemies[1].hp, 10);
+  assert.equal(after.enemies[1].hp, hp('ids_sensor') - 6);
   assert.equal(battle.getEnemyIntent(s.enemies[0]).type, 'attack');
   assert.equal(battle.getEnemyIntent(s.enemies[1]).type, 'detect');
   assert.notEqual(s.enemies[0].name, s.enemies[1].name);
@@ -106,13 +111,13 @@ test('7章の例:脆弱性特定+並列実行+総当たり連打で (4+8)×3×2 
   s = play(s, 'c1');
   s = play(s, 'c2');
   s = play(s, 'c3');
-  assert.equal(s.enemies[0].hp, 120 - 72);
+  assert.equal(s.enemies[0].hp, hp('argus') - 72);
   assert.equal(s.usesThisBattle.c3, 1, '2回発動しても使用回数は1回');
   // 修正は使い切っている
   assert.equal(s.modifiers.nextAttackBonus, 0);
   assert.equal(s.modifiers.repeatNextAttack, false);
   s = play(s, 'c4');
-  assert.equal(s.enemies[0].hp, 48 - 6);
+  assert.equal(s.enemies[0].hp, hp('argus') - 72 - 6);
 });
 
 test('次の攻撃+N は重ねて足され、防御カードでは消えない', () => {
@@ -123,7 +128,7 @@ test('次の攻撃+N は重ねて足され、防御カードでは消えない',
   assert.equal(s.modifiers.nextAttackBonus, 6);
   s.player.energy = 1;
   s = play(s, 'c4');
-  assert.equal(s.enemies[0].hp, 120 - 12);
+  assert.equal(s.enemies[0].hp, hp('argus') - 12);
 });
 
 test('全体攻撃には「次の攻撃+N」が敵ごとに乗る', () => {
@@ -134,9 +139,9 @@ test('全体攻撃には「次の攻撃+N」が敵ごとに乗る', () => {
   );
   s = play(s, 'c1');
   s = play(s, 'c2');
-  // (12+3) を2体それぞれに → 16-15 = 1
-  assert.equal(s.enemies[0].hp, 1);
-  assert.equal(s.enemies[1].hp, 1);
+  // (12+3) を2体それぞれに
+  assert.equal(s.enemies[0].hp, hp('ids_sensor') - 15);
+  assert.equal(s.enemies[1].hp, hp('ids_sensor') - 15);
 });
 
 test('次のカード−1EN はどのカードにも効き、0未満にならない', () => {
@@ -160,8 +165,8 @@ test('FWは敵の攻撃を防ぎ、次のプレイヤーのターン開始で消
   s = play(s, 'c1');
   assert.equal(s.player.block, 5);
   s = battle.endTurn(s);
-  // スキャナーbot の最初の行動は 6 の攻撃 → 1 だけ通る
-  assert.equal(s.player.hp, 64);
+  // スキャナーbot の最初の行動は攻撃 → FW5 を引いた分だけ通る
+  assert.equal(s.player.hp, 65 - (move('scanner_bot', 0).amount - 5));
   assert.equal(s.player.block, 0);
   assert.equal(s.lastEnemyActions[0].kind, 'attack');
   assert.equal(s.lastEnemyActions[0].blocked, 5);
@@ -173,9 +178,11 @@ test('FWは敵の攻撃を防ぎ、次のプレイヤーのターン開始で消
 test('反撃は攻撃を全部防いでも発動し、1回で消える', () => {
   let s = setup([{ defId: 'firewall', level: 3, branchId: 'fw_trap' }, { defId: 'firewall' }], ['scanner_bot'], ['c1', 'c2']);
   s = play(s, 'c1');
+  s = play(s, 'c2');
+  assert.ok(s.player.block >= move('scanner_bot', 0).amount, '攻撃を全部防げる FW がある');
   s = battle.endTurn(s);
   assert.equal(s.player.hp, 65);
-  assert.equal(s.enemies[0].hp, 23);
+  assert.equal(s.enemies[0].hp, hp('scanner_bot') - 5);
   assert.equal(s.player.retaliate, 0);
   assert.equal(s.lastEnemyActions.some((a) => a.kind === 'retaliate'), true);
 });
@@ -187,14 +194,14 @@ test('過熱はFWを無視して3ターン続き、重ねると量が増えて�
     ['c1'],
   );
   s = play(s, 'c1');
-  assert.equal(s.enemies[0].hp, 112);
+  assert.equal(s.enemies[0].hp, hp('argus') - 8);
   assert.equal(s.enemies[0].burn.amount, 4);
   s = battle.endTurn(s); // ARGUS の攻撃 → 過熱4
-  assert.equal(s.enemies[0].hp, 108);
+  assert.equal(s.enemies[0].hp, hp('argus') - 12);
   assert.equal(s.enemies[0].burn.turns, 2);
-  s = battle.endTurn(s); // FW12 を張るが、過熱は FW を無視
-  assert.equal(s.enemies[0].block, 12);
-  assert.equal(s.enemies[0].hp, 104);
+  s = battle.endTurn(s); // FW を張るが、過熱は FW を無視
+  assert.equal(s.enemies[0].block, move('argus', 1).amount);
+  assert.equal(s.enemies[0].hp, hp('argus') - 16);
   s.hand = ['c2'];
   s.player.energy = 1;
   s = play(s, 'c2');
@@ -239,9 +246,10 @@ test('攻撃力の強化は予告と実際の攻撃に反映される', () => {
   s.enemies[0].moveIndex = 1;
   const after = battle.endTurn(s);
   assert.equal(after.enemies[0].attackBonus, 3);
-  assert.equal(battle.getEnemyIntent(after.enemies[0]).amount, 15);
+  const strengthened = move('firewall_ai', 2).amount + 3;
+  assert.equal(battle.getEnemyIntent(after.enemies[0]).amount, strengthened);
   const next = battle.endTurn(after);
-  assert.equal(next.player.hp, 65 - 15);
+  assert.equal(next.player.hp, 65 - strengthened);
 });
 
 test('回復は最大HPを超えない', () => {
@@ -428,7 +436,7 @@ test('SQLインジェクションは敵FWを貫通し、バックドア常駐は
   let s = setup([{ defId: 'sql_injection' }, { defId: 'backdoor' }], ['scanner_bot'], ['c1', 'c2']);
   s.enemies[0].block = 10;
   s = play(s, 'c1');
-  assert.equal(s.enemies[0].hp, 28 - 5);
+  assert.equal(s.enemies[0].hp, hp('scanner_bot') - 5);
   assert.equal(s.enemies[0].block, 10, 'FWを削らず貫通する');
 
   s = play(s, 'c2');
@@ -561,7 +569,7 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
   // 1. 弱点1.5倍: firewall_ai の弱点は pierce -> sql_injection(5) は 7 ダメージ
   let s = setup([{ defId: 'sql_injection' }], ['firewall_ai'], ['c1']);
   s = play(s, 'c1');
-  assert.equal(s.enemies[0].hp, 40 - 7);
+  assert.equal(s.enemies[0].hp, hp('firewall_ai') - 7);
 
   // 2. 常備ツール: jammer_pulse で敵全体に脆弱2T + ジャミング2T
   s.tools = ['jammer_pulse', 'overclock'];
@@ -570,14 +578,14 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
   assert.equal(afterPulse.state.tools.length, 1);
   assert.equal(afterPulse.state.enemies[0].vulnerable, 2);
   assert.equal(afterPulse.state.enemies[0].jammed, 2);
-  // ジャミングで攻撃5 -> Math.floor(5 * 0.7) = 3
-  assert.equal(battle.getEnemyIntent(afterPulse.state.enemies[0]).amount, 3);
+  // ジャミングで攻撃 -30%(切り捨て)
+  assert.equal(battle.getEnemyIntent(afterPulse.state.enemies[0]).amount, Math.floor(move('firewall_ai', 0).amount * 0.7));
 
   // 脆弱中はダメージ1.5倍
   let s2 = setup([{ defId: 'ssh_brute' }], ['scanner_bot'], ['c1']);
   s2.enemies[0].vulnerable = 2;
   s2 = play(s2, 'c1');
-  assert.equal(s2.enemies[0].hp, 28 - 9);
+  assert.equal(s2.enemies[0].hp, hp('scanner_bot') - 9);
 
   // 3. コイン闇市ショップ: 回復(1)・ツール補充(1)・削除(2)・レリック(3)
   let r = run.createRun({ fastGrowth: false });
