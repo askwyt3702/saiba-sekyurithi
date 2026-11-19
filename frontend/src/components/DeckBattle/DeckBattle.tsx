@@ -944,14 +944,30 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           </section>
 
           <aside className="db-log" aria-label="戦闘ログ">
-            <div className="db-log__title">LOG</div>
+            <div className="db-log__title">
+              <span>BATTLE LOG</span>
+              <span className="db-log__legend">
+                <span className="db-log__legend-dot db-log__legend-dot--player">自分</span>
+                <span className="db-log__legend-dot db-log__legend-dot--enemy">敵</span>
+              </span>
+            </div>
             <ol className="db-log__list">
-              {[...shown.log].reverse().slice(0, 30).map((entry) => (
-                <li key={entry.id} className={`db-log__item db-log__item--${entry.tone}`}>
-                  <span className="db-log__turn">T{entry.turn}</span>
-                  {entry.message}
-                </li>
-              ))}
+              {[...shown.log].reverse().slice(0, 30).map((entry) => {
+                const actor = entry.actor ?? 'system';
+                const actorLabel = actor === 'player' ? 'YOU' : actor === 'enemy' ? 'ENEMY' : 'SYS';
+                return (
+                  <li
+                    key={entry.id}
+                    className={`db-log__item db-log__item--${entry.tone} db-log__item--actor-${actor}`}
+                  >
+                    <div className="db-log__meta">
+                      <span className={`db-log__badge db-log__badge--${actor}`}>{actorLabel}</span>
+                      <span className="db-log__turn">TURN {entry.turn}</span>
+                    </div>
+                    <div className="db-log__msg">{entry.message}</div>
+                  </li>
+                );
+              })}
             </ol>
           </aside>
         </div>

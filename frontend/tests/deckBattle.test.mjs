@@ -675,3 +675,13 @@ test('40種類のカード(コモン20・アンコモン12・レア8)と差別�
   assert.equal(s4.player.block, 8);
   assert.equal(s4.hand.includes('c4'), false);
 });
+
+
+test('戦闘ログに自分(player)・敵(enemy)・システム(system)の区別が記録される', () => {
+  let s = setup([{ defId: 'ssh_brute' }], ['scanner_bot'], ['c1']);
+  assert.equal(s.log[0].actor, 'system');
+  s = play(s, 'c1');
+  assert.equal(s.log[s.log.length - 1].actor, 'player');
+  s = battle.endTurn(s);
+  assert.equal(s.log[s.log.length - 1].actor, 'enemy');
+});

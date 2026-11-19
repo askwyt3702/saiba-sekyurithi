@@ -191,11 +191,14 @@ export interface Modifiers {
   reconCombo: 'none' | 'ready' | 'done';
 }
 
+export type BattleLogActor = 'player' | 'enemy' | 'system';
+
 export interface BattleLog {
   id: number;
   turn: number;
   message: string;
   tone: 'info' | 'good' | 'bad';
+  actor?: BattleLogActor;
 }
 
 /** 敵のターンに実際に起きたこと(画面で1つずつ演出する) */

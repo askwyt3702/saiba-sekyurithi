@@ -5,6 +5,7 @@ import { ENEMY_DEFINITIONS } from './enemies';
 import { shuffled } from './rng';
 import { TOOL_DEFINITIONS } from './tools';
 import type {
+  BattleLogActor,
   BattleState,
   CardDefinition,
   CardEffect,
@@ -182,8 +183,13 @@ function clone(state: BattleState): BattleState {
   return JSON.parse(JSON.stringify(state)) as BattleState;
 }
 
-function addLog(state: BattleState, message: string, tone: 'info' | 'good' | 'bad'): void {
-  state.log.push({ id: state.log.length + 1, turn: state.turn, message, tone });
+function addLog(
+  state: BattleState,
+  message: string,
+  tone: 'info' | 'good' | 'bad',
+  actor: BattleLogActor = 'system',
+): void {
+  state.log.push({ id: state.log.length + 1, turn: state.turn, message, tone, actor });
 }
 
 function drawCards(state: BattleState, count: number): void {
@@ -206,7 +212,7 @@ function startPlayerTurn(state: BattleState): void {
   state.turn += 1;
   state.player.block = state.player.turnBlockBonus;
   state.player.energy = Math.max(0, state.player.maxEnergy + state.player.turnEnergyBonus - state.player.energyPenalty);
-  if (state.player.energyPenalty > 0) addLog(state, `検知されたため、帯域が ${state.player.energyPenalty} 減った。`, 'bad');
+  if (state.player.energyPenalty > 0) addLog(state, `検知されたため、帯域が ${state.player.energyPenalty} 減った。`, 'bad', 'enemy');
   state.player.energyPenalty = 0;
   state.modifiers.reconCombo = 'none';
   if (state.player.turnAttackBonus > 0) {
@@ -235,7 +241,7 @@ function updatePhases(state: BattleState): void {
     if (enemy.hp > 0 && enemy.phase === 1 && def.phase2 && enemy.hp <= enemy.maxHp * def.phase2.hpRatio) {
       enemy.phase = 2;
       enemy.moveIndex = 0;
-      addLog(state, `${enemy.name} が本気を出した!行動が変わる。`, 'bad');
+      addLog(state, `${enemy.name} が本気を出した!行動が変わる。`, 'bad', 'enemy');
     }
   }
 }
@@ -462,7 +468,7 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
   } else if (isAttack && state.modifiers.reconCombo === 'ready') {
     state.modifiers.reconCombo = 'done';
     state.player.energy += 1;
-    addLog(state, '🔍 解析コンボ発動! 帯域 +1', 'good');
+    addLog(state, '🔍 解析コンボ発動! 帯域 +1', 'good', 'player');
   }
 
   const hits = state.enemies
@@ -470,7 +476,7 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
     .filter((x) => x.lost > 0)
     .map((x) => `${x.e.name}に${x.lost}`);
   const detail = hits.length ? `${hits.join('、')}ダメージ` : stats.text;
-  addLog(state, `[${stats.name}]${times === 2 ? '(2回発動)' : ''} ${detail}`, 'info');
+  addLog(state, `[${stats.name}]${times === 2 ? '(2回発動)' : ''} ${detail}`, 'info', 'player');
   updatePhases(state);
   checkVictory(state);
   return { state, accepted: true };
@@ -505,7 +511,7 @@ export function endTurn(prev: BattleState): BattleState {
       if (enemy.burn) {
         const dealt = damageEnemy(enemy, enemy.burn.amount, true);
         recordAction(state, { kind: 'burn', enemyUid: enemy.uid, damage: dealt });
-        addLog(state, `過熱で ${enemy.name} に${dealt}ダメージ。`, 'good');
+        addLog(state, `過熱で ${enemy.name} に${dealt}ダメージ。`, 'good', 'player');
         enemy.burn.turns -= 1;
         if (enemy.burn.turns <= 0) delete enemy.burn;
       }
@@ -552,17 +558,17 @@ function runEnemyMove(state: BattleState, enemy: EnemyState, move: EnemyMove): v
     case 'block':
       enemy.block += move.amount;
       push({ kind: 'block', enemyUid: enemy.uid, amount: move.amount });
-      addLog(state, `${enemy.name} がFW${move.amount}を張った。`, 'info');
+      addLog(state, `${enemy.name} がFW${move.amount}を張った。`, 'info', 'enemy');
       break;
     case 'buff':
       enemy.attackBonus += move.amount;
       push({ kind: 'buff', enemyUid: enemy.uid, amount: move.amount });
-      addLog(state, `${enemy.name} の攻撃力が+${move.amount}された。`, 'bad');
+      addLog(state, `${enemy.name} の攻撃力が+${move.amount}された。`, 'bad', 'enemy');
       break;
     case 'detect':
       state.player.energyPenalty += move.amount;
       push({ kind: 'detect', enemyUid: enemy.uid, amount: move.amount });
-      addLog(state, `${enemy.name} に検知された。次のターンの帯域−${move.amount}。`, 'bad');
+      addLog(state, `${enemy.name} に検知された。次のターンの帯域−${move.amount}。`, 'bad', 'enemy');
       break;
     case 'noise':
       for (let i = 0; i < move.count; i++) {
@@ -571,7 +577,7 @@ function runEnemyMove(state: BattleState, enemy: EnemyState, move: EnemyMove): v
         state.discard.push(uid);
       }
       push({ kind: 'noise', enemyUid: enemy.uid, count: move.count });
-      addLog(state, `${enemy.name} がノイズを${move.count}枚送り込んだ。`, 'bad');
+      addLog(state, `${enemy.name} がノイズを${move.count}枚送り込んだ。`, 'bad', 'enemy');
       break;
   }
 }
@@ -588,13 +594,13 @@ function enemyAttack(state: BattleState, enemy: EnemyState, amount: number, hits
   }
   state.player.hp -= damage;
   recordAction(state, { kind: 'attack', enemyUid: enemy.uid, damage, blocked, hits });
-  addLog(state, `${enemy.name} の攻撃:${damage}ダメージ${blocked ? `(FWで${blocked}防いだ)` : ''}。`, damage > 0 ? 'bad' : 'info');
+  addLog(state, `${enemy.name} の攻撃:${damage}ダメージ${blocked ? `(FWで${blocked}防いだ)` : ''}。`, damage > 0 ? 'bad' : 'info', 'enemy');
 
   // 反撃:次に受ける攻撃1回で、攻撃してきた敵にダメージ(FW で全部防いでも発動する)
   if (state.player.retaliate > 0 && enemy.hp > 0) {
     const dealt = damageEnemy(enemy, state.player.retaliate);
     recordAction(state, { kind: 'retaliate', enemyUid: enemy.uid, damage: dealt });
-    addLog(state, `反撃で ${enemy.name} に${dealt}ダメージ。`, 'good');
+    addLog(state, `反撃で ${enemy.name} に${dealt}ダメージ。`, 'good', 'player');
     state.player.retaliate = 0;
     updatePhases(state);
     checkVictory(state);
@@ -613,17 +619,17 @@ export function activateBattleTool(prev: BattleState, toolIndex: number): PlayRe
   switch (toolId) {
     case 'hotfix':
       state.player.hp = Math.min(state.player.maxHp, state.player.hp + 12);
-      addLog(state, `[ツール:${def.name}] 回線耐久 +12 回復`, 'good');
+      addLog(state, `[ツール:${def.name}] 回線耐久 +12 回復`, 'good', 'player');
       break;
     case 'overclock':
       state.player.energy += 2;
-      addLog(state, `[ツール:${def.name}] 帯域 +2`, 'good');
+      addLog(state, `[ツール:${def.name}] 帯域 +2`, 'good', 'player');
       break;
     case 'packet_purge': {
       const removed = state.hand.filter((uid) => state.cards[uid]?.defId === 'noise').length;
       state.hand = state.hand.filter((uid) => state.cards[uid]?.defId !== 'noise');
       drawCards(state, 2);
-      addLog(state, `[ツール:${def.name}] ノイズ${removed}枚破棄＋2枚ドロー`, 'good');
+      addLog(state, `[ツール:${def.name}] ノイズ${removed}枚破棄＋2枚ドロー`, 'good', 'player');
       break;
     }
     case 'jammer_pulse':
@@ -631,7 +637,7 @@ export function activateBattleTool(prev: BattleState, toolIndex: number): PlayRe
         enemy.vulnerable = (enemy.vulnerable ?? 0) + 2;
         enemy.jammed = (enemy.jammed ?? 0) + 2;
       }
-      addLog(state, `[ツール:${def.name}] 敵全体に脆弱(2T)＋ジャミング(2T)`, 'good');
+      addLog(state, `[ツール:${def.name}] 敵全体に脆弱(2T)＋ジャミング(2T)`, 'good', 'player');
       break;
   }
   return { state, accepted: true };
