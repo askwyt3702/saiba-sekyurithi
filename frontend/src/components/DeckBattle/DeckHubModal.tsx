@@ -16,6 +16,7 @@ import {
 } from '../../game/deckbattle/profile';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import { EffectText } from './EffectText';
 import './DeckBattle.css';
 
 type HubTab = 'codex' | 'weakness' | 'stats' | 'achievements';
@@ -143,10 +144,10 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                       <>
                         <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={2} />
                         <div className="db-muted" style={{ fontSize: 11 }}>
-                          Lv.1: {def.levels[1].cost}EN / {def.levels[1].text}
+                          Lv.1: {def.levels[1].cost}EN / <EffectText text={def.levels[1].text} />
                         </div>
                         <div className="db-muted" style={{ fontSize: 11 }}>
-                          Lv.2: {def.levels[2].cost}EN / {def.levels[2].text}
+                          Lv.2: {def.levels[2].cost}EN / <EffectText text={def.levels[2].text} />
                         </div>
                         <div className="db-codex-card__lore">{def.lore}</div>
                         <div className="db-codex-branches">
@@ -157,7 +158,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                                 <span>
                                   {unlocked ? `${b.icon ?? def.icon} ${b.name}` : '🔒 未進化ルート'}
                                 </span>
-                                <span className="db-muted">{unlocked ? `${b.cost}EN / ${b.text}` : 'Lv.3進化で解放'}</span>
+                                <span className="db-muted">{unlocked ? <>{b.cost}EN / <EffectText text={b.text} /></> : 'Lv.3進化で解放'}</span>
                               </div>
                             );
                           })}

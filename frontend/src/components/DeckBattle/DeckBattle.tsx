@@ -84,6 +84,7 @@ import type {
 } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import { EffectText } from './EffectText';
 import { HowToPlayModal } from './HowToPlayModal';
 import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
 import idlePose from '../../assets/player-idle.png';
@@ -1270,7 +1271,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       <span className="db-card__band">{unplayable ? 'NOISE' : KIND_LABEL[def.kind]}</span>
                       <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
                       <span className="db-card__name">{stats.name}</span>
-                      <span className="db-card__desc">{stats.text}</span>
+                      <span className="db-card__desc"><EffectText text={stats.text} /></span>
                       {!unplayable && <span className="db-card__level">{xpProg.label}</span>}
                     </button>
                   );
@@ -1308,7 +1309,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       <span className={`db-log__badge db-log__badge--${actor}`}>{actorLabel}</span>
                       <span className="db-log__turn">TURN {entry.turn}</span>
                     </div>
-                    <div className="db-log__msg">{entry.message}</div>
+                    <div className="db-log__msg"><EffectText text={entry.message} /></div>
                   </li>
                 );
               })}
@@ -1467,7 +1468,7 @@ function EvolutionOverlay({
               </div>
               <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={3} branchId={branch.id} />
               <div className="db-evo-card__name">{branch.name}</div>
-              <div className="db-evo-card__text">{branch.text}</div>
+              <div className="db-evo-card__text"><EffectText text={branch.text} /></div>
               <div className="db-evo-card__cta">この進化にする</div>
             </button>
           ))}
@@ -1496,14 +1497,14 @@ function CardPreviewPanel({
         <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
         <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
         <span className="db-card__name">{stats.name}</span>
-        <span className="db-card__desc">{stats.text}</span>
+        <span className="db-card__desc"><EffectText text={stats.text} /></span>
         <span className="db-card__lore">{def.lore}</span>
         <span className="db-card__level">{xpProg.label}</span>
       </div>
       <div className="db-card-preview-float__next">
         {card.level === 1 && (
           <span>
-            <strong>Lv.2 強化後:</strong> {def.levels[2].cost}EN / {def.levels[2].text}
+            <strong>Lv.2 強化後:</strong> {def.levels[2].cost}EN / <EffectText text={def.levels[2].text} />
           </span>
         )}
         {card.level === 2 && def.branches.length > 0 && (
@@ -1593,7 +1594,7 @@ function RewardOverlay({
                     <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
                     <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={1} />
                     <span className="db-card__name">{def.name}</span>
-                    <span className="db-card__desc">{lv1.text}</span>
+                    <span className="db-card__desc"><EffectText text={lv1.text} /></span>
                     <span className="db-card__lore">{def.lore}</span>
                   </button>
                 );
@@ -1630,7 +1631,7 @@ function RewardOverlay({
                     <span>
                       🗑 {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
                     </span>
-                    <span className="db-muted">{getXpProgress(card).label} / {stats.text}</span>
+                    <span className="db-muted">{getXpProgress(card).label} / <EffectText text={stats.text} /></span>
                   </button>
                 );
               })}
@@ -1913,7 +1914,7 @@ function EventScreen({
                     <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
                     <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={1} />
                     <span className="db-card__name">{def.name}</span>
-                    <span className="db-card__desc">{def.levels[1].text}</span>
+                    <span className="db-card__desc"><EffectText text={def.levels[1].text} /></span>
                   </button>
                 );
               })}
@@ -1940,7 +1941,7 @@ function EventScreen({
                         <span>
                           🗑 {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
                         </span>
-                        <span className="db-muted">{stats.cost}EN / {stats.text}</span>
+                        <span className="db-muted">{stats.cost}EN / <EffectText text={stats.text} /></span>
                       </button>
                     );
                   })}
@@ -1983,7 +1984,7 @@ function EventScreen({
                     <span className="db-card__band">{KIND_LABEL[def.kind]}</span>
                     <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={1} />
                     <span className="db-card__name">{def.name}</span>
-                    <span className="db-card__desc">{def.levels[1].text}</span>
+                    <span className="db-card__desc"><EffectText text={def.levels[1].text} /></span>
                   </button>
                 );
               })}
@@ -2086,7 +2087,7 @@ function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => voi
                     {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
                   </span>
                   <span className="db-muted">
-                    {getXpProgress(card).label} / {stats.text}
+                    {getXpProgress(card).label} / <EffectText text={stats.text} />
                   </span>
                   <span className="db-muted" style={{ fontSize: 10 }}>
                     {def.lore}
@@ -2234,7 +2235,7 @@ function CoinShopScreen({
                 <span>
                   🗑 {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
                 </span>
-                <span className="db-muted">🪙 2枚で削除 / {stats.cost}EN · {stats.text}</span>
+                <span className="db-muted">🪙 2枚で削除 / {stats.cost}EN · <EffectText text={stats.text} /></span>
               </button>
             );
           })}
