@@ -257,11 +257,15 @@ function startPlayerTurn(state: BattleState): void {
     state.modifiers.nextAttackBonus += state.player.turnAttackBonus;
   }
   if (state.relics.includes('thorn_daemon')) {
-    state.player.retaliate += THORN_DAEMON_RETALIATE;
+    // 足していくと、攻撃されないターンが続いたときに反撃がたまり続けるので、「4より少なければ4にする」
+    state.player.retaliate = Math.max(state.player.retaliate, THORN_DAEMON_RETALIATE);
   }
   if (state.relics.includes('thermal_core')) {
+    // 量は足すが、残りターンは延ばさない(延ばすと過熱が消えずに増え続けるため)
     for (const enemy of livingEnemies(state)) {
-      enemy.burn = { amount: (enemy.burn?.amount ?? 0) + THERMAL_CORE_BURN, turns: BURN_TURNS };
+      enemy.burn = enemy.burn
+        ? { amount: enemy.burn.amount + THERMAL_CORE_BURN, turns: enemy.burn.turns }
+        : { amount: THERMAL_CORE_BURN, turns: BURN_TURNS };
     }
   }
   drawCards(state, DRAW_PER_TURN + state.player.turnDrawBonus + firstTurnBonusDraw);

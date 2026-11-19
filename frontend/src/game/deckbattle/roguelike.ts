@@ -48,7 +48,7 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
     name: 'ブルーチーム（重装甲反撃）',
     tag: 'BLUE TEAM',
     icon: '🛡️',
-    description: '高い耐久とFW・反撃で敵の攻撃を跳ね返す要塞構成。毎ターン「反撃+4」付き。',
+    description: '高い耐久とFW・反撃で敵の攻撃を跳ね返す要塞構成。毎ターン開始時に反撃4がそろう。',
     maxHp: 75,
     deckIds: [
       'firewall', 'firewall', 'firewall',
@@ -197,7 +197,7 @@ export const MYSTERY_EVENTS: Record<MysteryEventId, MysteryEventDefinition> = {
         label: '緊急ツールと解析コインを回収する',
         riskTag: 'SUPPLIES',
         tone: 'safe',
-        description: '未満なら緊急ツール1個獲得＋解析コイン +1。',
+        description: '緊急ツールが2個未満なら1個獲得＋解析コイン +1。',
       },
       {
         id: 'inject_xp',

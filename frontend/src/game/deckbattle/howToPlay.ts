@@ -8,14 +8,15 @@ import {
   DEFAULT_RUN_NODES,
   MAX_BATTLE_XP,
   MAX_EVENT_STREAK,
-  PLAYER_MAX_HP,
   QUIZ_XP_REWARD,
+  REST_HEAL_RATIO,
   RECON_COIN_DROP_RATE,
   STARTING_RECON_COINS,
   VULN_EVENT_FAIL_DAMAGE,
   XP_TO_LV2,
   XP_TO_LV3,
 } from './run';
+import { LOADOUT_DEFINITIONS, MAX_SECURITY_LEVEL } from './roguelike';
 import { MAX_TOOLS } from './tools';
 import type { RunNode } from './types';
 
@@ -47,7 +48,9 @@ function describeNode(node: RunNode): string {
 
 export function buildHowToPlayPages(): HowToPlayPage[] {
   const route = DEFAULT_RUN_NODES.map((n, i) => `${i + 1}. ${describeNode(n)}`).join(' → ');
-  const heal = Math.floor(PLAYER_MAX_HP * BATTLE_WIN_HEAL_RATIO);
+  const loadouts = Object.values(LOADOUT_DEFINITIONS);
+  const hps = loadouts.map((l) => l.maxHp);
+  const healPercent = Math.round(BATTLE_WIN_HEAL_RATIO * 100);
   return [
     {
       title: 'このゲームの目的',
@@ -55,7 +58,9 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
       lead: `侵入者(ハッカー)として${DEFAULT_RUN_NODES.length}つのマスを順番に進み、最後の監視AIを倒せばクリア。途中でHPが0になるとやり直し。`,
       items: [
         { term: 'マスの順番', text: route },
-        { term: 'HP(回線耐久)', text: `最大${PLAYER_MAX_HP}。次のマスにも引き継ぐ。通常の戦闘に勝つと${heal}回復する。` },
+        { term: '初期ビルド', text: `ランを始める前に${loadouts.length}種類から選ぶ(${loadouts.map((l) => l.name).join('・')})。HP・デッキ・最初の常駐ツールが変わる。` },
+        { term: 'HP(回線耐久)', text: `最大HPは初期ビルドで${Math.min(...hps)}〜${Math.max(...hps)}。次のマスにも引き継ぐ。通常の戦闘に勝つと最大HPの${healPercent}%回復する。` },
+        { term: '高難度モード', text: `セキュリティLv.0〜${MAX_SECURITY_LEVEL}を選べる。Lvが上がるほど敵が強くなる(Lv.3以上は最大HP−10)。まずはLv.0から。` },
         { term: 'デッキ', text: '攻撃・防御・補助のカードの山。戦闘の報酬や闇市で、カードを足したり減らしたりできる。' },
         { term: '注意', text: 'ブラウザを読み込み直すと、ランは最初からになる(カード基地の記録は残る)。' },
       ],
@@ -107,6 +112,8 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
         { term: 'クイズのマス', text: `セキュリティの3択クイズ。正解すると次の問題に挑める(最大${MAX_EVENT_STREAK}問)。正解するほど報酬が良くなる(1問目:経験値+${QUIZ_XP_REWARD} → 2問目:回復・カード追加・カード削除のどれか → 3問目:常駐ツールかレアカード)。脆弱性診断で間違えるとHP−${VULN_EVENT_FAIL_DAMAGE}。` },
         { term: '解析コイン 🪙', text: `${STARTING_RECON_COINS}枚で始まり、倒した敵から${Math.round(RECON_COIN_DROP_RATE * 100)}%で出る。クイズの「事前調査」(はずれの選択肢を1つ消す)と闇市で使う。` },
         { term: '闇市', text: 'コインで回復・使い捨てツール・カードの削除・常駐ツールと交換できるマス。' },
+        { term: 'ハプニング', text: 'ランダムな出来事。HPを払って大きな見返りを狙うか、安全な方を選ぶ。' },
+        { term: '休憩・保守', text: `ボスの手前のマス。HPを最大の${Math.round(REST_HEAL_RATIO * 100)}%回復する・カードを1つ上のレベルにする・カードを1枚消す、から1つ選ぶ。` },
         { term: '使い捨てツール', text: `戦闘中に帯域0で使える道具(最大${MAX_TOOLS}個)。最初に「緊急パッチ」(HP回復)を1個持っている。` },
         { term: '常駐ツール', text: '手に入れると、その後の戦闘でずっと効く(毎ターンFW+3など)。' },
       ],

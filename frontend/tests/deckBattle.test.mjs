@@ -818,3 +818,31 @@ test('戦闘ログはHPダメージとFW減少を区別し、実際の回復量�
   assert.equal(healed.log.at(-1).effect, 'heal');
   assert.match(healed.log.at(-1).message, /HPを3回復/);
 });
+
+test('反撃デーモンは攻撃されないターンが続いても反撃をためない(4より少なければ4にする)', () => {
+  let s = battle.createBattle({ deck: [{ uid: 'c1', defId: 'firewall', level: 1, xp: 0 }], playerHp: 500, playerMaxHp: 500, enemyIds: ['argus'], seed: 1, relics: ['thorn_daemon'] });
+  let max = 0;
+  for (let t = 0; t < 8 && s.status === 'playing'; t++) {
+    max = Math.max(max, s.player.retaliate);
+    s = battle.endTurn(s);
+  }
+  assert.equal(max, 4);
+});
+
+test('過熱コアの過熱は残りターンが延びず、増え続けない', () => {
+  let s = battle.createBattle({ deck: [{ uid: 'c1', defId: 'firewall', level: 1, xp: 0 }], playerHp: 500, playerMaxHp: 500, enemyIds: ['argus'], seed: 1, relics: ['thermal_core'] });
+  let max = 0;
+  for (let t = 0; t < 10 && s.status === 'playing'; t++) {
+    max = Math.max(max, s.enemies[0].burn?.amount ?? 0);
+    s = battle.endTurn(s);
+  }
+  // 2 → 4 → 6 と増えたあと、3ターンで一度切れてまた2から始まる
+  assert.equal(max, 6);
+});
+
+test('図鑑の試用表示は実績を解除しない', () => {
+  const profileMod = load(new URL('../src/game/deckbattle/profile.ts', import.meta.url));
+  const shown = profileMod.unlockAllCodexEntries(profileMod.createEmptyProfile());
+  assert.ok(shown.seenCardIds.length >= 40);
+  assert.equal(shown.achievements.length, 0);
+});

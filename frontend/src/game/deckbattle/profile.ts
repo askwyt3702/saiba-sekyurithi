@@ -157,16 +157,19 @@ export function recordDiscovery(profile: DeckProfile, cardIds: string[], enemyId
   });
 }
 
-/** 試作用: 全カード・全Lv.3進化先・全敵を図鑑に一括登録する */
+/**
+ * 試作用: 全カード・全Lv.3進化先・全敵を図鑑に載せた「表示用」のカード基地を返す。
+ * 保存してはいけない(実績の条件を満たしてしまい、サーバーの記録にも残るため)。実績もここでは解除しない。
+ */
 export function unlockAllCodexEntries(profile: DeckProfile): DeckProfile {
   const allBranches = REWARD_CARD_IDS.flatMap((id) => CARD_DEFINITIONS[id].branches.map((b) => b.id));
   const allEnemies = Object.keys(ENEMY_DEFINITIONS);
-  return evaluateAchievements({
+  return {
     ...profile,
     seenCardIds: uniqueAdd(profile.seenCardIds, REWARD_CARD_IDS),
     unlockedBranches: uniqueAdd(profile.unlockedBranches, allBranches),
     seenEnemyIds: uniqueAdd(profile.seenEnemyIds, allEnemies),
-  });
+  };
 }
 
 /** 進化先解放を記録する */

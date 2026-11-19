@@ -32,6 +32,7 @@ function load(url) {
 const htp = load(new URL('../src/game/deckbattle/howToPlay.ts', import.meta.url));
 const battle = load(new URL('../src/game/deckbattle/battle.ts', import.meta.url));
 const run = load(new URL('../src/game/deckbattle/run.ts', import.meta.url));
+const rogue = load(new URL('../src/game/deckbattle/roguelike.ts', import.meta.url));
 
 const allText = (pages) => pages.map((p) => [p.title, p.lead, ...p.items.map((i) => `${i.term} ${i.text}`)].join('\n')).join('\n');
 
@@ -51,7 +52,8 @@ test('説明の数値はルールの定数から作られている', () => {
   assert.ok(text.includes(`毎ターン${battle.DRAW_PER_TURN}枚引く`));
   assert.ok(text.includes(`経験値${run.XP_TO_LV2}で自動で強くなる`));
   assert.ok(text.includes(`経験値${run.XP_TO_LV3}で`));
-  assert.ok(text.includes(`最大${run.PLAYER_MAX_HP}`));
+  const hps = Object.values(rogue.LOADOUT_DEFINITIONS).map((l) => l.maxHp);
+  assert.ok(text.includes(`${Math.min(...hps)}〜${Math.max(...hps)}`), '最大HPは初期ビルドの範囲で書く');
   assert.ok(text.includes(`${run.STARTING_RECON_COINS}枚で始まり`));
   assert.ok(text.includes(`${run.DEFAULT_RUN_NODES.length}つのマス`));
 });

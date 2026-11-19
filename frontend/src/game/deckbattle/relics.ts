@@ -48,13 +48,13 @@ export const RELIC_DEFINITIONS: Record<RelicId, RelicDefinition> = {
     id: 'thermal_core',
     name: '過熱コア',
     icon: '🔥',
-    description: `毎ターン開始時、敵全体に過熱+${THERMAL_CORE_BURN}を付与する。`,
+    description: `毎ターン開始時、敵全体に過熱+${THERMAL_CORE_BURN}を付与する(残りターンは延びない)。`,
   },
   thorn_daemon: {
     id: 'thorn_daemon',
     name: '反撃デーモン',
     icon: '🪤',
-    description: `毎ターン開始時に「反撃+${THORN_DAEMON_RETALIATE}」を得る。`,
+    description: `毎ターン開始時、反撃が${THORN_DAEMON_RETALIATE}より少なければ${THORN_DAEMON_RETALIATE}にする。`,
   },
   siphon_module: {
     id: 'siphon_module',

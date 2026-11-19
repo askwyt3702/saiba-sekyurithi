@@ -29,6 +29,9 @@ interface DeckHubModalProps {
 export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProps) {
   const [tab, setTab] = useState<HubTab>(initialTab);
   const [profile, setProfile] = useState<DeckProfile>(() => loadDeckProfile());
+  // 試作用:図鑑をすべて表示する(表示だけで、保存はしない)
+  const [previewAllCodex, setPreviewAllCodex] = useState(false);
+  const codexProfile = previewAllCodex ? unlockAllCodexEntries(profile) : profile;
   const [activeReview, setActiveReview] = useState<DeckQuizQuestion | null>(null);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
 
@@ -45,11 +48,9 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
     profile.unlockedBranches.length >= totalBranches &&
     profile.seenEnemyIds.length >= allEnemiesCount;
 
-  const onUnlockAllCodex = () => {
-    playSound('extract');
-    const updated = unlockAllCodexEntries(profile);
-    setProfile(updated);
-    saveDeckProfile(updated);
+  const onTogglePreviewAll = () => {
+    playSound('click');
+    setPreviewAllCodex((v) => !v);
   };
 
   const onAnswerReview = (choiceId: string) => {
@@ -120,18 +121,18 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
               </div>
               <button
                 type="button"
-                className={`db-btn db-fast-toggle ${allCodexUnlocked ? '' : 'db-fast-toggle--on'}`}
+                className={`db-btn db-fast-toggle ${previewAllCodex ? 'db-fast-toggle--on' : ''}`}
                 disabled={allCodexUnlocked}
-                onClick={onUnlockAllCodex}
-                title="試作用: 全40種のカード・全Lv.3進化先・敵図鑑をすべて解放します"
+                onClick={onTogglePreviewAll}
+                title="試作用: 全40種のカード・全Lv.3進化先・敵を表示します(記録には残りません)"
               >
-                {allCodexUnlocked ? '✔ 全カード図鑑解放済み' : '🧪 試用：全カード図鑑を埋める'}
+                {allCodexUnlocked ? '✔ 全カード図鑑解放済み' : previewAllCodex ? '🧪 試用表示中(記録には残らない)' : '🧪 試用：全カード図鑑を表示'}
               </button>
             </div>
             <div className="db-codex-grid">
               {REWARD_CARD_IDS.map((id) => {
                 const def = CARD_DEFINITIONS[id];
-                const seen = profile.seenCardIds.includes(id);
+                const seen = codexProfile.seenCardIds.includes(id);
                 return (
                   <div key={id} className={`db-codex-card ${seen ? '' : 'db-codex-card--locked'}`}>
                     <div className="db-codex-card__top">
@@ -152,7 +153,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                         <div className="db-codex-card__lore">{def.lore}</div>
                         <div className="db-codex-branches">
                           {def.branches.map((b) => {
-                            const unlocked = profile.unlockedBranches.includes(b.id);
+                            const unlocked = codexProfile.unlockedBranches.includes(b.id);
                             return (
                               <div key={b.id} className={`db-codex-branch ${unlocked ? 'db-codex-branch--open' : ''}`}>
                                 <span>
@@ -177,7 +178,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
             <h3 className="db-hub__sub">遭遇した防御システム（敵図鑑）</h3>
             <div className="db-deck-grid">
               {Object.values(ENEMY_DEFINITIONS).map((enemy) => {
-                const seen = profile.seenEnemyIds.includes(enemy.id);
+                const seen = codexProfile.seenEnemyIds.includes(enemy.id);
                 return (
                   <div key={enemy.id} className="db-deck-pill">
                     <span>
