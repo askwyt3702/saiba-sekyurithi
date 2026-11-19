@@ -1,16 +1,17 @@
 # NULL ROUTE
 
-ハッカーとなり仮想ネットワークに侵入して目的のデータを入手する、PC向けターン制戦略シミュレーションゲーム(操作した時点で結果が確定し、ゲーム内時間は操作ごとに進む)。
+ハッカーとなって防御システムに侵入する、PC向けのデッキ構築ローグライト(ターン制のカードバトル)。使うほど育つ攻撃・防御のカードでデッキを作り、セキュリティのクイズに答えながら、最奥の監視AI「ARGUS」を目指す。企画は [`docs/deckbattle-plan-v0.3.md`](docs/deckbattle-plan-v0.3.md)。
 
 ## 構成
 
 | ディレクトリ | 内容 |
 |---|---|
-| `frontend/` | React + TypeScript + Vite。ネットワークマップは [`@xyflow/react`](https://reactflow.dev/) を使用 |
-| `backend/` | FastAPI + SQLAlchemy + PostgreSQL |
+| `frontend/` | React + TypeScript + Vite。ゲームのルールは `src/game/deckbattle/`、画面は `src/components/DeckBattle/` |
+| `backend/` | FastAPI + SQLAlchemy + PostgreSQL。プレイヤーとカード基地を保存する |
 | `docs/api-contract.md` | フロント/バック間のデータ契約。形を変えたら**必ずこのファイルを更新してからチームに共有**すること |
+| `docs/deckbattle-plan-v0.3.md` | 企画書(共有ドキュメントの写し) |
 
-バックエンドはゲームの作成・取得・操作・リセットのAPI(`/api/games`)を提供しています。フロントはバックエンドにつながらないとき、`MockGameClient`(ブラウザ内で完結するダミー実装)に自動で切り替わり、ステータスバーに「OFFLINE (Mock)」と表示します。
+ゲームはブラウザの中だけで動きます。バックエンドは、プレイヤー登録(名前だけ)と**カード基地**(図鑑・弱点ノート・戦績・実績)の保存を受け持ちます。ミッション選択画面の「👤 プレイヤー登録」で名前を登録すると、カード基地がサーバーにも保存されます。バックエンドにつながらないときは、ブラウザ(localStorage)だけに保存して遊べ、画面右上に「オフライン」と出ます。
 
 ## セットアップ
 
@@ -52,6 +53,7 @@ docker compose up -d --build -V
 
 `-V` は、コンテナ内の `node_modules` を作り直すための指定です。`frontend/package.json` の依存が変わった後に付け忘れると、古い `node_modules` が残って画面のサーバーが起動しません。
 ゲームのDBは `postgres_data/` フォルダに保存されているので、`-V` を付けても消えません。
+古いゲームのテーブル(`player_status` など)が残っていても、新しいゲームは別のテーブル(`deck_players`・`deck_profiles`)を使うので問題ありません。
 
 ### 画面が開かないとき
 
@@ -88,7 +90,7 @@ npm test            # テスト(tests/*.test.mjs)
 npm run build        # 本番ビルド
 ```
 
-`npm test`のMock比較テストはバックエンドのPython環境も使用します。Python 3.12環境に`backend/requirements-dev.txt`を導入してください。Pythonのパスは`NULL_ROUTE_TEST_PYTHON`で指定できます（通常は`backend/.venv`を自動検出）。ゲームDBには接続せず、メモリ内SQLiteで再生します。Python環境が無い手元では、この比較テストだけ警告を出してスキップします（他のテストは実行されます）。CIでは必ず実行され、Mockとバックエンドの挙動がずれていると失敗します。
+接続するバックエンドを変えたいときは、`frontend/.env.development.local` に `VITE_API_BASE=http://localhost:8001` のように書きます(このファイルはコミットされません)。
 
 #### backend
 
@@ -100,12 +102,27 @@ pip install -r requirements.txt
 DATABASE_URL=postgresql://detective:secretpassword@localhost:5432/cyber_mystery uvicorn main:app --reload
 ```
 
+画面を 5173 番以外のポートで動かすときは、環境変数 `CORS_ORIGINS` にその URL を書きます(例:`CORS_ORIGINS=http://localhost:5174`)。
+
+#### バックエンドのテスト
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+テストは使い捨ての SQLite で動くので、PostgreSQL は要りません。手元に Python 環境が無いときは、docker のバックエンドのイメージで実行できます(リポジトリのフォルダで実行):
+
+```bash
+docker compose run --rm --no-deps backend sh -c "pip install -q -r requirements-dev.txt && pytest"
+```
+
 ## CI
 
 `main`へのpush・Pull Requestで [`.github/workflows/ci.yml`](.github/workflows/ci.yml) が自動実行されます。
 
-- **frontend**: 依存関係インストール → 型チェック(`tsc --noEmit`) → lint(`oxlint`) → テスト(`npm test`、Mockとバックエンドの比較テストを含む) → ビルド
-- **stage-data**: `python scripts/gen_stage_data.py` を実行し、生成した `frontend/src/game/data/stageData.ts` がコミット済みの内容と一致するか確認(バックエンドのステージや数値を変えて生成し忘れると失敗する)
+- **frontend**: 依存関係インストール → 型チェック(`tsc --noEmit`) → lint(`oxlint`) → テスト(`npm test`) → ビルド
 - **backend**: 依存関係インストール → 実際にPostgreSQLへ接続してアプリをimportまで通す(importのtypoやモデル定義ミスなど、起動して初めて分かる不具合を早期検知する) → テスト(`pytest`)
 
 ローカルで事前に確認したい場合は、上記の`npm run typecheck` / `npm run lint` / `npm test` / `npm run build`、backendなら `cd backend` して `pytest` を実行してください。
