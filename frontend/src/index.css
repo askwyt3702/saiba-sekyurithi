@@ -11,9 +11,13 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* ゲーム全体の文字。英数字は等幅、日本語は M PLUS 1 Code(index.html で読み込む) */
+  --font-cyber: ui-monospace, Consolas, 'M PLUS 1 Code', monospace;
+  /* HP・帯域・ダメージなどの数字 */
+  --font-digits: 'Orbitron', ui-monospace, Consolas, monospace;
+  --sans: var(--font-cyber);
+  --heading: var(--font-cyber);
+  --mono: var(--font-cyber);
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;

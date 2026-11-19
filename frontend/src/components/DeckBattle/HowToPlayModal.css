@@ -19,7 +19,7 @@
   background: linear-gradient(180deg, #071723, #03090f);
   box-shadow: 0 0 40px rgba(56, 189, 248, 0.2);
   color: #e2f5ee;
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-cyber);
 }
 
 .htp-head {
