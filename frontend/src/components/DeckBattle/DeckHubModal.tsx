@@ -20,6 +20,7 @@ import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON } from '../../game/deckbattle/icons';
 import { EffectText } from './EffectText';
 import './DeckBattle.css';
+import './TerminalTheme.css';
 
 type HubTab = 'codex' | 'weakness' | 'stats' | 'achievements';
 

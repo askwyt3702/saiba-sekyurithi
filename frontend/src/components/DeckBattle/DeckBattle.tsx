@@ -97,6 +97,7 @@ import guardPose from '../../assets/player-guard.webp';
 import hurtPose from '../../assets/player-hurt.webp';
 import './DeckBattle.css';
 import './RunSetup.css';
+import './TerminalTheme.css';
 
 const ENEMY_STEP_MS = 900;
 const FX_MS = 1150;
