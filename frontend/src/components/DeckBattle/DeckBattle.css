@@ -67,23 +67,6 @@
   white-space: nowrap;
 }
 
-.db-encounter {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #94a3b8;
-}
-
-.db-encounter select {
-  padding: 4px 6px;
-  border: 1px solid #334155;
-  border-radius: 4px;
-  background: #0b1b29;
-  color: #e2f5ee;
-  font-family: inherit;
-  font-size: 12px;
-}
-
 /* ---------- ボタン ---------- */
 .db-btn {
   padding: 8px 14px;
@@ -795,18 +778,6 @@
   letter-spacing: 2px;
 }
 
-.db-card__art {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 44px;
-  margin: 6px 10px 2px;
-  border: 1px solid color-mix(in srgb, var(--card-color) 40%, transparent);
-  border-radius: 6px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--card-color) 25%, transparent), transparent 75%);
-  font-size: 26px;
-}
-
 .db-card__name {
   display: block;
   flex-shrink: 0;
@@ -973,7 +944,6 @@
 .db-log__turn { color: #9db1c5; white-space: nowrap; }
 .db-log__list--recent .db-log__msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-
 /* ---------- 結果 ---------- */
 .db-overlay {
   position: absolute;
@@ -1037,13 +1007,6 @@
   font-size: 11px;
 }
 
-.db-result__used-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-}
-
 .db-result__actions {
   display: flex;
   justify-content: center;
@@ -1103,7 +1066,6 @@
     opacity: 1;
   }
 }
-
 
 /* ---------- M2/M3: ラン進行・成長・進化・報酬・イベント ---------- */
 .db-stepper {
@@ -1177,19 +1139,6 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
   color: #94a3b8;
   white-space: nowrap;
-}
-
-.db-step--current {
-  border-color: #22d3ee;
-  color: #e0f2fe;
-  background: rgba(8, 51, 68, 0.85);
-  font-weight: 700;
-}
-
-.db-step--done {
-  border-color: rgba(16, 185, 129, 0.5);
-  color: #6ee7b7;
-  background: rgba(6, 78, 59, 0.35);
 }
 
 .db-reload-note {
@@ -1589,16 +1538,6 @@
   display: block;
 }
 
-.db-event-recon__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
-  font-size: 12px;
-  color: #6ee7b7;
-}
-
 .db-event-recon__badge {
   padding: 2px 6px;
   border-radius: 3px;
@@ -1613,33 +1552,6 @@
   font-size: 12px;
   color: #e2e8f0;
   line-height: 1.5;
-}
-
-.db-event-recon__prompt {
-  font-size: 12px;
-  color: #bae6fd;
-}
-
-.db-event-recon__btn {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #38bdf8;
-  background: rgba(56, 189, 248, 0.2);
-  color: #e0f2fe;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.db-event-recon__btn:hover {
-  background: rgba(56, 189, 248, 0.35);
-}
-
-.db-event-prompt__rule {
-  display: block;
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: #94a3b8;
 }
 
 .db-event-choice__head {
@@ -1745,7 +1657,6 @@
 .db-deck-pill__preview--max {
   color: #94a3b8;
 }
-
 
 /* ---------- カード基地モーダル(図鑑・弱点ノート・戦績・実績) ---------- */
 .db-hub {
@@ -1879,7 +1790,6 @@
   color: #e0f2fe;
 }
 
-
 /* ---------- 常備ツール & 弱点バッジ ---------- */
 .db-tool-bar {
   display: inline-flex;
@@ -1914,7 +1824,6 @@
   border: 1px solid rgba(251, 191, 36, 0.55);
   color: #fde68a;
 }
-
 
 /* ---------- カスタムSVGカードアートワーク枠 ---------- */
 .db-art-box {
@@ -1954,7 +1863,6 @@
 .db-card__band {
   flex-shrink: 0;
 }
-
 
 /* ---------- カードホバー時の拡大カードプレビュー ---------- */
 .db-card-preview-panel {
@@ -2316,7 +2224,6 @@
     transform: scale(1);
   }
 }
-
 
 /* ---------- イベントクイズ画面 配色・視認性刷新 ---------- */
 .db-event-card {
@@ -2792,144 +2699,6 @@
   --route-color: #34d399;
 }
 
-.db-setup-card {
-  max-width: 920px;
-}
-
-.db-setup-heading {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #7dd3fc;
-  letter-spacing: 0.4px;
-}
-
-.db-setup-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.db-setup-loadout {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1.5px solid rgba(100, 116, 139, 0.45);
-  background: #102034;
-  color: #f8fafc;
-  text-align: left;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.14s ease, background 0.14s ease, transform 0.12s ease;
-}
-
-.db-setup-loadout:hover {
-  border-color: #38bdf8;
-  background: #152b46;
-  transform: translateY(-2px);
-}
-
-.db-setup-loadout--selected {
-  border-color: #22d3ee;
-  background: linear-gradient(180deg, rgba(14, 52, 78, 0.92), rgba(10, 30, 50, 0.95));
-  box-shadow: 0 0 0 1px #22d3ee, 0 0 18px rgba(34, 211, 238, 0.3);
-}
-
-.db-setup-loadout__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.db-setup-loadout__icon {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.db-setup-loadout__tag {
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #7dd3fc;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.8px;
-}
-
-.db-setup-loadout__name {
-  font-size: 14px;
-  font-weight: 800;
-  color: #f8fafc;
-}
-
-.db-setup-loadout__desc {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: #cbd5e1;
-}
-
-.db-setup-loadout__meta {
-  display: flex;
-  gap: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #6ee7b7;
-  margin-top: 2px;
-}
-
-.db-setup-loadout__relic {
-  font-size: 11px;
-  color: #fde68a;
-}
-
-.db-sec-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.db-sec-pill {
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(148, 163, 184, 0.35);
-  background: #102034;
-  color: #cbd5e1;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: border-color 0.14s ease, background 0.14s ease;
-}
-
-.db-sec-pill:hover {
-  border-color: #f59e0b;
-}
-
-.db-sec-pill--active {
-  border-color: #f43f5e;
-  background: rgba(136, 19, 55, 0.65);
-  color: #ffe4e6;
-  box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
-}
-
-.db-sec-desc {
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  font-size: 12px;
-  color: #e2e8f0;
-}
-
-.db-sec-desc strong {
-  color: #fda4af;
-}
-
 .db-mystery-badge {
   flex-shrink: 0;
   padding: 3px 8px;
@@ -3084,8 +2853,8 @@
   border-radius: 2px !important;
 }
 
-/* 丸いままにするもの(帯域の玉・コストの宝石・番号・小さな点・演出の輪・足元の影) */
-.db-shell :is(.db-energy, .db-card__cost, .db-event-choice__num, .db-route-node__check, .db-log__legend-dot, .db-impact--buff, .db-impact--burn, .db-impact--guard, .db-impact--heal),
+/* 丸いままにするもの(帯域の玉・コストの宝石・番号・演出の輪・足元の影) */
+.db-shell :is(.db-energy, .db-card__cost, .db-event-choice__num, .db-route-node__check, .db-impact--buff, .db-impact--burn, .db-impact--guard, .db-impact--heal),
 .db-overlay :is(.db-card__cost, .db-event-choice__num),
 .db-fighter::before {
   border-radius: 50% !important;
@@ -3117,12 +2886,6 @@
     linear-gradient(var(--corner), var(--corner)) bottom right / 10px 2px no-repeat,
     linear-gradient(var(--corner), var(--corner)) bottom right / 2px 10px no-repeat;
 }
-
-/* マスが9つに増えて上のバーがはみ出すので、「◯マス試作ラン」の表示は隠す(進み具合はマスの絵柄で分かる) */
-.db-topbar .db-brand__proto {
-  display: none;
-}
-
 
 /* ---------- ダメージ量に応じたエフェクト強度（12以上:強撃 / 25以上:極大撃） ---------- */
 .db-arena--shake-heavy {
