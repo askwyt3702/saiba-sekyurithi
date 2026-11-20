@@ -96,6 +96,7 @@ import attackPose from '../../assets/player-attack.webp';
 import guardPose from '../../assets/player-guard.webp';
 import hurtPose from '../../assets/player-hurt.webp';
 import './DeckBattle.css';
+import './RunSetup.css';
 
 const ENEMY_STEP_MS = 900;
 const FX_MS = 1150;
@@ -2515,6 +2516,14 @@ function CoinShopScreen({
 }
 
 
+/** 初期ビルドごとの枠の色(ミッション選択画面のカードと同じ考え方) */
+const LOADOUT_ACCENT: Record<LoadoutId, 'green' | 'red' | 'cyan' | 'amber'> = {
+  balanced: 'green',
+  red_team: 'red',
+  blue_team: 'cyan',
+  thermal_ops: 'amber',
+};
+
 function RunSetupScreen({
   initialLoadout,
   initialSecurityLevel,
@@ -2531,21 +2540,23 @@ function RunSetupScreen({
   const activeSec = SECURITY_LEVELS[secLevel] ?? SECURITY_LEVELS[0];
 
   return (
-    <main className="db-event-wrap" aria-label="出撃構成の選択">
-      <section className="db-event-card db-setup-card">
-        <div className="db-event-head">
-          <div className="db-event-head__left">
-            <span className="db-event-pill db-event-pill--type">OPERATION BRIEFING</span>
-            <span className="db-event-pill db-event-pill--step">初期ビルド ＆ 難易度選択</span>
+    <main className="db-setup" aria-label="出撃構成の選択">
+      <div className="db-setup__overlay" aria-hidden="true" />
+      <div className="db-setup__inner">
+        <header className="db-setup__hero">
+          <div>
+            <div className="db-setup__code">// OPERATION_BRIEFING :: DECK_BREACH</div>
+            <h2 className="db-setup__title">LOADOUT SELECT</h2>
+            <p className="db-setup__sub">初期ビルド(オペレーター)と難易度を選んで出撃する。</p>
           </div>
-          <button type="button" className="db-btn db-btn--ghost" onClick={onBack}>
-            ← 戻る
+          <button type="button" className="db-setup__back" onClick={onBack}>
+            <span aria-hidden="true">←</span> RETURN (ミッション選択へ)
           </button>
-        </div>
+        </header>
 
-        <h2 className="db-setup-heading">1. 初期ビルド（オペレーター）を選ぶ</h2>
-        <div className="db-setup-grid">
-          {ALL_LOADOUT_IDS.map((id) => {
+        <div className="db-setup__label">01 // 初期ビルド(オペレーター)</div>
+        <div className="db-setup__grid">
+          {ALL_LOADOUT_IDS.map((id, index) => {
             const def = LOADOUT_DEFINITIONS[id];
             const selected = loadoutId === id;
             const relicNames = def.relics.map((r) => RELIC_DEFINITIONS[r].name).join(' / ');
@@ -2554,63 +2565,89 @@ function RunSetupScreen({
               <button
                 key={id}
                 type="button"
-                className={`db-setup-loadout${selected ? ' db-setup-loadout--selected' : ''}`}
+                aria-pressed={selected}
+                className={`db-setup-op db-setup-op--${LOADOUT_ACCENT[id]}${selected ? ' db-setup-op--selected' : ''}`}
+                style={{ animationDelay: `${index * 60}ms` }}
                 onClick={() => {
                   playSound('click');
                   setLoadoutId(id);
                 }}
               >
-                <div className="db-setup-loadout__top">
-                  <span className="db-setup-loadout__icon"><GameIcon name={def.icon} /></span>
-                  <span className="db-setup-loadout__tag">{def.tag}</span>
-                </div>
-                <div className="db-setup-loadout__name">{def.name}</div>
-                <p className="db-setup-loadout__desc">{def.description}</p>
-                <div className="db-setup-loadout__meta">
-                  <span><GameIcon name="hp" /> HP {Math.max(25, def.maxHp - (secLevel >= 3 ? 10 : 0))}</span>
-                  <span><GameIcon name="tools" /> {toolNames}</span>
-                </div>
-                <div className="db-setup-loadout__relic">
-                  {relicNames ? `常駐装備: ${relicNames}` : '常駐装備: なし（汎用デッキ）'}
-                </div>
+                <span className="db-setup-op__corner db-setup-op__corner--tl" aria-hidden="true" />
+                <span className="db-setup-op__corner db-setup-op__corner--tr" aria-hidden="true" />
+                <span className="db-setup-op__corner db-setup-op__corner--bl" aria-hidden="true" />
+                <span className="db-setup-op__corner db-setup-op__corner--br" aria-hidden="true" />
+                <span className="db-setup-op__head">
+                  <span className="db-setup-op__code">OP-0{index + 1} // {def.tag}</span>
+                  {selected && <span className="db-setup-op__badge">SELECTED</span>}
+                </span>
+                <span className="db-setup-op__body">
+                  <span className="db-setup-op__name">
+                    <GameIcon name={def.icon} /> {def.name}
+                  </span>
+                  <span className="db-setup-op__desc">{def.description}</span>
+                </span>
+                <span className="db-setup-op__meta">
+                  <span className="db-setup-op__row">
+                    <span className="db-setup-op__key">HP</span>
+                    <span className="db-setup-op__val">{Math.max(25, def.maxHp - (secLevel >= 3 ? 10 : 0))}</span>
+                  </span>
+                  <span className="db-setup-op__row">
+                    <span className="db-setup-op__key">TOOL</span>
+                    <span className="db-setup-op__val">{toolNames}</span>
+                  </span>
+                  <span className="db-setup-op__row">
+                    <span className="db-setup-op__key">RELIC</span>
+                    <span className="db-setup-op__val">{relicNames || 'なし(汎用デッキ)'}</span>
+                  </span>
+                </span>
+                <span className="db-setup-op__foot">
+                  {selected ? (
+                    <>
+                      <GameIcon name="check" /> READY
+                    </>
+                  ) : (
+                    <>▶ SELECT</>
+                  )}
+                </span>
               </button>
             );
           })}
         </div>
 
-        <h2 className="db-setup-heading" style={{ marginTop: 16 }}>
-          2. セキュリティレベル（高難度モード）
-        </h2>
-        <div className="db-sec-bar" role="radiogroup" aria-label="セキュリティレベル">
-          {SECURITY_LEVELS.map((info) => (
-            <button
-              key={info.level}
-              type="button"
-              className={`db-sec-pill${secLevel === info.level ? ' db-sec-pill--active' : ''}`}
-              onClick={() => {
-                playSound('click');
-                setSecLevel(info.level);
-              }}
-            >
-              {info.label}
-            </button>
-          ))}
-        </div>
-        <div className="db-sec-desc">
-          <strong>{activeSec.label}:</strong> {activeSec.summary}
+        <div className="db-setup__label">02 // セキュリティレベル(高難度モード)</div>
+        <div className="db-setup__sec">
+          <div className="db-setup__sec-bar" role="radiogroup" aria-label="セキュリティレベル">
+            {SECURITY_LEVELS.map((info) => (
+              <button
+                key={info.level}
+                type="button"
+                role="radio"
+                aria-checked={secLevel === info.level}
+                className={`db-setup__sec-pill${secLevel === info.level ? ' db-setup__sec-pill--active' : ''}${info.level >= 3 ? ' db-setup__sec-pill--hot' : ''}`}
+                onClick={() => {
+                  playSound('click');
+                  setSecLevel(info.level);
+                }}
+              >
+                {info.label}
+              </button>
+            ))}
+          </div>
+          <p className="db-setup__sec-desc">
+            <span className="db-setup__sec-tag">THREAT</span> {activeSec.summary}
+          </p>
         </div>
 
-        <div className="db-result__actions" style={{ marginTop: 18 }}>
-          <button
-            type="button"
-            className="db-btn db-btn--end"
-            style={{ padding: '10px 26px', fontSize: 14 }}
-            onClick={() => onDeploy(loadoutId, secLevel)}
-          >
-            ▶ この構成で出撃する
+        <footer className="db-setup__foot">
+          <span className="db-setup__foot-info">
+            ENCRYPTED TUNNEL: READY // {LOADOUT_DEFINITIONS[loadoutId].tag} / SEC Lv.{secLevel}
+          </span>
+          <button type="button" className="db-setup__deploy" onClick={() => onDeploy(loadoutId, secLevel)}>
+            ▶ この構成で出撃する <span className="db-setup__deploy-en">// DEPLOY</span>
           </button>
-        </div>
-      </section>
+        </footer>
+      </div>
     </main>
   );
 }
