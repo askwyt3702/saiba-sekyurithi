@@ -9,6 +9,7 @@
    DeckBattle.css より後に読み込んで、色と枠だけを上書きする(並びや大きさは変えない)。
    ============================================= */
 
+.db-shell,
 .db-event-wrap,
 .db-overlay {
   --term-green: #00ff64;
@@ -330,4 +331,144 @@
 .db-overlay .db-event-choice__cmd {
   border-color: rgba(var(--term-green-rgb), 0.22);
   color: var(--term-green);
+}
+
+/* =============================================
+   戦闘画面と、どの画面でも出る上のバー。戦闘の背景の絵・カードの色分け・HPバー・効果の数字の色は変えない。
+   ============================================= */
+
+/* ---- 上のバー ---- */
+.db-shell .db-topbar {
+  background: rgba(2, 10, 6, 0.95);
+  border-bottom: 1px solid rgba(var(--term-green-rgb), 0.3);
+  box-shadow: 0 1px 0 rgba(var(--term-green-rgb), 0.08), 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.db-shell .db-brand,
+.db-shell .db-brand__progress {
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-brand__progress {
+  color: var(--term-green);
+  border-color: rgba(var(--term-green-rgb), 0.4);
+}
+
+.db-shell .db-reload-note {
+  background: rgba(1, 6, 3, 0.88);
+  border-color: rgba(var(--term-green-rgb), 0.14);
+  color: #6f8f7c;
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-chip {
+  background: rgba(2, 10, 6, 0.85);
+}
+
+/* マスの印:種類ごとの色は残し、地を暗い緑に。今いるマスは緑に光らせる */
+.db-shell .db-route-node {
+  background: rgba(6, 22, 13, 0.85);
+}
+
+.db-shell .db-route-node__label {
+  font-family: var(--term-mono);
+  letter-spacing: 1px;
+}
+
+.db-shell .db-route-node[aria-current='step'] {
+  border-color: var(--term-green);
+  box-shadow: 0 0 0 1px var(--term-green), 0 0 12px rgba(var(--term-green-rgb), 0.45);
+}
+
+/* ---- 戦闘の場所の色味(背景の絵の上にかける暗いフィルターを、青から緑寄りに) ---- */
+.db-shell .db-main {
+  background:
+    linear-gradient(180deg, rgba(1, 8, 4, 0.6) 0%, rgba(1, 8, 4, 0.3) 43%, rgba(1, 8, 4, 0.55) 61%, rgba(1, 6, 3, 0.93) 100%),
+    var(--battle-background) center bottom / cover no-repeat;
+}
+
+/* ---- 戦闘の状況の帯と戦闘ログ ---- */
+.db-shell .db-battle-strip {
+  background: rgba(2, 10, 6, 0.92);
+  border-color: rgba(var(--term-green-rgb), 0.25);
+}
+
+.db-shell .db-battle-status {
+  color: var(--term-green);
+  border-color: rgba(var(--term-green-rgb), 0.6);
+  font-family: var(--term-mono);
+  letter-spacing: 1px;
+}
+
+.db-shell .db-battle-status--enemy {
+  color: #ff8fa3;
+  border-color: rgba(255, 77, 106, 0.6);
+}
+
+.db-shell .db-log__summary {
+  background: rgba(6, 22, 13, 0.9);
+  border-color: rgba(var(--term-green-rgb), 0.3);
+  color: #cfe9d9;
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-log__list {
+  background: rgba(2, 10, 6, 0.95);
+  border-color: rgba(var(--term-green-rgb), 0.3);
+}
+
+/* ---- 使い捨てツール・山札と捨て札・帯域 ---- */
+.db-shell .db-tool-btn {
+  background: rgba(6, 22, 13, 0.88);
+  border-color: rgba(var(--term-green-rgb), 0.5);
+  color: #b7f5cf;
+}
+
+.db-shell .db-tool-btn:hover:not(:disabled) {
+  border-color: var(--term-green);
+  box-shadow: 0 0 10px rgba(var(--term-green-rgb), 0.3);
+}
+
+.db-shell .db-pile {
+  background: repeating-linear-gradient(45deg, #04140b 0 6px, #020c06 6px 12px);
+  border-color: rgba(var(--term-green-rgb), 0.28);
+  color: #7fa58e;
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-energy {
+  border-color: #c9ffe0;
+  background: radial-gradient(circle at 35% 30%, #5dffa0, #047a3b 70%);
+  box-shadow: 0 0 18px rgba(var(--term-green-rgb), 0.5);
+}
+
+.db-shell .db-energy__value {
+  text-shadow: 0 0 10px rgba(var(--term-green-rgb), 0.8);
+}
+
+.db-shell .db-energy__label {
+  font-family: var(--term-mono);
+}
+
+/* ---- カードにカーソルを合わせたときの拡大表示 ---- */
+.db-shell .db-card-preview-panel {
+  border-color: rgba(var(--term-green-rgb), 0.6);
+  background: rgba(2, 10, 6, 0.96);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.85), 0 0 22px rgba(var(--term-green-rgb), 0.2);
+}
+
+.db-shell .db-card-preview-float__tag {
+  color: var(--term-green);
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-glossary {
+  background: rgba(2, 10, 6, 0.96);
+  border-color: rgba(var(--term-green-rgb), 0.35);
+}
+
+.db-shell .db-card-preview-float__next,
+.db-overlay .db-card-preview-float__next {
+  background: rgba(2, 10, 6, 0.92);
+  border-color: rgba(var(--term-green-rgb), 0.34);
 }
