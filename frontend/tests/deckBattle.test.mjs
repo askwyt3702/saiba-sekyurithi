@@ -52,13 +52,13 @@ function play(state, uid, target) {
   return r.state;
 }
 
-test('戦闘開始:手札4枚・帯域4・山札6枚、敵は定義どおりのHP', () => {
+test('戦闘開始:手札・帯域・山札は定数どおり、敵は定義どおりのHP', () => {
   const r = run.createRun();
   assert.equal(r.deck.length, 10);
   const s = run.createBattleForCurrentNode(r, 42);
-  assert.equal(s.hand.length, 4);
-  assert.equal(s.drawPile.length, 6);
-  assert.equal(s.player.energy, 4);
+  assert.equal(s.hand.length, battle.DRAW_PER_TURN);
+  assert.equal(s.drawPile.length, r.deck.length - battle.DRAW_PER_TURN);
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN);
   assert.equal(s.player.hp, 65);
   assert.equal(s.enemies[0].hp, hp('scanner_bot'));
   assert.equal(s.turn, 1);
@@ -175,8 +175,9 @@ test('FWは敵の攻撃を防ぎ、次のプレイヤーのターン開始で消
   assert.equal(s.player.block, 0);
   assert.equal(s.lastEnemyActions[0].kind, 'attack');
   assert.equal(s.lastEnemyActions[0].blocked, 5);
-  assert.equal(s.hand.length, 4);
-  assert.equal(s.player.energy, 4);
+  // デッキは5枚なので、引ける枚数はデッキの枚数まで
+  assert.equal(s.hand.length, Math.min(battle.DRAW_PER_TURN, 5));
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN);
   assert.equal(s.turn, 2);
 });
 
@@ -796,8 +797,8 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
   assert.equal(bRelic.enemies[0].vulnerable, 2);
   assert.equal(bRelic.enemies[0].burn?.amount, 2);
   assert.equal(bRelic.player.retaliate, 4);
-  assert.equal(bRelic.player.energy, 6, '初期4 + overclock_bus(+2)');
-  assert.equal(bRelic.hand.length, 5, '初期4 + overclock_bus(+1)');
+  assert.equal(bRelic.player.energy, battle.ENERGY_PER_TURN + 2, '初期の帯域 + overclock_bus(+2)');
+  assert.equal(bRelic.hand.length, battle.DRAW_PER_TURN + 1, '初期のドロー + overclock_bus(+1)');
 
   // 3. 休憩・システム保守マス(回復 / 即強化 / 削除)
   const hurt = { ...run.createRun(), hp: 30 };

@@ -21,7 +21,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'scanner_bot',
     name: 'スキャナーbot',
     icon: 'scannerBot',
-    maxHp: 42,
+    maxHp: 50,
     weakness: 'burn',
     pattern: [
       { type: 'attack', amount: 9 },
@@ -33,7 +33,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'ids_sensor',
     name: 'IDSセンサー',
     icon: 'idsSensor',
-    maxHp: 32,
+    maxHp: 38,
     weakness: 'pierce',
     pattern: [
       { type: 'attack', amount: 8, hits: 2 },
@@ -44,7 +44,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'firewall_ai',
     name: 'ファイアウォールAI',
     icon: 'firewallAi',
-    maxHp: 80,
+    maxHp: 96,
     weakness: 'pierce',
     pattern: [
       { type: 'blockAttack', block: 20, amount: 10 },
@@ -56,7 +56,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'argus',
     name: '監視AI ARGUS',
     icon: 'argus',
-    maxHp: 240,
+    maxHp: 288,
     weakness: 'pierce',
     pattern: [
       { type: 'attack', amount: 20 },
@@ -76,7 +76,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
     id: 'zero_trust_gate',
     name: 'ゼロトラストゲート(強敵)',
     icon: 'zeroTrustGate',
-    maxHp: 124,
+    maxHp: 149,
     weakness: 'multi',
     pattern: [
       { type: 'blockAttack', block: 24, amount: 14 },

@@ -22,7 +22,7 @@ import type {
 
 // ---------- 設定(4章) ----------
 export const ENERGY_PER_TURN = 4;
-export const DRAW_PER_TURN = 4;
+export const DRAW_PER_TURN = 5;
 export const MAX_HAND_SIZE = 10;
 export const BURN_TURNS = 3;
 
