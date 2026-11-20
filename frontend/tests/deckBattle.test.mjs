@@ -874,3 +874,28 @@ test('HPを払う攻撃カードは、敵へのダメージと自分のHP減少�
   assert.match(message, /あなた → .+ダメージ/);
   assert.ok(message.includes(`あなた：HPを${selfCost.amount}失った`), message);
 });
+
+test('ボスに勝ったときは、Lv.3 に届いたカードがあっても進化先を選ばせない(通常の戦闘では選ばせる)', () => {
+  const finish = (nodeIndex) => {
+    const base = run.createRun();
+    const deck = base.deck.map((c, i) => (i === 0 ? { ...c, xp: run.XP_TO_LV3 - 1, level: 2 } : c));
+    const r = { ...base, deck, nodeIndex };
+    const s = run.createBattleForCurrentNode(r, 1);
+    const won = {
+      ...s,
+      status: 'won',
+      enemies: s.enemies.map((e) => ({ ...e, hp: 0 })),
+      usesThisBattle: { [deck[0].uid]: 1 },
+    };
+    return run.applyBattleResult(r, won, 1).run;
+  };
+  const bossIndex = run.DEFAULT_RUN_NODES.findIndex((n) => n.kind === 'boss');
+  const afterBoss = finish(bossIndex);
+  assert.equal(afterBoss.status, 'won');
+  assert.equal(afterBoss.deck[0].level, 3);
+  assert.equal(afterBoss.pendingEvolutions.length, 0);
+
+  const afterNormal = finish(0);
+  assert.equal(afterNormal.status, 'playing');
+  assert.deepEqual([...afterNormal.pendingEvolutions], [afterNormal.deck[0].uid]);
+});

@@ -958,13 +958,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const proceedAfterPostBattle = () => {
     playSound('click');
+    // ランに勝ったら、ほかの画面を挟まずに結果画面へ
+    if (run.status === 'won') {
+      setPhase('run_result');
+      return;
+    }
     if (run.pendingEvolutions.length > 0) {
       setEvolveOrigin('post_battle');
       setPhase('evolve');
-      return;
-    }
-    if (run.status === 'won') {
-      setPhase('run_result');
       return;
     }
     if (postBattle && postBattle.rewardChoices.length > 0) {

@@ -255,7 +255,8 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
       tools: [...battle.tools],
       reconCoins: run.reconCoins + coinsDropped,
       currentBattleElite: false,
-      pendingEvolutions,
+      // ボスに勝てばランは終わりなので、Lv.3 に届いても進化先は選ばせない(結果画面へそのまま進む)
+      pendingEvolutions: isBoss ? [] : pendingEvolutions,
     },
     xpGains,
     rewardChoices,
