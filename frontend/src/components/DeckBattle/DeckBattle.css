@@ -402,12 +402,37 @@
 
 .db-enemy__icon {
   position: relative;
-  font-size: 70px;
+  display: flex;
+  height: 58%;
+  aspect-ratio: 1;
   line-height: 1;
 }
 
-.db-enemy--boss .db-enemy__icon {
-  font-size: 88px;
+.db-enemy__icon .game-icon {
+  width: 100%;
+  height: 100%;
+}
+
+/* 状態の表示が増えても予告(攻撃の数字)が上の帯に隠れないように、敵の列はアリーナの高さに収め、
+   足りない分は敵の絵を小さくする */
+.db-enemies {
+  align-self: stretch;
+  align-items: flex-end;
+  min-height: 0;
+}
+
+.db-enemy {
+  max-height: 100%;
+  min-height: 0;
+}
+
+.db-enemy > * {
+  flex-shrink: 0;
+}
+
+.db-enemy > .db-enemy__stage {
+  flex-shrink: 1;
+  min-height: 84px;
 }
 
 @keyframes db-enemy-strike {
