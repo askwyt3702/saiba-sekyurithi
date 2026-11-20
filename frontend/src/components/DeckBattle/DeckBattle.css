@@ -404,11 +404,16 @@
   animation: db-enemy-trail 430ms ease-out both;
 }
 
+/* アイコンの大きさは敵の絵の枠(短い方の辺)に合わせる。中身で枠が広がらないよう、枠を大きさの基準にする */
+.db-enemy__model {
+  container-type: size;
+}
+
 .db-enemy__icon {
   position: relative;
   display: flex;
-  height: 58%;
-  aspect-ratio: 1;
+  width: 60cqmin;
+  height: 60cqmin;
   line-height: 1;
 }
 

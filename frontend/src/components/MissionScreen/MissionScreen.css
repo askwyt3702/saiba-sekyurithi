@@ -707,6 +707,8 @@
 .ms-modal {
   position: fixed;
   inset: 0;
+  /* 上部の状態表示(.ms-status、折り返さない設定)の中に置かれるので、説明文が折り返すように戻す */
+  white-space: normal;
   display: flex;
   align-items: center;
   justify-content: center;
