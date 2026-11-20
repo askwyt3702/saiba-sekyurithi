@@ -1,5 +1,7 @@
 // カードの説明文や戦闘ログを、効果の種類ごとの部分に分ける(画面で色を変えるため)。
 // 例:「8ダメージ＋過熱4」→「8ダメージ」(damage)・「＋」・「過熱4」(burn)
+// 過熱・脆弱などの言葉には、意味の説明(glossary.ts)の名前も付ける(カーソルを合わせると説明を出すため)。
+import { glossaryKeyFor, PLAIN_KEYWORD_PATTERN, type GlossaryKey } from './glossary';
 
 export type EffectTextKind =
   | 'plain'
@@ -19,6 +21,8 @@ export type EffectTextKind =
 export interface EffectTextPart {
   kind: EffectTextKind;
   text: string;
+  /** 説明のある言葉なら、その名前 */
+  help?: GlossaryKey;
 }
 
 // 先に書いたものから優先して当てる(「FW貫通5」はFWではなくダメージ、など)
@@ -45,9 +49,26 @@ export function splitEffectText(text: string): EffectTextPart[] {
   let last = 0;
   for (const m of text.matchAll(PATTERN)) {
     const index = m.index ?? 0;
-    if (index > last) parts.push({ kind: 'plain', text: text.slice(last, index) });
+    if (index > last) parts.push(...splitPlain(text.slice(last, index)));
     const groupIndex = RULES.findIndex((_, i) => m.groups?.[`k${i}`] !== undefined);
-    parts.push({ kind: RULES[groupIndex][0], text: m[0] });
+    const help = glossaryKeyFor(m[0]);
+    parts.push(help ? { kind: RULES[groupIndex][0], text: m[0], help } : { kind: RULES[groupIndex][0], text: m[0] });
+    last = index + m[0].length;
+  }
+  if (last < text.length) parts.push(...splitPlain(text.slice(last)));
+  return parts;
+}
+
+/** 数字を含まない部分から「毎ターン」「ノイズ」などの言葉を切り出す */
+function splitPlain(text: string): EffectTextPart[] {
+  const parts: EffectTextPart[] = [];
+  let last = 0;
+  for (const m of text.matchAll(PLAIN_KEYWORD_PATTERN)) {
+    const index = m.index ?? 0;
+    const help = glossaryKeyFor(m[0]);
+    if (!help) continue;
+    if (index > last) parts.push({ kind: 'plain', text: text.slice(last, index) });
+    parts.push({ kind: 'plain', text: m[0], help });
     last = index + m[0].length;
   }
   if (last < text.length) parts.push({ kind: 'plain', text: text.slice(last) });

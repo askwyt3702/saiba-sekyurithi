@@ -53,8 +53,12 @@
 
 .db-topbar__right {
   display: flex;
+  flex-wrap: wrap;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 4px 8px;
   font-size: 12px;
 }
 
@@ -413,6 +417,36 @@
   height: 100%;
 }
 
+/* バフ・常駐効果の表示が増えても自分のキャラが上の帯に隠れないように、自分の列も戦闘の場所の高さに収め、
+   足りない分はキャラの絵を小さくする(敵と同じ考え方) */
+.db-player-side {
+  align-self: stretch;
+  justify-content: flex-end;
+  min-height: 0;
+}
+
+.db-player-side > .db-player {
+  flex-shrink: 0;
+}
+
+.db-player-side > .db-fighter {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 0 1 clamp(174px, calc(var(--app-h) * 0.32), 255px);
+  min-height: 96px;
+}
+
+.db-player-side .db-fighter__avatar {
+  display: block;
+  height: 100%;
+}
+
+.db-player-side .db-fighter__poses {
+  height: 100%;
+}
+
 /* 状態の表示が増えても予告(攻撃の数字)が上の帯に隠れないように、敵の列はアリーナの高さに収め、
    足りない分は敵の絵を小さくする */
 .db-enemies {
@@ -541,6 +575,7 @@
 
 .db-chip--shield { border-color: #38bdf8; color: #7dd3fc; }
 .db-chip--buff { border-color: #fbbf24; color: #fde68a; }
+.db-chip--hp { border-color: #34d399; color: #a7f3d0; }
 .db-chip--bad { border-color: #a78bfa; color: #c4b5fd; }
 .db-chip--burn { border-color: #f97316; color: #fdba74; }
 
@@ -3314,4 +3349,79 @@
   margin-left: auto;
   padding: 3px 9px;
   font-size: 12px;
+}
+
+/* 説明のある言葉(過熱・脆弱など):点線の下線を付け、カーソルを合わせると意味が出る */
+.fx-help {
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+/* カードを大きく表示したときの、言葉の意味の一覧 */
+.db-glossary {
+  width: 100%;
+  margin: 0;
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(56, 189, 248, 0.34);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.db-glossary__item dt {
+  color: #fde68a;
+  font-weight: 700;
+}
+
+.db-glossary__item dd {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+/* 戦闘中はカードの横に出す(下に出すと手札に重なるため) */
+.db-main .db-card-preview-float .db-glossary {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 10px);
+  width: 236px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
+}
+
+/* 進化先を選ぶ画面:進化待ちのカードを切り替えるタブと、デッキを見るボタン */
+.db-evo-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.db-evo-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.db-evo-tab--active {
+  border-color: #fde68a;
+  color: #fde68a;
+  box-shadow: 0 0 10px rgba(253, 230, 138, 0.35);
+}
+
+.db-evo-tab--deck {
+  margin-left: 10px;
+}
+
+/* カードの拡大表示で、Lv.3 の進化先を1つずつ改行して並べる */
+.db-preview-branch {
+  display: block;
+  margin-top: 3px;
 }

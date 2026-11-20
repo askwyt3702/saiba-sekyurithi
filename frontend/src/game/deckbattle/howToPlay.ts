@@ -1,7 +1,8 @@
 // 遊び方の説明(画面は components/DeckBattle/HowToPlayModal.tsx)。
 // 数値はルールの定数から作るので、調整しても説明がずれない。
+import { GLOSSARY } from './glossary';
 import type { GameIconName } from './icons';
-import { DRAW_PER_TURN, ENERGY_PER_TURN, MAX_HAND_SIZE, BURN_TURNS } from './battle';
+import { DRAW_PER_TURN, ENERGY_PER_TURN, MAX_HAND_SIZE } from './battle';
 import { describeEnemyGroup } from './enemies';
 import type { StorageLike } from './profile';
 import {
@@ -93,15 +94,11 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
       icon: 'book',
       lead: 'カードや敵の説明に出てくる言葉。敵の下に出る印も同じ意味。',
       items: [
-        { term: '弱点', text: '敵ごとに弱点(連撃・貫通・過熱・全体)がある。合う攻撃は1.5倍。狙うときに「WEAK ×1.5」と出る。' },
-        { term: '脆弱', text: '敵が受けるダメージが1.5倍になる。「2T」なら2ターン続く。' },
-        { term: 'ジャミング', text: '敵の攻撃ダメージが30%下がる(予告の数字も下がる)。' },
-        { term: '過熱', text: `敵のターンの終わりにダメージ(FWを無視)。${BURN_TURNS}ターン続き、重ねると量が増える。` },
-        { term: '反撃', text: '次に受ける攻撃1回で、攻撃してきた敵にダメージを返す。FWで全部防いでも発動する。' },
-        { term: '貫通', text: '敵のFWを無視して、HPに直接ダメージを与える。' },
-        { term: '次の攻撃+N', text: '次に使う攻撃カードのダメージが増える。使うまで残る。' },
-        { term: '解析コンボ', text: '1ターンに1回、補助カードの後に攻撃カードを使うと帯域+1。' },
-        { term: 'ノイズ', text: '敵が入れてくる使えないカード。手札をふさぐ。戦闘が終わると消える。' },
+        // 意味の文は glossary.ts と共通(カードの言葉にカーソルを合わせたときの説明と同じ)
+        ...(['weakness', 'vulnerable', 'jam', 'burn', 'retaliate', 'pierce', 'nextAttack', 'combo', 'noise'] as const).map((key) => ({
+          term: GLOSSARY[key].term,
+          text: GLOSSARY[key].text,
+        })),
       ],
     },
     {

@@ -88,7 +88,7 @@ import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
-import { EffectText } from './EffectText';
+import { EffectText, GlossaryList } from './EffectText';
 import { HowToPlayModal } from './HowToPlayModal';
 import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
 import idlePose from '../../assets/player-idle.webp';
@@ -1166,6 +1166,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
               <GameIcon name="lock" /> SEC Lv.{run.securityLevel}
             </span>
           )}
+          <span className="db-chip db-chip--hp" title="今の HP / 最大 HP">
+            <GameIcon name="hp" /> HP {phase === 'battle' ? battle.player.hp : run.hp}/{phase === 'battle' ? battle.player.maxHp : run.maxHp}
+          </span>
           <span className="db-chip db-chip--buff"><GameIcon name="coin" /> 解析コイン {run.reconCoins}枚</span>
           <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowDeckModal(true)}>
             デッキ ({run.deck.length})
@@ -1541,9 +1544,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
       {phase === 'evolve' && run.pendingEvolutions.length > 0 && (
         <EvolutionOverlay
-          card={run.deck.find((c) => c.uid === run.pendingEvolutions[0])!}
-          remainingCount={run.pendingEvolutions.length}
-          onChoose={(branchId) => onChooseBranch(run.pendingEvolutions[0], branchId)}
+          cards={run.pendingEvolutions
+            .map((uid) => run.deck.find((c) => c.uid === uid))
+            .filter((c): c is CardInstance => Boolean(c))}
+          onChoose={onChooseBranch}
+          onOpenDeck={() => setShowDeckModal(true)}
         />
       )}
 
@@ -1656,25 +1661,63 @@ function PostBattleOverlay({ run, summary, onProceed }: { run: RunState; summary
 }
 
 function EvolutionOverlay({
-  card,
-  remainingCount,
+  cards,
   onChoose,
+  onOpenDeck,
 }: {
-  card: CardInstance;
-  remainingCount: number;
-  onChoose: (branchId: string) => void;
+  /** 進化先を選ぶ前のカード(Lv.3 に届いたもの全部) */
+  cards: CardInstance[];
+  onChoose: (cardUid: string, branchId: string) => void;
+  onOpenDeck: () => void;
 }) {
+  // どのカードから選んでもよい。ほかのカードの進化先を見比べてから決められるように、タブで切り替える。
+  // 同じ名前のカードは進化先も同じなので、1つのタブにまとめる(選ぶと、そのうち1枚が進化する)
+  const groups = [...new Set(cards.map((c) => c.defId))].map((defId) => ({
+    defId,
+    cards: cards.filter((c) => c.defId === defId),
+  }));
+  const [selectedDefId, setSelectedDefId] = useState(groups[0]?.defId);
+  const group = groups.find((g) => g.defId === selectedDefId) ?? groups[0];
+  if (!group) return null;
+  const card = group.cards[0];
   const def = getCardDefinition(card.defId);
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className="db-result db-result--wide db-result--won">
         <div className="db-result__title">EVOLUTION READY</div>
         <p className="db-result__sub">
-          <GameIcon name={KIND_ICON[def.kind]} /> <strong>{def.name}</strong> ({card.uid}) が <strong>Lv.3</strong> に到達！進化先を選んでください（残り {remainingCount} 枚）
+          <GameIcon name={KIND_ICON[def.kind]} /> <strong>{def.name}</strong> ({card.uid}) が <strong>Lv.3</strong> に到達！進化先を選んでください
+          {group.cards.length > 1 && `（同じカードがあと ${group.cards.length - 1} 枚）`}
+          {groups.length > 1 && ` 進化待ちは全部で ${cards.length} 枚。どれから選んでもよい。`}
         </p>
+        <div className="db-evo-tabs">
+          {groups.length > 1 &&
+            groups.map((g) => {
+              const d = getCardDefinition(g.defId);
+              const active = g.defId === group.defId;
+              return (
+                <button
+                  key={g.defId}
+                  type="button"
+                  className={`db-btn db-btn--ghost db-evo-tab${active ? ' db-evo-tab--active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => {
+                    playSound('click');
+                    setSelectedDefId(g.defId);
+                  }}
+                >
+                  <GameIcon name={KIND_ICON[d.kind]} /> {d.name}
+                  {g.cards.length > 1 && ` ×${g.cards.length}`}
+                </button>
+              );
+            })}
+          <button type="button" className="db-btn db-btn--ghost db-evo-tab db-evo-tab--deck" onClick={onOpenDeck}>
+            <GameIcon name="layers" /> デッキを見る
+          </button>
+        </div>
         <div className="db-evo-grid">
           {def.branches.map((branch) => (
-            <button key={branch.id} type="button" className="db-evo-card" onClick={() => onChoose(branch.id)}>
+            <button key={branch.id} type="button" className="db-evo-card" onClick={() => onChoose(card.uid, branch.id)}>
               <div className="db-evo-card__head">
                 <span className="db-evo-card__icon"><GameIcon name="evolve" /></span>
                 <span className="db-evo-card__cost">{branch.cost} EN</span>
@@ -1724,17 +1767,23 @@ function CardPreviewPanel({
             <strong>Lv.2 強化後:</strong> {def.levels[2].cost}EN / <EffectText text={def.levels[2].text} />
           </span>
         )}
-        {card.level === 2 && def.branches.length > 0 && (
+        {(card.level === 2 || (card.level === 3 && !card.branchId)) && def.branches.length > 0 && (
           <span>
-            <strong>Lv.3 進化先:</strong> {def.branches.map((b) => `${b.name}(${b.cost}EN)`).join(' / ')}
+            <strong>Lv.3 進化先:</strong>
+            {def.branches.map((b) => (
+              <span key={b.id} className="db-preview-branch">
+                {b.name}({b.cost}EN):<EffectText text={b.text} />
+              </span>
+            ))}
           </span>
         )}
-        {card.level === 3 && (
+        {card.level === 3 && card.branchId && (
           <span>
             <strong>Lv.3 最終進化形態</strong>
           </span>
         )}
       </div>
+      <GlossaryList text={stats.text} />
     </aside>
   );
 }
@@ -2662,7 +2711,7 @@ function RestScreen({
         <div className="db-event-head">
           <div className="db-event-head__left">
             <span className="db-event-pill db-event-pill--type"><GameIcon name="rest" /> SYSTEM MAINTENANCE</span>
-            <span className="db-event-pill db-event-pill--step">ボス戦前の最終調整</span>
+            <span className="db-event-pill db-event-pill--step">整備マス</span>
           </div>
           <span className="db-event-hp">
             HP {run.hp} / {run.maxHp}
@@ -2671,7 +2720,7 @@ function RestScreen({
 
         <div className="db-event-question-box">
           <p className="db-event-cat">セーフハウス接続完了</p>
-          <p className="db-event-prompt">監視AI ARGUS との決戦前に、1つだけメンテナンスを実行できます。</p>
+          <p className="db-event-prompt">次の戦いに備えて、1つだけメンテナンスを実行できます。</p>
         </div>
 
         {summary ? (

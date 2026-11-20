@@ -64,3 +64,31 @@ test('すべてのカードの説明文で、数字が色分けされずに残�
     }
   }
 });
+
+const { findGlossaryKeys } = load(new URL('../src/game/deckbattle/glossary.ts', import.meta.url));
+const helps = (text) => [...splitEffectText(text)].filter((p) => p.help).map((p) => `${p.help}:${p.text}`);
+
+test('過熱・貫通などの言葉には、説明の名前が付く', () => {
+  assert.deepEqual(helps('8ダメージ＋過熱4。'), ['burn:過熱4']);
+  assert.deepEqual(helps('HP−3／敵全体にFW貫通26ダメージ。'), ['aoe:全体', 'pierce:FW貫通26ダメージ']);
+  assert.deepEqual(helps('戦闘中、毎ターンFW+3。'), ['persistent:毎ターン', 'fw:FW+3']);
+  assert.deepEqual(helps('敵全体に12ダメージ。'), ['aoe:敵全体に12ダメージ']);
+  // 説明を付けても、つなげると元の文に戻る
+  const text = '戦闘中、毎ターンFW+3。ノイズを1枚消す。';
+  assert.equal(splitEffectText(text).map((p) => p.text).join(''), text);
+});
+
+test('カードの説明文に出てくる過熱・脆弱・ジャミング・反撃・貫通には、すべて説明が付く', () => {
+  for (const def of Object.values(CARD_DEFINITIONS)) {
+    if (def.unplayable) continue;
+    for (const stats of [def.levels[1], def.levels[2], ...def.branches]) {
+      const missing = splitEffectText(stats.text).filter((p) => !p.help && /過熱|脆弱|ジャミング|ジャム|反撃|貫通/.test(p.text));
+      assert.equal(missing.length, 0, `${def.name}: ${stats.text}`);
+    }
+  }
+});
+
+test('カードの拡大表示に出す言葉の一覧は、文に出てきた順で重ならない', () => {
+  assert.deepEqual([...findGlossaryKeys('FW7＋次に受ける攻撃に5反撃。')], ['fw', 'retaliate']);
+  assert.deepEqual([...findGlossaryKeys('8ダメージ＋過熱4＋過熱2。')], ['burn']);
+});
