@@ -86,6 +86,8 @@ import type {
 } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import { GameIcon } from '../GameIcon/GameIcon';
+import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
 import { EffectText } from './EffectText';
 import { HowToPlayModal } from './HowToPlayModal';
 import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
@@ -109,6 +111,7 @@ interface Fx {
   id: number;
   at: string;
   text: string;
+  icon?: GameIconName;
   tone: FxTone;
   impact?: FxImpact;
   power?: FxPower;
@@ -119,7 +122,7 @@ interface ActionBanner {
   id: number;
   actor: 'player' | 'enemy';
   kind: 'attack' | 'defense' | 'utility' | 'enemy';
-  icon: string;
+  icon: GameIconName;
   title: string;
   detail?: string;
   isAoe?: boolean;
@@ -141,8 +144,8 @@ function powerClass(fx: Pick<Fx, 'power'> | undefined, prefix: string): string {
 
 function formatDamageText(amount: number, prefix = ''): string {
   const power = damagePower(amount);
-  if (power === 'crit') return `💥 ${prefix}-${amount}!!`;
-  if (power === 'heavy') return `⚡ ${prefix}-${amount}!`;
+  if (power === 'crit') return `${prefix}-${amount}!!`;
+  if (power === 'heavy') return `${prefix}-${amount}!`;
   return `${prefix}-${amount}`;
 }
 
@@ -202,13 +205,13 @@ interface DeckBattleProps {
   onBackToMissions: () => void;
 }
 
-const RUN_NODE_ICONS: Record<RunNode['kind'], { icon: string; label: string }> = {
-  battle: { icon: '🤖', label: '戦闘' },
-  event: { icon: '📋', label: 'クイズ' },
-  mystery: { icon: '🎲', label: '事件' },
-  rest: { icon: '🔧', label: '休憩' },
-  shop: { icon: '🏪', label: '闇市' },
-  boss: { icon: '💀', label: 'ボス' },
+const RUN_NODE_ICONS: Record<RunNode['kind'], { icon: GameIconName; label: string }> = {
+  battle: { icon: 'battle', label: '戦闘' },
+  event: { icon: 'quiz', label: 'クイズ' },
+  mystery: { icon: 'mystery', label: '事件' },
+  rest: { icon: 'rest', label: '休憩' },
+  shop: { icon: 'shop', label: '闇市' },
+  boss: { icon: 'boss', label: 'ボス' },
 };
 
 function describeNodeShort(node: RunNode, index: number, elite: boolean): string {
@@ -221,25 +224,25 @@ function describeNodeShort(node: RunNode, index: number, elite: boolean): string
   return `${index + 1}. ${describeEnemyGroup(enemyIds)}`;
 }
 
-function describeIntent(move: EnemyMove): { icon: string; text: string; title: string; tone: 'attack' | 'defend' | 'debuff' } {
+function describeIntent(move: EnemyMove): { icon: GameIconName[]; text: string; title: string; tone: 'attack' | 'defend' | 'debuff' } {
   switch (move.type) {
     case 'attack':
       return {
-        icon: '⚔',
+        icon: ['attack'],
         text: move.hits && move.hits > 1 ? `${move.amount}×${move.hits}` : `${move.amount}`,
         title: move.hits && move.hits > 1 ? `${move.amount}ダメージの攻撃を${move.hits}回` : `${move.amount}ダメージの攻撃`,
         tone: 'attack',
       };
     case 'blockAttack':
-      return { icon: '🛡⚔', text: `${move.block} / ${move.amount}`, title: `FW${move.block}を張って、${move.amount}ダメージの攻撃`, tone: 'attack' };
+      return { icon: ['shield', 'attack'], text: `${move.block} / ${move.amount}`, title: `FW${move.block}を張って、${move.amount}ダメージの攻撃`, tone: 'attack' };
     case 'block':
-      return { icon: '🛡', text: `${move.amount}`, title: `FW${move.amount}を張る`, tone: 'defend' };
+      return { icon: ['shield'], text: `${move.amount}`, title: `FW${move.amount}を張る`, tone: 'defend' };
     case 'buff':
-      return { icon: '⬆', text: `+${move.amount}`, title: `攻撃力を+${move.amount}する(ずっと続く)`, tone: 'debuff' };
+      return { icon: ['buff'], text: `+${move.amount}`, title: `攻撃力を+${move.amount}する(ずっと続く)`, tone: 'debuff' };
     case 'detect':
-      return { icon: '👁', text: '検知', title: `検知:次のターンの帯域が${move.amount}減る`, tone: 'debuff' };
+      return { icon: ['detect'], text: '検知', title: `検知:次のターンの帯域が${move.amount}減る`, tone: 'debuff' };
     case 'noise':
-      return { icon: '☣', text: `×${move.count}`, title: `使えないノイズを${move.count}枚、捨て札に入れる`, tone: 'debuff' };
+      return { icon: ['noise'], text: `×${move.count}`, title: `使えないノイズを${move.count}枚、捨て札に入れる`, tone: 'debuff' };
   }
 }
 
@@ -255,21 +258,22 @@ function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
               impact: 'strike',
               power: damagePower(ev.damage),
             }
-          : { at: 'player', text: '🛡 防いだ！', tone: 'shield', impact: 'guard' },
+          : { at: 'player', icon: 'shield', text: '防いだ！', tone: 'shield', impact: 'guard' },
       ];
     case 'block':
-      return [{ at: ev.enemyUid, text: `🛡 +FW${ev.amount}`, tone: 'shield', impact: 'guard' }];
+      return [{ at: ev.enemyUid, icon: 'shield', text: `+FW${ev.amount}`, tone: 'shield', impact: 'guard' }];
     case 'buff':
-      return [{ at: ev.enemyUid, text: `⬆ 攻撃力+${ev.amount}`, tone: 'bad', impact: 'buff' }];
+      return [{ at: ev.enemyUid, icon: 'buff', text: `攻撃力+${ev.amount}`, tone: 'bad', impact: 'buff' }];
     case 'detect':
-      return [{ at: 'player', text: `👁 検知:帯域-${ev.amount}`, tone: 'bad', impact: 'debuff' }];
+      return [{ at: 'player', icon: 'detect', text: `検知:帯域-${ev.amount}`, tone: 'bad', impact: 'debuff' }];
     case 'noise':
-      return [{ at: 'player', text: `☣ ノイズ+${ev.count}`, tone: 'bad', impact: 'debuff' }];
+      return [{ at: 'player', icon: 'noise', text: `ノイズ+${ev.count}`, tone: 'bad', impact: 'debuff' }];
     case 'retaliate':
       return [
         {
           at: ev.enemyUid,
-          text: formatDamageText(ev.damage, '🪤 反撃'),
+          icon: 'retaliate',
+          text: formatDamageText(ev.damage, '反撃'),
           tone: 'hit',
           impact: 'strike',
           power: damagePower(ev.damage),
@@ -279,7 +283,8 @@ function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
       return [
         {
           at: ev.enemyUid,
-          text: formatDamageText(ev.damage, '🔥 過熱'),
+          icon: 'burn',
+          text: formatDamageText(ev.damage, '過熱'),
           tone: 'burn',
           impact: 'burn',
           power: damagePower(ev.damage),
@@ -291,7 +296,7 @@ function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
 function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<ActionBanner, 'id'> {
   const enemy = base.enemies.find((e) => e.uid === ev.enemyUid);
   const name = enemy?.name ?? '敵';
-  const icon = enemy?.icon ?? '⚠';
+  const icon: GameIconName = enemy?.icon ?? 'elite';
   switch (ev.kind) {
     case 'attack':
       return {
@@ -299,22 +304,22 @@ function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<Acti
         kind: 'enemy',
         icon,
         title: `${name} の攻撃${ev.hits > 1 ? ` ${ev.hit}/${ev.hits}` : ''}`,
-        detail: ev.damage > 0 ? `⚔ ${ev.damage} ダメージ！` : '🛡 FWで完全に防いだ！',
+        detail: ev.damage > 0 ? `${ev.damage} ダメージ！` : 'FWで完全に防いだ！',
         power: ev.damage > 0 ? damagePower(ev.damage) : 'normal',
       };
     case 'block':
-      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の防御`, detail: `🛡 FW +${ev.amount}` };
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の防御`, detail: `FW +${ev.amount}` };
     case 'buff':
-      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の強化`, detail: `⬆ 攻撃力 +${ev.amount}` };
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の強化`, detail: `攻撃力 +${ev.amount}` };
     case 'detect':
-      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の検知`, detail: `👁 次ターン帯域 -${ev.amount}` };
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の検知`, detail: `次ターン帯域 -${ev.amount}` };
     case 'noise':
-      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の妨害`, detail: `☣ ノイズ ×${ev.count} 混入` };
+      return { actor: 'enemy', kind: 'enemy', icon, title: `${name} の妨害`, detail: `ノイズ ×${ev.count} 混入` };
     case 'retaliate':
       return {
         actor: 'player',
         kind: 'defense',
-        icon: '🪤',
+        icon: 'retaliate',
         title: '反撃トラップ発動！',
         detail: `${name} に ${ev.damage} ダメージ`,
         power: damagePower(ev.damage),
@@ -323,7 +328,7 @@ function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<Acti
       return {
         actor: 'player',
         kind: 'attack',
-        icon: '🔥',
+        icon: 'burn',
         title: '過熱ダメージ発動！',
         detail: `${name} に ${ev.damage} ダメージ`,
         power: damagePower(ev.damage),
@@ -370,11 +375,12 @@ function fxForPlay(before: BattleState, after: BattleState, playedCard = true, i
     const prev = before.enemies.find((e) => e.uid === enemy.uid);
     if (!prev) continue;
     if (enemy.burn && !prev.burn) {
-      specs.push({ at: enemy.uid, text: `🔥 過熱${enemy.burn.amount}`, tone: 'burn', impact: 'burn' });
+      specs.push({ at: enemy.uid, icon: 'burn', text: `過熱${enemy.burn.amount}`, tone: 'burn', impact: 'burn' });
     } else if (enemy.burn && prev.burn && enemy.burn.amount > prev.burn.amount) {
       specs.push({
         at: enemy.uid,
-        text: `🔥 過熱+${enemy.burn.amount - prev.burn.amount}`,
+        icon: 'burn',
+        text: `過熱+${enemy.burn.amount - prev.burn.amount}`,
         tone: 'burn',
         impact: 'burn',
       });
@@ -382,56 +388,58 @@ function fxForPlay(before: BattleState, after: BattleState, playedCard = true, i
     const prevVuln = prev.vulnerable ?? 0;
     const nextVuln = enemy.vulnerable ?? 0;
     if (nextVuln > prevVuln) {
-      specs.push({ at: enemy.uid, text: `💔 脆弱 ${nextVuln}T`, tone: 'bad', impact: 'debuff' });
+      specs.push({ at: enemy.uid, icon: 'vulnerable', text: `脆弱 ${nextVuln}T`, tone: 'bad', impact: 'debuff' });
     }
     const prevJam = prev.jammed ?? 0;
     const nextJam = enemy.jammed ?? 0;
     if (nextJam > prevJam) {
-      specs.push({ at: enemy.uid, text: `📶 ジャム ${nextJam}T`, tone: 'bad', impact: 'debuff' });
+      specs.push({ at: enemy.uid, icon: 'jam', text: `ジャム ${nextJam}T`, tone: 'bad', impact: 'debuff' });
     }
     if (prev.attackBonus > enemy.attackBonus) {
-      specs.push({ at: enemy.uid, text: '🚫 攻撃強化解除', tone: 'buff', impact: 'debuff' });
+      specs.push({ at: enemy.uid, icon: 'cancel', text: '攻撃強化解除', tone: 'buff', impact: 'debuff' });
     }
   }
 
   const blockGain = after.player.block - before.player.block;
-  if (blockGain > 0) specs.push({ at: 'player', text: `🛡 +FW${blockGain}`, tone: 'shield', impact: 'guard' });
+  if (blockGain > 0) specs.push({ at: 'player', icon: 'shield', text: `+FW${blockGain}`, tone: 'shield', impact: 'guard' });
 
   const hpGain = after.player.hp - before.player.hp;
-  if (hpGain > 0) specs.push({ at: 'player', text: `💚 +HP${hpGain}`, tone: 'heal', impact: 'heal' });
+  if (hpGain > 0) specs.push({ at: 'player', icon: 'heal', text: `+HP${hpGain}`, tone: 'heal', impact: 'heal' });
   const selfDmg = before.player.hp - after.player.hp;
   if (selfDmg > 0) specs.push({ at: 'player', text: `-${selfDmg} HP`, tone: 'hit', impact: 'strike' });
 
   const noisePurged = countNoiseCards(before) - countNoiseCards(after);
   if (noisePurged > 0) {
-    specs.push({ at: 'player', text: `🧹 ノイズ${noisePurged}枚消去`, tone: 'heal', impact: 'buff' });
+    specs.push({ at: 'player', icon: 'purge', text: `ノイズ${noisePurged}枚消去`, tone: 'heal', impact: 'buff' });
   }
 
   const expectedBaseHand = Math.max(0, before.hand.length - (playedCard ? 1 : 0) - Math.max(0, noisePurged));
   const drawn = after.hand.length - expectedBaseHand;
-  if (drawn > 0) specs.push({ at: 'player', text: `🃏 +${drawn}枚ドロー`, tone: 'buff', impact: 'buff' });
+  if (drawn > 0) specs.push({ at: 'player', icon: 'layers', text: `+${drawn}枚ドロー`, tone: 'buff', impact: 'buff' });
 
   const energyGain = after.player.energy - before.player.energy;
-  if (energyGain > 0) specs.push({ at: 'player', text: `⚡ 帯域+${energyGain}`, tone: 'buff', impact: 'buff' });
+  if (energyGain > 0) specs.push({ at: 'player', icon: 'energy', text: `帯域+${energyGain}`, tone: 'buff', impact: 'buff' });
 
   if (after.modifiers.reconCombo === 'done' && before.modifiers.reconCombo === 'ready') {
-    specs.push({ at: 'player', text: '🔍 解析コンボ +1EN', tone: 'buff', impact: 'buff' });
+    specs.push({ at: 'player', icon: 'combo', text: '解析コンボ +1EN', tone: 'buff', impact: 'buff' });
   }
   if (after.modifiers.nextAttackBonus > before.modifiers.nextAttackBonus) {
     specs.push({
       at: 'player',
-      text: `🎯 次攻撃+${after.modifiers.nextAttackBonus - before.modifiers.nextAttackBonus}`,
+      icon: 'nextAttack',
+      text: `次攻撃+${after.modifiers.nextAttackBonus - before.modifiers.nextAttackBonus}`,
       tone: 'buff',
       impact: 'buff',
     });
   }
   if (after.modifiers.repeatNextAttack && !before.modifiers.repeatNextAttack) {
-    specs.push({ at: 'player', text: '⏩ 次攻撃2回発動', tone: 'buff', impact: 'buff' });
+    specs.push({ at: 'player', icon: 'repeat', text: '次攻撃2回発動', tone: 'buff', impact: 'buff' });
   }
   if (after.modifiers.nextCardDiscount > before.modifiers.nextCardDiscount) {
     specs.push({
       at: 'player',
-      text: `📜 次カード-${after.modifiers.nextCardDiscount - before.modifiers.nextCardDiscount}EN`,
+      icon: 'discount',
+      text: `次カード-${after.modifiers.nextCardDiscount - before.modifiers.nextCardDiscount}EN`,
       tone: 'buff',
       impact: 'buff',
     });
@@ -439,7 +447,8 @@ function fxForPlay(before: BattleState, after: BattleState, playedCard = true, i
   if (after.player.retaliate > before.player.retaliate) {
     specs.push({
       at: 'player',
-      text: `🪤 反撃+${after.player.retaliate - before.player.retaliate}`,
+      icon: 'retaliate',
+      text: `反撃+${after.player.retaliate - before.player.retaliate}`,
       tone: 'buff',
       impact: 'buff',
     });
@@ -450,7 +459,7 @@ function fxForPlay(before: BattleState, after: BattleState, playedCard = true, i
     after.player.turnEnergyBonus > before.player.turnEnergyBonus ||
     after.player.turnAttackBonus > before.player.turnAttackBonus
   ) {
-    specs.push({ at: 'player', text: '🚪 常駐効果セット', tone: 'buff', impact: 'buff' });
+    specs.push({ at: 'player', icon: 'persistent', text: '常駐効果セット', tone: 'buff', impact: 'buff' });
   }
   return specs;
 }
@@ -839,7 +848,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     const banner: Omit<ActionBanner, 'id'> = {
       actor: 'player',
       kind,
-      icon: stats.icon,
+      icon: KIND_ICON[kind],
       title: stats.name,
       detail: stats.text,
       isAoe,
@@ -1130,7 +1139,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           {run.nodes.map((node, idx) => {
             const choosingRoute = idx === run.nodeIndex && phase === 'elite_choice';
             const elite = idx === eliteNode || choosingRoute;
-            const { icon, label } = elite ? { icon: '⚠️', label: '強敵' } : RUN_NODE_ICONS[node.kind];
+            const { icon, label } = elite ? { icon: 'elite' as const, label: '強敵' } : RUN_NODE_ICONS[node.kind];
             const current = idx === run.nodeIndex && run.status !== 'won';
             const done = idx < run.nodeIndex || (idx === run.nodeIndex && run.status === 'won');
             const name = choosingRoute ? `${idx + 1}. 通常戦または強敵を選択` : `${label}・${describeNodeShort(node, idx, elite)}`;
@@ -1142,10 +1151,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 title={name}
               >
                 <span className="db-route-node__icon" role="img" aria-label={done ? `${name}（通過済み）` : name}>
-                  {icon}
+                  <GameIcon name={icon} />
                 </span>
                 <span className="db-route-node__label" aria-hidden="true">{label}</span>
-                {done && <span className="db-route-node__check" aria-hidden="true">✓</span>}
+                {done && <span className="db-route-node__check" aria-hidden="true"><GameIcon name="check" /></span>}
               </li>
             );
           })}
@@ -1154,15 +1163,15 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <div className="db-topbar__right">
           {run.securityLevel > 0 && (
             <span className="db-chip db-chip--bad" title={`セキュリティLv.${run.securityLevel}`}>
-              🔒 SEC Lv.{run.securityLevel}
+              <GameIcon name="lock" /> SEC Lv.{run.securityLevel}
             </span>
           )}
-          <span className="db-chip db-chip--buff">🪙 解析コイン {run.reconCoins}枚</span>
+          <span className="db-chip db-chip--buff"><GameIcon name="coin" /> 解析コイン {run.reconCoins}枚</span>
           <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowDeckModal(true)}>
             デッキ ({run.deck.length})
           </button>
           <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowHowToPlay(true)} title="遊び方と用語の説明">
-            ❓ 遊び方
+            <GameIcon name="help" /> 遊び方
           </button>
           <button type="button" className="db-btn db-btn--ghost" onClick={onBackToMissions}>
             ミッション選択へ
@@ -1178,7 +1187,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
               const r = RELIC_DEFINITIONS[id];
               return (
                 <span key={id} className="db-chip db-chip--buff" title={r.description}>
-                  {r.icon} {r.name}
+                  <GameIcon name={r.icon} /> {r.name}
                 </span>
               );
             })}
@@ -1190,7 +1199,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           onClick={toggleFastGrowth}
           title="試作用:ONにすると1回の戦闘・クイズですぐLv.3進化まで試せます"
         >
-          {run.fastGrowth ? '⚡ 試用高速成長:ON' : '試用高速成長:OFF'}
+          {run.fastGrowth ? <><GameIcon name="energy" /> 試用高速成長:ON</> : '試用高速成長:OFF'}
         </button>
       </div>
 
@@ -1272,7 +1281,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     role="status"
                     aria-live="polite"
                   >
-                    <span className="db-action-banner__icon">{banner.icon}</span>
+                    <span className="db-action-banner__icon"><GameIcon name={banner.icon} /></span>
                     <span className="db-action-banner__title">{banner.title}</span>
                     {banner.detail && <span className="db-action-banner__detail">{banner.detail}</span>}
                   </div>
@@ -1310,17 +1319,17 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                         HP {player.hp} / {player.maxHp}
                       </span>
                     </span>
-                    {player.block > 0 && <span className="db-chip db-chip--shield">🛡 FW {player.block}</span>}
-                    {player.retaliate > 0 && <span className="db-chip db-chip--buff">🪤 反撃 {player.retaliate}</span>}
+                    {player.block > 0 && <span className="db-chip db-chip--shield"><GameIcon name="shield" /> FW {player.block}</span>}
+                    {player.retaliate > 0 && <span className="db-chip db-chip--buff"><GameIcon name="retaliate" /> 反撃 {player.retaliate}</span>}
                     {modifiers.reconCombo === 'ready' && (
                       <span className="db-chip db-chip--buff" title="このターン中に攻撃カードを使うと帯域+1">
-                        🔍 解析コンボ準備中(攻撃で+1EN)
+                        <GameIcon name="combo" /> 解析コンボ準備中(攻撃で+1EN)
                       </span>
                     )}
-                    {modifiers.nextAttackBonus > 0 && <span className="db-chip db-chip--buff">🎯 次の攻撃+{modifiers.nextAttackBonus}</span>}
-                    {modifiers.repeatNextAttack && <span className="db-chip db-chip--buff">⏩ 次の攻撃×2</span>}
-                    {modifiers.nextCardDiscount > 0 && <span className="db-chip db-chip--buff">📜 次のカード−{modifiers.nextCardDiscount}EN</span>}
-                    {player.energyPenalty > 0 && <span className="db-chip db-chip--bad">👁 検知 −{player.energyPenalty}</span>}
+                    {modifiers.nextAttackBonus > 0 && <span className="db-chip db-chip--buff"><GameIcon name="nextAttack" /> 次の攻撃+{modifiers.nextAttackBonus}</span>}
+                    {modifiers.repeatNextAttack && <span className="db-chip db-chip--buff"><GameIcon name="repeat" /> 次の攻撃×2</span>}
+                    {modifiers.nextCardDiscount > 0 && <span className="db-chip db-chip--buff"><GameIcon name="discount" /> 次のカード−{modifiers.nextCardDiscount}EN</span>}
+                    {player.energyPenalty > 0 && <span className="db-chip db-chip--bad"><GameIcon name="detect" /> 検知 −{player.energyPenalty}</span>}
                     {shown.tools.length > 0 && (
                       <span className="db-tool-bar">
                         {shown.tools.map((toolId, idx) => {
@@ -1334,7 +1343,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                               onClick={() => onUseTool(idx)}
                               title={`帯域0で使用: ${t.description}`}
                             >
-                              {t.icon} {t.name}
+                              <GameIcon name={t.icon} /> {t.name}
                             </button>
                           );
                         })}
@@ -1343,6 +1352,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     <span className="db-fx db-fx--player">
                       {fxAt('player').map((f) => (
                         <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}${powerClass(f, "db-fx__float--power")}`}>
+                          {f.icon && <GameIcon name={f.icon} />}
                           {f.text}
                         </span>
                       ))}
@@ -1376,7 +1386,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       <span className="db-enemy__intent-slot">
                         {!dead && (
                           <span className={`db-intent db-intent--${intent.tone}`} title={intent.title}>
-                            <span className="db-intent__icon">{intent.icon}</span>
+                            <span className="db-intent__icon">{intent.icon.map((name) => <GameIcon key={name} name={name} />)}</span>
                             <span>{intent.text}</span>
                           </span>
                         )}
@@ -1391,7 +1401,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                             impact?.impact === 'strike' && !attacking ? `db-enemy__model--hit${powerClass(impact, 'db-enemy__model--hit')}` : '',
                           ].join(' ')}
                         >
-                          <span className="db-enemy__icon">{dead ? '💀' : enemy.icon}</span>
+                          <span className="db-enemy__icon"><GameIcon name={dead ? 'boss' : enemy.icon} /></span>
                         </span>
                         {impact && <span key={`impact-${impact.id}`} className={`db-impact db-impact--${impact.impact}${powerClass(impact, "db-impact--power")}`} />}
                       </span>
@@ -1408,33 +1418,34 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       <span className="db-enemy__status">
                         {!dead && (
                           <span className="db-chip db-chip--weak" title={`弱点:${WEAKNESS_LABEL[enemy.weakness]}(1.5倍ダメージ)`}>
-                            🎯 弱点:{WEAKNESS_LABEL[enemy.weakness]}
+                            <GameIcon name="weakness" /> 弱点:{WEAKNESS_LABEL[enemy.weakness]}
                           </span>
                         )}
                         {!dead && selectedUid && battle.cards[selectedUid] && doesCardHitWeakness(getCardStats(battle.cards[selectedUid]), enemy) && (
-                          <span className="db-chip db-chip--burn">💥 WEAK ×1.5</span>
+                          <span className="db-chip db-chip--burn"><GameIcon name="target" /> WEAK ×1.5</span>
                         )}
-                        {enemy.block > 0 && <span className="db-chip db-chip--shield">🛡 {enemy.block}</span>}
-                        {enemy.attackBonus > 0 && <span className="db-chip db-chip--bad">⬆ +{enemy.attackBonus}</span>}
+                        {enemy.block > 0 && <span className="db-chip db-chip--shield"><GameIcon name="shield" /> {enemy.block}</span>}
+                        {enemy.attackBonus > 0 && <span className="db-chip db-chip--bad"><GameIcon name="buff" /> +{enemy.attackBonus}</span>}
                         {enemy.vulnerable && enemy.vulnerable > 0 && (
                           <span className="db-chip db-chip--burn" title="受けるダメージ1.5倍">
-                            💔 脆弱 {enemy.vulnerable}T
+                            <GameIcon name="vulnerable" /> 脆弱 {enemy.vulnerable}T
                           </span>
                         )}
                         {enemy.jammed && enemy.jammed > 0 && (
                           <span className="db-chip db-chip--shield" title="与えるダメージ-30%">
-                            📶 ジャム {enemy.jammed}T
+                            <GameIcon name="jam" /> ジャム {enemy.jammed}T
                           </span>
                         )}
                         {enemy.burn && (
                           <span className="db-chip db-chip--burn">
-                            🔥 {enemy.burn.amount}・{enemy.burn.turns}T
+                            <GameIcon name="burn" /> {enemy.burn.amount}・{enemy.burn.turns}T
                           </span>
                         )}
                       </span>
                       <span className="db-fx">
                         {enemyFx.map((f) => (
                           <span key={f.id} className={`db-fx__float db-fx__float--${f.tone}${powerClass(f, "db-fx__float--power")}`}>
+                            {f.icon && <GameIcon name={f.icon} />}
                             {f.text}
                           </span>
                         ))}
@@ -1572,7 +1583,7 @@ function EliteChoiceOverlay({ onChoose }: { onChoose: (useElite: boolean) => voi
         <div className="db-evo-grid">
           <button type="button" className="db-evo-card" onClick={() => onChoose(false)}>
             <div className="db-evo-card__head">
-              <span className="db-evo-card__icon">🧠</span>
+              <span className="db-evo-card__icon"><GameIcon name="brain" /></span>
               <span className="db-evo-card__cost">通常ルート</span>
             </div>
             <div className="db-evo-card__name">ファイアウォールAI (HP {ENEMY_DEFINITIONS.firewall_ai.maxHp})</div>
@@ -1581,7 +1592,7 @@ function EliteChoiceOverlay({ onChoose }: { onChoose: (useElite: boolean) => voi
           </button>
           <button type="button" className="db-evo-card db-evo-card--elite" onClick={() => onChoose(true)}>
             <div className="db-evo-card__head">
-              <span className="db-evo-card__icon">⛩️</span>
+              <span className="db-evo-card__icon"><GameIcon name="zeroTrustGate" /></span>
               <span className="db-evo-card__cost">エリート(強敵)</span>
             </div>
             <div className="db-evo-card__name">ゼロトラストゲート (HP {ENEMY_DEFINITIONS.zero_trust_gate.maxHp})</div>
@@ -1601,7 +1612,7 @@ function PostBattleOverlay({ run, summary, onProceed }: { run: RunState; summary
         <div className="db-result__title">BATTLE CLEAR</div>
         <p className="db-result__sub">
           システムを突破した！{summary.healed > 0 ? `（回線耐久 +${summary.healed} 回復 → ${run.hp}/${run.maxHp}）` : ''}
-          {summary.coinsDropped > 0 ? ` 🪙 解析コイン +${summary.coinsDropped} ドロップ！` : ''}
+          {summary.coinsDropped > 0 && <> <GameIcon name="coin" /> 解析コイン +{summary.coinsDropped} ドロップ！</>}
         </p>
 
         <div className="db-result__used">
@@ -1617,11 +1628,11 @@ function PostBattleOverlay({ run, summary, onProceed }: { run: RunState; summary
                 return (
                   <div key={g.uid} className={`db-xp-row ${leveled ? 'db-xp-row--levelup' : ''}`}>
                     <span>
-                      {def.icon} {def.name} ({g.uid})
+                      <GameIcon name={KIND_ICON[def.kind]} /> {def.name} ({g.uid})
                     </span>
                     <span>+{g.xpAdded} EXP</span>
                     <span className="db-xp-row__lv">
-                      {leveled ? `🎉 Lv.${g.previousLevel} → Lv.${g.newLevel}!` : card ? getXpProgress(card).label : ''}
+                      {leveled ? <><GameIcon name="levelUp" /> Lv.{g.previousLevel} → Lv.{g.newLevel}!</> : card ? getXpProgress(card).label : ''}
                     </span>
                   </div>
                 );
@@ -1659,13 +1670,13 @@ function EvolutionOverlay({
       <div className="db-result db-result--wide db-result--won">
         <div className="db-result__title">EVOLUTION READY</div>
         <p className="db-result__sub">
-          {def.icon} <strong>{def.name}</strong> ({card.uid}) が <strong>Lv.3</strong> に到達！進化先を選んでください（残り {remainingCount} 枚）
+          <GameIcon name={KIND_ICON[def.kind]} /> <strong>{def.name}</strong> ({card.uid}) が <strong>Lv.3</strong> に到達！進化先を選んでください（残り {remainingCount} 枚）
         </p>
         <div className="db-evo-grid">
           {def.branches.map((branch) => (
             <button key={branch.id} type="button" className="db-evo-card" onClick={() => onChoose(branch.id)}>
               <div className="db-evo-card__head">
-                <span className="db-evo-card__icon">{branch.icon ?? def.icon}</span>
+                <span className="db-evo-card__icon"><GameIcon name="evolve" /></span>
                 <span className="db-evo-card__cost">{branch.cost} EN</span>
               </div>
               <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={3} branchId={branch.id} />
@@ -1836,7 +1847,7 @@ function RewardOverlay({
                     {...hoverProps(card)}
                   >
                     <span>
-                      🗑 {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
+                      <GameIcon name="trash" /> {stats.name} ({card.uid}) · {stats.cost}EN
                     </span>
                     <span className="db-muted">{getXpProgress(card).label} / <EffectText text={stats.text} /></span>
                   </button>
@@ -1929,7 +1940,7 @@ function EventScreen({
                 disabled={run.reconCoins <= 0}
                 title="解析コインを1枚消費してヒントを開示し、不正解の選択肢を1つ除外します"
               >
-                {run.reconCoins > 0 ? `🪙 事前調査 (残${run.reconCoins})` : '🪙 コイン不足'}
+                {<GameIcon name="coin" />} {run.reconCoins > 0 ? `事前調査 (残${run.reconCoins})` : 'コイン不足'}
               </button>
             )}
             <span className="db-event-hp">
@@ -1993,10 +2004,10 @@ function EventScreen({
                       <span className="db-event-choice__badge db-event-choice__badge--filtered">除外済</span>
                     )}
                     {selectedChoiceId !== null && choice.isCorrect && (
-                      <span className="db-event-choice__badge db-event-choice__badge--ok">✔ 正解</span>
+                      <span className="db-event-choice__badge db-event-choice__badge--ok"><GameIcon name="check" /> 正解</span>
                     )}
                     {picked && !choice.isCorrect && (
-                      <span className="db-event-choice__badge db-event-choice__badge--ng">✖ 選択</span>
+                      <span className="db-event-choice__badge db-event-choice__badge--ng"><GameIcon name="cross" /> 選択</span>
                     )}
                   </div>
                   <div className="db-event-choice__desc">{choice.description}</div>
@@ -2013,13 +2024,13 @@ function EventScreen({
           <div className={`db-event-feedback ${isCorrect ? 'db-event-feedback--ok' : 'db-event-feedback--ng'}`}>
             <div className="db-event-feedback__badge">
               {isCorrect
-                ? `✔ ${step}問目 正解！`
-                : `✖ 不正解（チャレンジ終了${hpLost > 0 ? `・HP -${hpLost}` : '・ペナルティなし'}）`}
+                ? <><GameIcon name="check" /> {step}問目 正解！</>
+                : <><GameIcon name="cross" /> 不正解（チャレンジ終了{hpLost > 0 ? `・HP -${hpLost}` : '・ペナルティなし'}）</>}
             </div>
             <p>{selectedChoice.feedback}</p>
             {!isCorrect && correctChoice && (
               <div className="db-event-feedback__correct-box">
-                <strong>💡 正解の選択肢：「{correctChoice.title}」</strong>
+                <strong><GameIcon name="hint" /> 正解の選択肢：「{correctChoice.title}」</strong>
                 <p style={{ margin: '4px 0 0' }}>{correctChoice.feedback}</p>
               </div>
             )}
@@ -2060,20 +2071,20 @@ function EventScreen({
                     {...hoverProps(card)}
                   >
                     <span className="db-deck-pill__title">
-                      {stats.icon} {stats.name} ({card.uid})
+                      <GameIcon name={KIND_ICON[getCardDefinition(card.defId).kind]} /> {stats.name} ({card.uid})
                     </span>
                     <span className="db-muted">{getXpProgress(card).label}</span>
                     {preview.isMaxed ? (
                       <span className="db-deck-pill__preview db-deck-pill__preview--max">
-                        🔒 Lv.3 MAX（最大進化済）
+                        <GameIcon name="lock" /> Lv.3 MAX（最大進化済）
                       </span>
                     ) : preview.willEvolve ? (
                       <span className="db-deck-pill__preview db-deck-pill__preview--evolve">
-                        🌟 選ぶと Lv.3 分岐進化！ (EXP {preview.currentXp}→{preview.nextXp})
+                        <GameIcon name="evolve" /> 選ぶと Lv.3 分岐進化！ (EXP {preview.currentXp}→{preview.nextXp})
                       </span>
                     ) : preview.willLevelUp ? (
                       <span className="db-deck-pill__preview db-deck-pill__preview--levelup">
-                        🎉 選ぶと Lv.2 に強化！ (EXP {preview.currentXp}→{preview.nextXp})
+                        <GameIcon name="levelUp" /> 選ぶと Lv.2 に強化！ (EXP {preview.currentXp}→{preview.nextXp})
                       </span>
                     ) : (
                       <span className="db-deck-pill__preview">
@@ -2090,9 +2101,9 @@ function EventScreen({
         {xpGain && (
           <div className="db-xp-row db-xp-row--levelup" style={{ marginTop: 10 }}>
             <span>
-              {getCardDefinition(xpGain.defId).icon} {getCardDefinition(xpGain.defId).name} ({xpGain.uid}) に +{xpGain.xpAdded} EXP!
+              <GameIcon name={KIND_ICON[getCardDefinition(xpGain.defId).kind]} /> {getCardDefinition(xpGain.defId).name} ({xpGain.uid}) に +{xpGain.xpAdded} EXP!
             </span>
-            <span>{xpGain.newLevel > xpGain.previousLevel ? `🎉 Lv.${xpGain.previousLevel} → Lv.${xpGain.newLevel}` : ''}</span>
+            <span>{xpGain.newLevel > xpGain.previousLevel && <><GameIcon name="levelUp" /> Lv.{xpGain.previousLevel} → Lv.{xpGain.newLevel}</>}</span>
           </div>
         )}
 
@@ -2146,7 +2157,7 @@ function EventScreen({
                         {...hoverProps(card)}
                       >
                         <span>
-                          🗑 {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
+                          <GameIcon name="trash" /> {stats.name} ({card.uid}) · Lv.{card.level}
                         </span>
                         <span className="db-muted">{stats.cost}EN / <EffectText text={stats.text} /></span>
                       </button>
@@ -2165,7 +2176,7 @@ function EventScreen({
               <div style={{ marginBottom: 12 }}>
                 <button type="button" className="db-evo-card db-evo-card--elite" onClick={() => onStep3Reward({ type: 'relic', relicId: offeredRelic })}>
                   <div className="db-evo-card__head">
-                    <span className="db-evo-card__icon">{RELIC_DEFINITIONS[offeredRelic].icon}</span>
+                    <span className="db-evo-card__icon"><GameIcon name={RELIC_DEFINITIONS[offeredRelic].icon} /></span>
                     <span className="db-evo-card__cost">パッシブ装備</span>
                   </div>
                   <div className="db-evo-card__name">{RELIC_DEFINITIONS[offeredRelic].name}</div>
@@ -2244,7 +2255,7 @@ function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: ()
               return (
                 <div key={card.uid} className="db-deck-pill" tabIndex={0} {...hoverProps(card)}>
                   <span>
-                    {stats.icon} {stats.name}
+                    <GameIcon name={KIND_ICON[getCardDefinition(card.defId).kind]} /> {stats.name}
                   </span>
                   <span className="db-muted">
                     Lv.{card.level} (EXP {card.xp})
@@ -2291,7 +2302,7 @@ function DeckModal({ deck, onClose }: { deck: CardInstance[]; onClose: () => voi
                   onBlur={() => setHoveredCard((prev) => (prev?.uid === card.uid ? null : prev))}
                 >
                   <span>
-                    {stats.icon} {stats.name} ({card.uid}) · {stats.cost}EN
+                    <GameIcon name={KIND_ICON[getCardDefinition(card.defId).kind]} /> {stats.name} ({card.uid}) · {stats.cost}EN
                   </span>
                   <span className="db-muted">
                     {getXpProgress(card).label} / <EffectText text={stats.text} />
@@ -2355,7 +2366,7 @@ function CoinShopScreen({
               BLACK MARKET // 解析コイン闇市
             </div>
             <p className="db-muted" style={{ margin: '2px 0 0' }}>
-              所持コイン: 🪙 {run.reconCoins} 枚（イベントの事前調査にも使えます）
+              所持コイン: <GameIcon name="coin" /> {run.reconCoins} 枚（イベントの事前調査にも使えます）
             </p>
           </div>
           <button type="button" className="db-btn db-btn--end" onClick={onContinue}>
@@ -2373,8 +2384,8 @@ function CoinShopScreen({
             onClick={() => onBuy({ type: 'heal' })}
           >
             <div className="db-evo-card__head">
-              <span className="db-evo-card__icon">💚</span>
-              <span className="db-evo-card__cost">🪙 1枚</span>
+              <span className="db-evo-card__icon"><GameIcon name="heal" /></span>
+              <span className="db-evo-card__cost"><GameIcon name="coin" /> 1枚</span>
             </div>
             <div className="db-evo-card__name">緊急回線修復 (HP +12)</div>
             <div className="db-evo-card__text">
@@ -2393,8 +2404,8 @@ function CoinShopScreen({
                 onClick={() => onBuy({ type: 'tool', toolId })}
               >
                 <div className="db-evo-card__head">
-                  <span className="db-evo-card__icon">{t.icon}</span>
-                  <span className="db-evo-card__cost">🪙 1枚</span>
+                  <span className="db-evo-card__icon"><GameIcon name={t.icon} /></span>
+                  <span className="db-evo-card__cost"><GameIcon name="coin" /> 1枚</span>
                 </div>
                 <div className="db-evo-card__name">{t.name}（常備ツール）</div>
                 <div className="db-evo-card__text">
@@ -2412,8 +2423,8 @@ function CoinShopScreen({
               onClick={() => onBuy({ type: 'relic', relicId: offeredRelic })}
             >
               <div className="db-evo-card__head">
-                <span className="db-evo-card__icon">{RELIC_DEFINITIONS[offeredRelic].icon}</span>
-                <span className="db-evo-card__cost">🪙 3枚</span>
+                <span className="db-evo-card__icon"><GameIcon name={RELIC_DEFINITIONS[offeredRelic].icon} /></span>
+                <span className="db-evo-card__cost"><GameIcon name="coin" /> 3枚</span>
               </div>
               <div className="db-evo-card__name">{RELIC_DEFINITIONS[offeredRelic].name}</div>
               <div className="db-evo-card__text">
@@ -2423,7 +2434,7 @@ function CoinShopScreen({
           )}
         </div>
 
-        <h3 className="db-hub__sub">🪙 2枚で不要カードを1枚削除（現在デッキ {run.deck.length} 枚）</h3>
+        <h3 className="db-hub__sub"><GameIcon name="coin" /> 2枚で不要カードを1枚削除（現在デッキ {run.deck.length} 枚）</h3>
         <div className="db-deck-grid">
           {run.deck.map((card) => {
             const stats = getCardStats(card);
@@ -2440,9 +2451,9 @@ function CoinShopScreen({
                 {...hoverProps(card)}
               >
                 <span>
-                  🗑 {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
+                  <GameIcon name="trash" /> {stats.name} ({card.uid}) · Lv.{card.level}
                 </span>
-                <span className="db-muted">🪙 2枚で削除 / {stats.cost}EN · <EffectText text={stats.text} /></span>
+                <span className="db-muted"><GameIcon name="coin" /> 2枚で削除 / {stats.cost}EN · <EffectText text={stats.text} /></span>
               </button>
             );
           })}
@@ -2487,8 +2498,8 @@ function RunSetupScreen({
           {ALL_LOADOUT_IDS.map((id) => {
             const def = LOADOUT_DEFINITIONS[id];
             const selected = loadoutId === id;
-            const relicNames = def.relics.map((r) => `${RELIC_DEFINITIONS[r].icon}${RELIC_DEFINITIONS[r].name}`).join(' / ');
-            const toolNames = def.tools.map((t) => `${TOOL_DEFINITIONS[t].icon}${TOOL_DEFINITIONS[t].name}`).join(' / ');
+            const relicNames = def.relics.map((r) => RELIC_DEFINITIONS[r].name).join(' / ');
+            const toolNames = def.tools.map((t) => TOOL_DEFINITIONS[t].name).join(' / ');
             return (
               <button
                 key={id}
@@ -2500,14 +2511,14 @@ function RunSetupScreen({
                 }}
               >
                 <div className="db-setup-loadout__top">
-                  <span className="db-setup-loadout__icon">{def.icon}</span>
+                  <span className="db-setup-loadout__icon"><GameIcon name={def.icon} /></span>
                   <span className="db-setup-loadout__tag">{def.tag}</span>
                 </div>
                 <div className="db-setup-loadout__name">{def.name}</div>
                 <p className="db-setup-loadout__desc">{def.description}</p>
                 <div className="db-setup-loadout__meta">
-                  <span>❤ HP {Math.max(25, def.maxHp - (secLevel >= 3 ? 10 : 0))}</span>
-                  <span>🧰 {toolNames}</span>
+                  <span><GameIcon name="hp" /> HP {Math.max(25, def.maxHp - (secLevel >= 3 ? 10 : 0))}</span>
+                  <span><GameIcon name="tools" /> {toolNames}</span>
                 </div>
                 <div className="db-setup-loadout__relic">
                   {relicNames ? `常駐装備: ${relicNames}` : '常駐装備: なし（汎用デッキ）'}
@@ -2572,16 +2583,16 @@ function MysteryScreen({
       <section className="db-event-card">
         <div className="db-event-head">
           <div className="db-event-head__left">
-            <span className="db-event-pill db-event-pill--type">🎲 MYSTERY NODE</span>
+            <span className="db-event-pill db-event-pill--type"><GameIcon name="mystery" /> MYSTERY NODE</span>
             <span className="db-event-pill db-event-pill--step">リスク＆リターン選択</span>
           </div>
           <span className="db-event-hp">
-            HP {run.hp} / {run.maxHp} · 🪙 {run.reconCoins}
+            HP {run.hp} / {run.maxHp} · <GameIcon name="coin" /> {run.reconCoins}
           </span>
         </div>
 
         <div className="db-event-question-box">
-          <p className="db-event-cat">{def.icon} ハプニング発生</p>
+          <p className="db-event-cat"><GameIcon name={def.icon} /> ハプニング発生</p>
           <p className="db-event-prompt">{def.title}</p>
           <p className="db-muted" style={{ margin: 0, lineHeight: 1.6, color: '#cbd5e1' }}>
             {def.lead}
@@ -2614,7 +2625,7 @@ function MysteryScreen({
         ) : (
           <>
             <div className="db-event-feedback db-event-feedback--ok" style={{ marginTop: 12 }}>
-              <div className="db-event-feedback__badge">✔ 選択結果</div>
+              <div className="db-event-feedback__badge"><GameIcon name="check" /> 選択結果</div>
               <p style={{ margin: '4px 0 0' }}>{mysteryView.summary}</p>
             </div>
             <div className="db-result__actions" style={{ marginTop: 16 }}>
@@ -2650,7 +2661,7 @@ function RestScreen({
       <section className="db-event-card">
         <div className="db-event-head">
           <div className="db-event-head__left">
-            <span className="db-event-pill db-event-pill--type">🔧 SYSTEM MAINTENANCE</span>
+            <span className="db-event-pill db-event-pill--type"><GameIcon name="rest" /> SYSTEM MAINTENANCE</span>
             <span className="db-event-pill db-event-pill--step">ボス戦前の最終調整</span>
           </div>
           <span className="db-event-hp">
@@ -2666,7 +2677,7 @@ function RestScreen({
         {summary ? (
           <>
             <div className="db-event-feedback db-event-feedback--ok">
-              <div className="db-event-feedback__badge">✔ メンテナンス完了</div>
+              <div className="db-event-feedback__badge"><GameIcon name="check" /> メンテナンス完了</div>
               <p style={{ margin: '4px 0 0' }}>{summary}</p>
             </div>
             <div className="db-result__actions" style={{ marginTop: 16 }}>
@@ -2684,7 +2695,7 @@ function RestScreen({
               onClick={() => onAction({ type: 'heal' })}
             >
               <div className="db-evo-card__head">
-                <span className="db-evo-card__icon">💚</span>
+                <span className="db-evo-card__icon"><GameIcon name="heal" /></span>
                 <span className="db-evo-card__cost">HP +{healAmt}</span>
               </div>
               <div className="db-evo-card__name">回線メンテ（大幅回復）</div>
@@ -2703,7 +2714,7 @@ function RestScreen({
               }}
             >
               <div className="db-evo-card__head">
-                <span className="db-evo-card__icon">⚡</span>
+                <span className="db-evo-card__icon"><GameIcon name="upgrade" /></span>
                 <span className="db-evo-card__cost">即LvUP / 進化</span>
               </div>
               <div className="db-evo-card__name">カード即チューニング</div>
@@ -2722,7 +2733,7 @@ function RestScreen({
               }}
             >
               <div className="db-evo-card__head">
-                <span className="db-evo-card__icon">🗑</span>
+                <span className="db-evo-card__icon"><GameIcon name="trash" /></span>
                 <span className="db-evo-card__cost">デッキ圧縮</span>
               </div>
               <div className="db-evo-card__name">不要カード削除</div>
@@ -2763,13 +2774,13 @@ function RestScreen({
                     {...hoverProps(card)}
                   >
                     <span>
-                      {mode === 'upgrade' ? '⚡' : '🗑'} {stats.icon} {stats.name} ({card.uid}) · Lv.{card.level}
+                      <GameIcon name={mode === 'upgrade' ? 'upgrade' : 'trash'} /> {stats.name} ({card.uid}) · Lv.{card.level}
                     </span>
                     <span className="db-muted">
                       {mode === 'upgrade'
                         ? card.level === 2
-                          ? '🌟 即 Lv.3 分岐進化！'
-                          : '🎉 即 Lv.2 強化！'
+                          ? '即 Lv.3 分岐進化！'
+                          : '即 Lv.2 強化！'
                         : `${stats.cost}EN / ${stats.text}`}
                     </span>
                   </button>

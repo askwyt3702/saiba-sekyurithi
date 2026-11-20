@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
+import { GameIcon } from '../GameIcon/GameIcon';
 import './TitleScreen.css';
 
 interface TitleScreenProps {
@@ -58,7 +59,7 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
                 setIsSettingOpen(true);
               }}
             >
-              ⚙&nbsp;&nbsp;&nbsp;SETTING
+              <GameIcon name="settings" />&nbsp;&nbsp;SETTING
             </button>
           </div>
 
@@ -81,7 +82,7 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
           >
             <div className="ts-modal-header">
               <h2 id="ts-modal-title" className="ts-modal-title">
-                ⚙ SYSTEM SETTING &amp; CREDITS
+                <GameIcon name="settings" /> SYSTEM SETTING &amp; CREDITS
               </h2>
               <button
                 type="button"
@@ -89,7 +90,7 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
                 onClick={() => setIsSettingOpen(false)}
                 aria-label="閉じる"
               >
-                ✕
+                <GameIcon name="cross" />
               </button>
             </div>
 

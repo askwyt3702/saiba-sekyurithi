@@ -35,15 +35,15 @@ export function getCardDefinition(defId: string): CardDefinition {
 }
 
 /** カード1枚の今の性能(レベルと進化先で決まる) */
-export function getCardStats(card: CardInstance): CardStats & { name: string; icon: string } {
+export function getCardStats(card: CardInstance): CardStats & { name: string } {
   const def = getCardDefinition(card.defId);
   if (card.level === 3) {
     const branch = def.branches.find((b) => b.id === card.branchId);
-    if (branch) return { ...branch, name: branch.name, icon: branch.icon ?? def.icon };
+    if (branch) return { ...branch, name: branch.name };
     // 進化先がまだ選ばれていなければ Lv.2 の性能で動く
-    return { ...def.levels[2], name: def.name, icon: def.icon };
+    return { ...def.levels[2], name: def.name };
   }
-  return { ...def.levels[card.level], name: def.name, icon: def.icon };
+  return { ...def.levels[card.level], name: def.name };
 }
 
 /** 対象の敵を選ぶ必要があるカードか(1体を狙うダメージ・過熱等を含む) */
@@ -201,10 +201,10 @@ export function createBattle({
   startPlayerTurn(state);
   addLog(state, `戦闘開始:${enemies.map((e) => e.name).join('・')}`, 'info');
   if (relics.includes('weak_scanner')) {
-    addLog(state, '🎯 脆弱スキャナー発動: 敵全体に脆弱(2T)!', 'good', 'player');
+    addLog(state, '脆弱スキャナー発動: 敵全体に脆弱(2T)!', 'good', 'player');
   }
   if (securityLevel >= 4) {
-    addLog(state, '⚠ セキュリティLv.4 攪乱: 捨て札にノイズ1枚が混入した。', 'bad', 'enemy');
+    addLog(state, 'セキュリティLv.4 攪乱: 捨て札にノイズ1枚が混入した。', 'bad', 'enemy');
   }
   return state;
 }
@@ -521,7 +521,7 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
   } else if (isAttack && state.modifiers.reconCombo === 'ready') {
     state.modifiers.reconCombo = 'done';
     state.player.energy += 1;
-    addLog(state, '🔍 解析コンボ発動! 帯域 +1', 'good', 'player');
+    addLog(state, '解析コンボ発動! 帯域 +1', 'good', 'player');
     if (state.relics.includes('adaptive_filter')) {
       state.player.block += ADAPTIVE_FILTER_FW;
       addLog(state, `[${RELIC_DEFINITIONS.adaptive_filter.name}] FW+${ADAPTIVE_FILTER_FW}`, 'good', 'player');

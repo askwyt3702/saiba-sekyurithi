@@ -539,7 +539,7 @@ export function applyRestAction(run: RunState, action: RestAction): { run: RunSt
     const def = getCardDefinition(target.defId);
     return {
       run: removeCardFromDeck(run, action.cardUid),
-      summary: `${def.icon} ${def.name} (${target.uid}) をデッキから削除した。`,
+      summary: `${def.name} (${target.uid}) をデッキから削除した。`,
     };
   }
   const card = run.deck.find((c) => c.uid === action.cardUid);
@@ -553,8 +553,8 @@ export function applyRestAction(run: RunState, action: RestAction): { run: RunSt
     run: { ...run, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
     summary:
       nextLv === 3
-        ? `${def.icon} ${def.name} が Lv.3 に到達！分岐進化を選べます。`
-        : `${def.icon} ${def.name} を Lv.${nextLv} に即チューニングした！`,
+        ? `${def.name} が Lv.3 に到達！分岐進化を選べます。`
+        : `${def.name} を Lv.${nextLv} に即チューニングした！`,
   };
 }
 
@@ -585,7 +585,7 @@ export function resolveMysteryChoice(
       const withCard = pickRewardCard({ ...baseRun, hp: nextHp, reconCoins: baseRun.reconCoins + 1 }, rareId);
       return {
         run: withCard,
-        summary: `HP−12の代償にレアカード ${def.icon}「${def.name}」と解析コイン+1を入手した！`,
+        summary: `HP−12の代償にレアカード「${def.name}」と解析コイン+1を入手した！`,
         discoveredCardId: rareId,
       };
     }
@@ -603,7 +603,7 @@ export function resolveMysteryChoice(
         const relic = RELIC_DEFINITIONS[relicId];
         return {
           run: grantRelic({ ...baseRun, hp: nextHp }, relicId),
-          summary: `HP−8と引き換えに常駐装備 ${relic.icon}「${relic.name}」を抽出した！`,
+          summary: `HP−8と引き換えに常駐装備 「${relic.name}」を抽出した！`,
         };
       }
       return {
@@ -634,7 +634,7 @@ export function resolveMysteryChoice(
       const res = addXp(baseRun.deck, baseRun.pendingEvolutions, picked.uid, delta);
       return {
         run: { ...baseRun, hp: nextHp, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
-        summary: `HP−10の負荷と引き換えに ${def.icon}「${def.name}」が即座に Lv.3 進化待ちになった！`,
+        summary: `HP−10の負荷と引き換えに 「${def.name}」が即座に Lv.3 進化待ちになった！`,
       };
     }
     if (choiceId === 'coin_tune') {
@@ -650,7 +650,7 @@ export function resolveMysteryChoice(
       const res = addXp(baseRun.deck, baseRun.pendingEvolutions, picked.uid, 3);
       return {
         run: { ...baseRun, reconCoins: nextCoins, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
-        summary: `コイン1枚で ${def.icon}「${def.name}」に EXP+3 を安全に注入した！`,
+        summary: `コイン1枚で 「${def.name}」に EXP+3 を安全に注入した！`,
       };
     }
     return { run: baseRun, summary: '危険を察知してサーバーから切断した。' };
@@ -663,7 +663,7 @@ export function resolveMysteryChoice(
     if (tools.length < MAX_TOOLS) {
       const toolId = shuffled(ALL_TOOL_IDS, seed).items[0];
       tools = [...tools, toolId];
-      toolMsg = `緊急ツール ${TOOL_DEFINITIONS[toolId].icon}「${TOOL_DEFINITIONS[toolId].name}」と`;
+      toolMsg = `緊急ツール 「${TOOL_DEFINITIONS[toolId].name}」と`;
     }
     return {
       run: { ...baseRun, tools, reconCoins: baseRun.reconCoins + 1 },
@@ -682,6 +682,6 @@ export function resolveMysteryChoice(
   const res = addXp(baseRun.deck, baseRun.pendingEvolutions, picked.uid, 3);
   return {
     run: { ...baseRun, deck: res.deck, pendingEvolutions: res.pendingEvolutions },
-    summary: `学習データを注入し、${def.icon}「${def.name}」に EXP+3 を付与した！`,
+    summary: `学習データを注入し、「${def.name}」に EXP+3 を付与した！`,
   };
 }

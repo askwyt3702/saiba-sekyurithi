@@ -8,15 +8,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'SSH辞書攻撃',
     kind: 'attack',
     rarity: 'common',
-    icon: '🔑',
     lore: 'よく使われるパスワードを端から試してログインを突破する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 6, target: 'single' }], text: '6ダメージ。' },
       2: { cost: 1, effects: [{ type: 'damage', amount: 9, target: 'single' }], text: '9ダメージ。' },
     },
     branches: [
-      { id: 'ssh_rapid', name: '総当たり連打', icon: '⚡', cost: 1, effects: [{ type: 'damage', amount: 4, hits: 3, target: 'single' }], text: '4ダメージを3回。' },
-      { id: 'ssh_breaker', name: '認証突破', icon: '💥', cost: 2, effects: [{ type: 'damage', amount: 18, target: 'single' }], text: '18ダメージ。' },
+      { id: 'ssh_rapid', name: '総当たり連打', cost: 1, effects: [{ type: 'damage', amount: 4, hits: 3, target: 'single' }], text: '4ダメージを3回。' },
+      { id: 'ssh_breaker', name: '認証突破', cost: 2, effects: [{ type: 'damage', amount: 18, target: 'single' }], text: '18ダメージ。' },
     ],
   },
   firewall: {
@@ -24,15 +23,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ファイアウォール',
     kind: 'defense',
     rarity: 'common',
-    icon: '🧱',
     lore: '通してよい通信だけを許可し、それ以外を遮断する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 5 }], text: 'FW5。' },
       2: { cost: 1, effects: [{ type: 'block', amount: 8 }], text: 'FW8。' },
     },
     branches: [
-      { id: 'fw_layered', name: '多層防御', icon: '🛡️', cost: 1, effects: [{ type: 'block', amount: 12 }], text: 'FW12。' },
-      { id: 'fw_trap', name: 'リバーストラップ', icon: '🪤', cost: 1, effects: [{ type: 'block', amount: 7 }, { type: 'retaliate', amount: 5 }], text: 'FW7＋次に受ける攻撃に5反撃。' },
+      { id: 'fw_layered', name: '多層防御', cost: 1, effects: [{ type: 'block', amount: 12 }], text: 'FW12。' },
+      { id: 'fw_trap', name: 'リバーストラップ', cost: 1, effects: [{ type: 'block', amount: 7 }, { type: 'retaliate', amount: 5 }], text: 'FW7＋次に受ける攻撃に5反撃。' },
     ],
   },
   ddos: {
@@ -40,15 +38,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'DDoSフラッド',
     kind: 'attack',
     rarity: 'common',
-    icon: '🌊',
     lore: '大量の通信を送りつけて、サーバーを応答できなくする。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 7, target: 'single' }], text: '7ダメージ。' },
       2: { cost: 1, effects: [{ type: 'damage', amount: 10, target: 'single' }], text: '10ダメージ。' },
     },
     branches: [
-      { id: 'ddos_botnet', name: 'ボットネット', icon: '🤖', cost: 2, effects: [{ type: 'damage', amount: 12, target: 'all' }], text: '敵全体に12ダメージ。' },
-      { id: 'ddos_overload', name: '過負荷', icon: '🔥', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'burn', amount: 4 }], text: '8ダメージ＋過熱4。' },
+      { id: 'ddos_botnet', name: 'ボットネット', cost: 2, effects: [{ type: 'damage', amount: 12, target: 'all' }], text: '敵全体に12ダメージ。' },
+      { id: 'ddos_overload', name: '過負荷', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'burn', amount: 4 }], text: '8ダメージ＋過熱4。' },
     ],
   },
   port_scan: {
@@ -56,15 +53,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ポートスキャン',
     kind: 'utility',
     rarity: 'common',
-    icon: '📡',
     lore: 'どのポート(入口)が開いているかを調べて、攻め方を見つける。',
     levels: {
       1: { cost: 0, effects: [{ type: 'draw', amount: 1 }], text: '1枚引く。' },
       2: { cost: 0, effects: [{ type: 'draw', amount: 2 }], text: '2枚引く。' },
     },
     branches: [
-      { id: 'scan_full', name: '全ポート走査', icon: '🗺️', cost: 1, effects: [{ type: 'draw', amount: 2 }, { type: 'energy', amount: 1 }], text: '2枚引く＋帯域1回復。' },
-      { id: 'scan_vuln', name: '脆弱性特定', icon: '🎯', cost: 1, effects: [{ type: 'nextAttackBonus', amount: 8 }], text: '次の攻撃＋8。' },
+      { id: 'scan_full', name: '全ポート走査', cost: 1, effects: [{ type: 'draw', amount: 2 }, { type: 'energy', amount: 1 }], text: '2枚引く＋帯域1回復。' },
+      { id: 'scan_vuln', name: '脆弱性特定', cost: 1, effects: [{ type: 'nextAttackBonus', amount: 8 }], text: '次の攻撃＋8。' },
     ],
   },
   session_hijack: {
@@ -72,15 +68,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'セッションハイジャック',
     kind: 'attack',
     rarity: 'uncommon',
-    icon: '🎫',
     lore: 'ログイン済みの利用者のセッションを乗っ取り、その権限で動く。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single' }], text: '5ダメージ。' },
       2: { cost: 1, effects: [{ type: 'damage', amount: 7, target: 'single' }], text: '7ダメージ。' },
     },
     branches: [
-      { id: 'hijack_token', name: 'トークン窃取', icon: '🩸', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'heal', amount: 3 }], text: '8ダメージ＋HP3回復。' },
-      { id: 'hijack_priv', name: '権限奪取', icon: '👑', cost: 1, effects: [{ type: 'damage', amount: 6, target: 'single' }, { type: 'draw', amount: 1 }], text: '6ダメージ＋1枚引く。' },
+      { id: 'hijack_token', name: 'トークン窃取', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'heal', amount: 3 }], text: '8ダメージ＋HP3回復。' },
+      { id: 'hijack_priv', name: '権限奪取', cost: 1, effects: [{ type: 'damage', amount: 6, target: 'single' }, { type: 'draw', amount: 1 }], text: '6ダメージ＋1枚引く。' },
     ],
   },
   script_auto: {
@@ -88,15 +83,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'スクリプト自動化',
     kind: 'utility',
     rarity: 'uncommon',
-    icon: '⚙️',
     lore: '攻撃の手順をスクリプトにして、速く正確にくり返す。',
     levels: {
       1: { cost: 1, effects: [{ type: 'nextAttackBonus', amount: 3 }], text: '次の攻撃＋3。' },
       2: { cost: 1, effects: [{ type: 'nextAttackBonus', amount: 5 }], text: '次の攻撃＋5。' },
     },
     branches: [
-      { id: 'auto_parallel', name: '並列実行', icon: '⏩', cost: 1, effects: [{ type: 'repeatNextAttack' }], text: '次の攻撃カードを2回発動。' },
-      { id: 'auto_macro', name: 'マクロ化', icon: '📜', cost: 0, effects: [{ type: 'draw', amount: 1 }, { type: 'nextCardDiscount', amount: 1 }], text: '1枚引く＋次のカード−1EN。' },
+      { id: 'auto_parallel', name: '並列実行', cost: 1, effects: [{ type: 'repeatNextAttack' }], text: '次の攻撃カードを2回発動。' },
+      { id: 'auto_macro', name: 'マクロ化', cost: 0, effects: [{ type: 'draw', amount: 1 }, { type: 'nextCardDiscount', amount: 1 }], text: '1枚引く＋次のカード−1EN。' },
     ],
   },
   sql_injection: {
@@ -104,15 +98,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'SQLインジェクション',
     kind: 'attack',
     rarity: 'common',
-    icon: '💉',
     lore: '入力欄に不正なSQL文を紛れ込ませ、防御壁の裏側のDBへ直接命令を通す。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single', pierce: true }], text: 'FW貫通5ダメージ。' },
       2: { cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋脆弱2T。' },
     },
     branches: [
-      { id: 'sqli_union', name: 'UNION抽出', icon: '🧲', cost: 1, effects: [{ type: 'damage', amount: 6, hits: 2, target: 'single', pierce: true }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通6×2＋脆弱2T。' },
-      { id: 'sqli_blind', name: 'ブラインドSQLi', icon: '🕶️', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋過熱3＋脆弱2T。' },
+      { id: 'sqli_union', name: 'UNION抽出', cost: 1, effects: [{ type: 'damage', amount: 6, hits: 2, target: 'single', pierce: true }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通6×2＋脆弱2T。' },
+      { id: 'sqli_blind', name: 'ブラインドSQLi', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋過熱3＋脆弱2T。' },
     ],
   },
   waf_rule: {
@@ -120,15 +113,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'WAFルール適用',
     kind: 'defense',
     rarity: 'common',
-    icon: '🧯',
     lore: 'Web通信の中身を検査し、怪しいパターンだけを遮断しながら通信を通す。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 4 }, { type: 'draw', amount: 1 }], text: 'FW4＋1枚引く。' },
       2: { cost: 1, effects: [{ type: 'block', amount: 7 }, { type: 'draw', amount: 1 }], text: 'FW7＋1枚引く。' },
     },
     branches: [
-      { id: 'waf_strict', name: '厳格フィルタ', icon: '🚧', cost: 1, effects: [{ type: 'block', amount: 10 }, { type: 'draw', amount: 1 }], text: 'FW10＋1枚引く。' },
-      { id: 'waf_cache', name: '許可リスト最適化', icon: '⚡', cost: 1, effects: [{ type: 'block', amount: 6 }, { type: 'draw', amount: 1 }, { type: 'nextCardDiscount', amount: 1 }], text: 'FW6＋1枚引く＋次のカード−1EN。' },
+      { id: 'waf_strict', name: '厳格フィルタ', cost: 1, effects: [{ type: 'block', amount: 10 }, { type: 'draw', amount: 1 }], text: 'FW10＋1枚引く。' },
+      { id: 'waf_cache', name: '許可リスト最適化', cost: 1, effects: [{ type: 'block', amount: 6 }, { type: 'draw', amount: 1 }, { type: 'nextCardDiscount', amount: 1 }], text: 'FW6＋1枚引く＋次のカード−1EN。' },
     ],
   },
   arp_spoof: {
@@ -136,15 +128,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ARPスプーフィング',
     kind: 'attack',
     rarity: 'uncommon',
-    icon: '🕸️',
     lore: '偽の宛先情報を流してネットワーク全体の通信経路を乗っ取る。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'all' }, { type: 'nextAttackBonus', amount: 3 }, { type: 'jam', amount: 1 }], text: '敵全体4＋次攻撃+3＋ジャミング1T。' },
       2: { cost: 1, effects: [{ type: 'damage', amount: 6, target: 'all' }, { type: 'nextAttackBonus', amount: 4 }, { type: 'jam', amount: 2 }], text: '敵全体6＋次攻撃+4＋ジャミング2T。' },
     },
     branches: [
-      { id: 'arp_mitm', name: '中間者攻撃', icon: '🕵️', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'all' }, { type: 'nextAttackBonus', amount: 6 }], text: '敵全体8＋次の攻撃＋6。' },
-      { id: 'arp_storm', name: 'ブロードキャスト嵐', icon: '🌪️', cost: 2, effects: [{ type: 'damage', amount: 13, target: 'all' }], text: '敵全体に13ダメージ。' },
+      { id: 'arp_mitm', name: '中間者攻撃', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'all' }, { type: 'nextAttackBonus', amount: 6 }], text: '敵全体8＋次の攻撃＋6。' },
+      { id: 'arp_storm', name: 'ブロードキャスト嵐', cost: 2, effects: [{ type: 'damage', amount: 13, target: 'all' }], text: '敵全体に13ダメージ。' },
     ],
   },
   honeypot: {
@@ -152,15 +143,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ハニーポット展開',
     kind: 'defense',
     rarity: 'uncommon',
-    icon: '🍯',
     lore: 'おとりのサーバーを用意して敵の攻撃を引きつけ、逆に仕留める罠を張る。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 5 }, { type: 'retaliate', amount: 4 }], text: 'FW5＋反撃4。' },
       2: { cost: 1, effects: [{ type: 'block', amount: 7 }, { type: 'retaliate', amount: 6 }], text: 'FW7＋反撃6。' },
     },
     branches: [
-      { id: 'honey_mirror', name: 'ミラー罠', icon: '🪞', cost: 1, effects: [{ type: 'block', amount: 9 }, { type: 'retaliate', amount: 9 }], text: 'FW9＋反撃9。' },
-      { id: 'honey_tar', name: 'タールピット', icon: '🫠', cost: 1, effects: [{ type: 'block', amount: 8 }, { type: 'retaliate', amount: 5 }, { type: 'burn', amount: 4 }], text: 'FW8＋反撃5＋敵1体に過熱4。' },
+      { id: 'honey_mirror', name: 'ミラー罠', cost: 1, effects: [{ type: 'block', amount: 9 }, { type: 'retaliate', amount: 9 }], text: 'FW9＋反撃9。' },
+      { id: 'honey_tar', name: 'タールピット', cost: 1, effects: [{ type: 'block', amount: 8 }, { type: 'retaliate', amount: 5 }, { type: 'burn', amount: 4 }], text: 'FW8＋反撃5＋敵1体に過熱4。' },
     ],
   },
   zero_day: {
@@ -168,16 +158,15 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ゼロデイ攻撃',
     kind: 'attack',
     rarity: 'rare',
-    icon: '☢️',
     lore: '修正パッチが存在しない未知の脆弱性を突き、防御を根底から突破する。',
     levels: {
       1: { cost: 2, effects: [{ type: 'damage', amount: 14, target: 'single', pierce: true }], text: 'FW貫通14ダメージ。' },
       2: { cost: 2, effects: [{ type: 'damage', amount: 20, target: 'single', pierce: true }], text: 'FW貫通20ダメージ。' },
     },
     branches: [
-      { id: 'zd_rce', name: 'RCE特化型', icon: '💀', cost: 2, effects: [{ type: 'damage', amount: 28, target: 'single', pierce: true }], text: 'FW貫通28ダメージ。' },
-      { id: 'zd_worm', name: 'ワーム拡散', icon: '🦠', cost: 2, effects: [{ type: 'damage', amount: 18, target: 'all', pierce: true }], text: '敵全体にFW貫通18ダメージ。' },
-      { id: 'zd_chain', name: 'エクスプロイト連鎖', icon: '⛓️', cost: 0, effects: [{ type: 'damage', amount: 14, target: 'single', pierce: true }, { type: 'draw', amount: 2 }], text: '0EN・FW貫通14＋2枚引く。' },
+      { id: 'zd_rce', name: 'RCE特化型', cost: 2, effects: [{ type: 'damage', amount: 28, target: 'single', pierce: true }], text: 'FW貫通28ダメージ。' },
+      { id: 'zd_worm', name: 'ワーム拡散', cost: 2, effects: [{ type: 'damage', amount: 18, target: 'all', pierce: true }], text: '敵全体にFW貫通18ダメージ。' },
+      { id: 'zd_chain', name: 'エクスプロイト連鎖', cost: 0, effects: [{ type: 'damage', amount: 14, target: 'single', pierce: true }, { type: 'draw', amount: 2 }], text: '0EN・FW貫通14＋2枚引く。' },
     ],
   },
   backdoor: {
@@ -185,16 +174,15 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'バックドア常駐',
     kind: 'utility',
     rarity: 'rare',
-    icon: '🚪',
     lore: 'システム内部に秘密の裏口を仕掛け、戦闘中ずっと有利な効果を受け続ける。',
     levels: {
       1: { cost: 1, effects: [{ type: 'persistent', stat: 'turnBlock', amount: 3 }], text: '戦闘中、毎ターンFW+3。' },
       2: { cost: 1, effects: [{ type: 'persistent', stat: 'turnBlock', amount: 5 }], text: '戦闘中、毎ターンFW+5。' },
     },
     branches: [
-      { id: 'bd_root', name: 'Root権限常駐', icon: '👑', cost: 1, effects: [{ type: 'persistent', stat: 'turnEnergy', amount: 1 }, { type: 'draw', amount: 1 }], text: '毎ターン帯域+1＋1枚引く。' },
-      { id: 'bd_beacon', name: 'C2ビーコン', icon: '📡', cost: 1, effects: [{ type: 'persistent', stat: 'turnAttackBonus', amount: 4 }, { type: 'persistent', stat: 'turnDraw', amount: 1 }], text: '毎ターン「次の攻撃+4」＆ドロー+1。' },
-      { id: 'bd_cloak', name: 'ステルス防壁', icon: '🥷', cost: 1, effects: [{ type: 'persistent', stat: 'turnBlock', amount: 8 }], text: '戦闘中、毎ターンFW+8。' },
+      { id: 'bd_root', name: 'Root権限常駐', cost: 1, effects: [{ type: 'persistent', stat: 'turnEnergy', amount: 1 }, { type: 'draw', amount: 1 }], text: '毎ターン帯域+1＋1枚引く。' },
+      { id: 'bd_beacon', name: 'C2ビーコン', cost: 1, effects: [{ type: 'persistent', stat: 'turnAttackBonus', amount: 4 }, { type: 'persistent', stat: 'turnDraw', amount: 1 }], text: '毎ターン「次の攻撃+4」＆ドロー+1。' },
+      { id: 'bd_cloak', name: 'ステルス防壁', cost: 1, effects: [{ type: 'persistent', stat: 'turnBlock', amount: 8 }], text: '戦闘中、毎ターンFW+8。' },
     ],
   },
 
@@ -204,7 +192,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'Pingスイープ',
     kind: 'attack',
     rarity: 'common',
-    icon: '📶',
     lore: '応答確認パケットを連続送信して稼働中のホストを洗い出しながら牽制する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'single' }, { type: 'draw', amount: 1 }], text: '4ダメージ＋1枚引く。' },
@@ -220,7 +207,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'SYNクッキー防御',
     kind: 'defense',
     rarity: 'common',
-    icon: '🛡️',
     lore: '接続要求の状態を保持せずに検証し、リソース枯渇を防ぎつつ反撃態勢を整える。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 4 }, { type: 'nextAttackBonus', amount: 2 }], text: 'FW4＋次の攻撃+2。' },
@@ -236,7 +222,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: '反射型XSS',
     kind: 'attack',
     rarity: 'common',
-    icon: '🪞',
     lore: '悪意あるスクリプトをレスポンスに反射させ、攻撃の跳ね返しを仕掛ける。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single' }, { type: 'retaliate', amount: 4 }], text: '5ダメージ＋反撃4。' },
@@ -252,7 +237,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ディレクトリ遡上',
     kind: 'attack',
     rarity: 'common',
-    icon: '📂',
     lore: '../ を重ねて公開フォルダの外へ抜け出し、敵の防御壁を無効化する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'stripBlock', target: 'single' }, { type: 'damage', amount: 4, target: 'single' }], text: '敵FWを全て破壊＋4ダメージ。' },
@@ -268,7 +252,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ログ改ざん消去',
     kind: 'defense',
     rarity: 'common',
-    icon: '🧹',
     lore: '侵入の痕跡をログから抹消し、コストを使わずに緊急回避を行う。',
     levels: {
       1: { cost: 0, effects: [{ type: 'block', amount: 4 }], text: '0EN・FW4。' },
@@ -284,7 +267,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'パケット盗聴',
     kind: 'utility',
     rarity: 'common',
-    icon: '🎧',
     lore: '流れる通信を傍受して次のアクションに必要な帯域コストを削減する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'draw', amount: 1 }, { type: 'nextCardDiscount', amount: 1 }], text: '1枚引く＋次のカード−1EN。' },
@@ -300,7 +282,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'OSコマンド注入',
     kind: 'attack',
     rarity: 'common',
-    icon: '💻',
     lore: 'セミコロンでOS命令を連結し、弱っている対象に致命的な追撃を与える。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'single' }, { type: 'bonusIfDebuffed', amount: 6, target: 'single' }], text: '4ダメージ(敵が状態異常ならさらに+6)。' },
@@ -316,7 +297,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'CSRF偽装要求',
     kind: 'attack',
     rarity: 'common',
-    icon: '🎭',
     lore: '敵自身の権限で不正リクエストを送らせ、敵のファイアウォールをそのまま奪い取る。',
     levels: {
       1: { cost: 1, effects: [{ type: 'stripBlock', steal: true, target: 'single' }, { type: 'damage', amount: 3, target: 'single' }], text: '敵のFWを奪い取る＋3ダメージ。' },
@@ -332,7 +312,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'TLS1.3暗号防壁',
     kind: 'defense',
     rarity: 'common',
-    icon: '🔒',
     lore: '最新の暗号スイートで通信を完全保護し、敵の大技を受け止める重装甲を張る。',
     levels: {
       1: { cost: 2, effects: [{ type: 'block', amount: 12 }], text: 'FW12。' },
@@ -348,7 +327,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'CPU熱暴走',
     kind: 'attack',
     rarity: 'common',
-    icon: '🔥',
     lore: '無限ループ処理を送り込んでCPU温度を急上昇させ、過熱ダメージを蓄積させる。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 3, target: 'single' }, { type: 'burn', amount: 3 }], text: '3ダメージ＋過熱3。' },
@@ -364,7 +342,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'レートリミット制御',
     kind: 'defense',
     rarity: 'common',
-    icon: '⏱️',
     lore: '単位時間あたりの通信回数を制限し、敵の攻撃出力を30%低下させる。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 4 }, { type: 'jam', amount: 1 }], text: 'FW4＋敵全体にジャミング1T。' },
@@ -380,7 +357,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ファジング連打',
     kind: 'attack',
     rarity: 'common',
-    icon: '🎲',
     lore: 'ランダムな異常データを高速に3連続で叩き込み、例外処理の穴をこじ開ける。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 2, hits: 3, target: 'single' }], text: '2ダメージを3回。' },
@@ -396,7 +372,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'DNSキャッシュ汚染',
     kind: 'utility',
     rarity: 'common',
-    icon: '🧭',
     lore: '名前解決の宛先をすり替えて敵の防御体制を崩し、受けるダメージを1.5倍にする。',
     levels: {
       1: { cost: 1, effects: [{ type: 'vulnerable', amount: 2 }, { type: 'draw', amount: 1 }], text: '敵全体に脆弱2T＋1枚引く。' },
@@ -412,7 +387,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'サンドボックス隔離',
     kind: 'defense',
     rarity: 'common',
-    icon: '📦',
     lore: '不審なノイズ通信を隔離環境へ閉じ込めて無害化し、防御エネルギーへ変換する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 5 }, { type: 'purgeNoise', blockPerNoise: 3 }], text: 'FW5＋全ノイズ消去(1枚につきFW+3)。' },
@@ -430,7 +404,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'FWカウンター衝撃波',
     kind: 'attack',
     rarity: 'uncommon',
-    icon: '🛡️',
     lore: '積み上げたファイアウォールの防御出力をそのまま衝撃波に変えて叩きつける。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 3 }, { type: 'shieldBash', target: 'single' }], text: 'FW3を得て、現在のFW値のダメージ。' },
@@ -446,7 +419,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'サーマル起爆剤',
     kind: 'attack',
     rarity: 'uncommon',
-    icon: '🧨',
     lore: '蓄積した過熱状態を強制的にトリガーさせ、ターン終了を待たずに即時爆発させる。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'single' }, { type: 'burn', amount: 2 }, { type: 'triggerBurn', target: 'single' }], text: '4ダメージ＋過熱2＋過熱を即時発動。' },
@@ -462,7 +434,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: '手札同期バースト',
     kind: 'attack',
     rarity: 'uncommon',
-    icon: '🃏',
     lore: '手元に確保しているカード（通信パケット）が多いほど威力が跳ね上がる一斉射撃。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'single' }, { type: 'handScaleDamage', perCard: 2, target: 'single' }], text: '4＋残り手札枚数×2ダメージ。' },
@@ -478,7 +449,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'オーバーボルテージ',
     kind: 'utility',
     rarity: 'uncommon',
-    icon: '⚡',
     lore: '回線の安全リミッターを解除し、自身の耐久を少し削って帯域と手札を一気に引き出す。',
     levels: {
       1: { cost: 0, effects: [{ type: 'selfDamage', amount: 3 }, { type: 'energy', amount: 2 }, { type: 'draw', amount: 1 }], text: '0EN・HP−3／帯域+2＋1枚引く。' },
@@ -494,7 +464,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ランサム暗号ロック',
     kind: 'attack',
     rarity: 'uncommon',
-    icon: '🔐',
     lore: '敵の制御領域を暗号化して動きを封じ、脆弱とジャミングを同時に叩き込む。',
     levels: {
       1: { cost: 2, effects: [{ type: 'damage', amount: 11, target: 'single' }, { type: 'vulnerable', amount: 2 }, { type: 'jam', amount: 2 }], text: '11ダメージ＋脆弱2T＋ジャミング2T。' },
@@ -510,7 +479,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: '冗長化クラスター防壁',
     kind: 'defense',
     rarity: 'uncommon',
-    icon: '🏰',
     lore: '防御ノードをミラーリングして現在のファイアウォール値を一気に2倍へ増幅する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'block', amount: 3 }, { type: 'doubleBlock' }], text: 'FW+3してから、現在のFWを2倍にする。' },
@@ -526,7 +494,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: '特権トークン失効',
     kind: 'utility',
     rarity: 'uncommon',
-    icon: '🚫',
     lore: '敵が積み上げた攻撃力強化（バフ）を強制リセットし、こちらの防御を固める。',
     levels: {
       1: { cost: 1, effects: [{ type: 'clearEnemyBuff', target: 'all' }, { type: 'block', amount: 6 }, { type: 'draw', amount: 1 }], text: '敵全体の攻撃強化を0に戻す＋FW6＋1枚引く。' },
@@ -542,7 +509,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'SSRF内部プロキシ侵入',
     kind: 'attack',
     rarity: 'uncommon',
-    icon: '🚇',
     lore: 'サーバー自身に内部リクエストを代理送信させ、FWを貫通しつつ敵の防壁も奪う。',
     levels: {
       1: { cost: 1, effects: [{ type: 'stripBlock', steal: true, target: 'single' }, { type: 'damage', amount: 6, target: 'single', pierce: true }], text: '敵FWを奪う＋FW貫通6ダメージ。' },
@@ -560,7 +526,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'カーネルパニック誘発',
     kind: 'attack',
     rarity: 'rare',
-    icon: '☠️',
     lore: 'OS中枢のメモリ空間へ直接書き込み、自身の回線にも負荷をかけながら壊滅的打撃を与える。',
     levels: {
       1: { cost: 2, effects: [{ type: 'selfDamage', amount: 3 }, { type: 'damage', amount: 22, target: 'single', pierce: true }], text: 'HP−3／FW貫通22ダメージ。' },
@@ -577,7 +542,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: '自律ボットネット斉射',
     kind: 'attack',
     rarity: 'rare',
-    icon: '🐝',
     lore: '感染させた多数のIoT機器から一斉に多段攻撃を浴びせ、複数敵も単体強敵も粉砕する。',
     levels: {
       1: { cost: 2, effects: [{ type: 'damage', amount: 4, hits: 3, target: 'all' }], text: '敵全体に4ダメージ×3回。' },
@@ -594,7 +558,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: '量子ショア暗号解読',
     kind: 'utility',
     rarity: 'rare',
-    icon: '⚛️',
     lore: '公開鍵暗号と防壁を瞬時に無力化し、敵の盾をすべて自分の防壁へ書き換える。',
     levels: {
       1: { cost: 1, effects: [{ type: 'stripBlock', steal: true, target: 'all' }, { type: 'vulnerable', amount: 2 }, { type: 'draw', amount: 1 }], text: '敵全体のFWを奪う＋全体脆弱2T＋1枚引く。' },
@@ -611,7 +574,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'サプライチェーン汚染',
     kind: 'attack',
     rarity: 'rare',
-    icon: '🧬',
     lore: '正規の更新プログラムに過熱ペイロードを混入させ、付与と同時に内部から連続発火させる。',
     levels: {
       1: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single' }, { type: 'burn', amount: 5 }, { type: 'triggerBurn', target: 'single' }], text: '5ダメージ＋過熱5＋過熱を即時発動。' },
@@ -628,7 +590,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'イージス防衛マトリクス',
     kind: 'defense',
     rarity: 'rare',
-    icon: '💠',
     lore: '多層ファイアウォールを瞬時に倍増させ、絶対防御とカウンター攻撃を同時に成立させる。',
     levels: {
       1: { cost: 2, effects: [{ type: 'block', amount: 8 }, { type: 'doubleBlock' }], text: 'FW+8してから、現在のFWを2倍にする。' },
@@ -645,7 +606,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: '自律AIエクスプロイト生成',
     kind: 'utility',
     rarity: 'rare',
-    icon: '🤖',
     lore: 'AIがリアルタイムに弱点を推論し、ドロー・コスト軽減・火力強化を同時に供給する。',
     levels: {
       1: { cost: 1, effects: [{ type: 'draw', amount: 2 }, { type: 'nextAttackBonus', amount: 4 }, { type: 'nextCardDiscount', amount: 1 }], text: '2枚引く＋次の攻撃+4＋次のカード−1EN。' },
@@ -662,7 +622,6 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'ノイズ',
     kind: 'utility',
     rarity: 'common',
-    icon: '📶',
     lore: '監視AIが送り込んだ偽の通信。手札をふさぐ。',
     levels: {
       1: { cost: 0, effects: [], text: '使えない。戦闘が終わると消える。' },

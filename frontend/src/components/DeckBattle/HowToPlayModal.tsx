@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { buildHowToPlayPages } from '../../game/deckbattle/howToPlay';
 import { playSound } from '../../game/sound/soundEffects';
+import { GameIcon } from '../GameIcon/GameIcon';
 import './HowToPlayModal.css';
 
 interface HowToPlayModalProps {
@@ -36,7 +37,7 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
         <header className="htp-head">
           <span className="htp-tag">HOW TO PLAY // 遊び方</span>
           <button type="button" className="htp-close" onClick={onClose} aria-label="遊び方を閉じる">
-            ✕
+            <GameIcon name="cross" />
           </button>
         </header>
 
@@ -49,14 +50,14 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
               aria-current={i === index ? 'page' : undefined}
               onClick={() => go(i)}
             >
-              <span aria-hidden="true">{p.icon}</span> {p.title}
+              <GameIcon name={p.icon} /> {p.title}
             </button>
           ))}
         </nav>
 
         <section className="htp-body">
           <h2 id="htp-title" className="htp-title">
-            <span aria-hidden="true">{page.icon}</span> {page.title}
+            <GameIcon name={page.icon} /> {page.title}
           </h2>
           <p className="htp-lead">{page.lead}</p>
           <dl className={`htp-items ${page.items.length > 6 ? 'htp-items--compact' : ''}`}>

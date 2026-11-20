@@ -20,7 +20,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
   scanner_bot: {
     id: 'scanner_bot',
     name: 'スキャナーbot',
-    icon: '🛰️',
+    icon: 'scannerBot',
     maxHp: 42,
     weakness: 'burn',
     pattern: [
@@ -32,7 +32,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
   ids_sensor: {
     id: 'ids_sensor',
     name: 'IDSセンサー',
-    icon: '👁️',
+    icon: 'idsSensor',
     maxHp: 32,
     weakness: 'pierce',
     pattern: [
@@ -43,7 +43,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
   firewall_ai: {
     id: 'firewall_ai',
     name: 'ファイアウォールAI',
-    icon: '🧠',
+    icon: 'firewallAi',
     maxHp: 80,
     weakness: 'pierce',
     pattern: [
@@ -55,7 +55,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
   argus: {
     id: 'argus',
     name: '監視AI ARGUS',
-    icon: '🔺',
+    icon: 'argus',
     maxHp: 240,
     weakness: 'pierce',
     pattern: [
@@ -75,7 +75,7 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
   zero_trust_gate: {
     id: 'zero_trust_gate',
     name: 'ゼロトラストゲート(強敵)',
-    icon: '⛩️',
+    icon: 'zeroTrustGate',
     maxHp: 124,
     weakness: 'multi',
     pattern: [

@@ -1,4 +1,5 @@
 // ローグライク拡張データ: 初期ビルド(ロードアウト)・セキュリティレベル(高難度)・ハプニングイベント。
+import type { GameIconName } from './icons';
 import { STARTER_DECK_IDS } from './cards';
 import type { LoadoutId, MysteryEventId, RelicId, ToolId } from './types';
 
@@ -6,7 +7,7 @@ export interface LoadoutDefinition {
   id: LoadoutId;
   name: string;
   tag: string;
-  icon: string;
+  icon: GameIconName;
   description: string;
   maxHp: number;
   deckIds: string[];
@@ -19,7 +20,7 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
     id: 'balanced',
     name: '標準侵入者',
     tag: 'BALANCED',
-    icon: '⚖️',
+    icon: 'balanced',
     description: '攻守のバランスが良く、どんな進化ルートにも伸ばしやすい基本構成。',
     maxHp: 65,
     deckIds: [...STARTER_DECK_IDS],
@@ -30,7 +31,7 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
     id: 'red_team',
     name: 'レッドチーム（速攻連撃）',
     tag: 'RED TEAM',
-    icon: '⚔️',
+    icon: 'redTeam',
     description: '手数と貫通力で押し切る攻撃特化構成。毎ターン「次の攻撃+3」付き。',
     maxHp: 60,
     deckIds: [
@@ -47,7 +48,7 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
     id: 'blue_team',
     name: 'ブルーチーム（重装甲反撃）',
     tag: 'BLUE TEAM',
-    icon: '🛡️',
+    icon: 'blueTeam',
     description: '高い耐久とFW・反撃で敵の攻撃を跳ね返す要塞構成。毎ターン開始時に反撃4がそろう。',
     maxHp: 75,
     deckIds: [
@@ -63,7 +64,7 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
     id: 'thermal_ops',
     name: 'サーマル工作員（過熱＆妨害）',
     tag: 'THERMAL OPS',
-    icon: '🔥',
+    icon: 'thermalOps',
     description: '過熱と状態異常を積み上げて起爆するテクニカル構成。毎ターン敵全体に過熱+2。',
     maxHp: 62,
     deckIds: [
@@ -106,7 +107,7 @@ export interface MysteryChoiceDef {
 
 export interface MysteryEventDefinition {
   id: MysteryEventId;
-  icon: string;
+  icon: GameIconName;
   title: string;
   lead: string;
   choices: MysteryChoiceDef[];
@@ -115,7 +116,7 @@ export interface MysteryEventDefinition {
 export const MYSTERY_EVENTS: Record<MysteryEventId, MysteryEventDefinition> = {
   dark_zero_day: {
     id: 'dark_zero_day',
-    icon: '🕵️',
+    icon: 'zeroDay',
     title: '闇ブローカーのゼロデイ取引',
     lead: '地下ネットワークの仲介人から暗号化メッセージが届いた。「未公開のレア・エクスプロイトを譲ってやろう。ただし代償は回線耐久だ」',
     choices: [
@@ -137,7 +138,7 @@ export const MYSTERY_EVENTS: Record<MysteryEventId, MysteryEventDefinition> = {
   },
   overclock_terminal: {
     id: 'overclock_terminal',
-    icon: '⚡',
+    icon: 'terminal',
     title: '違法オーバークロック端末',
     lead: '放置された監視サーバーの奥で、未知の常駐モジュールが稼働している。強制抽出すれば大きな力になるが、逆流ダメージは避けられない。',
     choices: [
@@ -159,7 +160,7 @@ export const MYSTERY_EVENTS: Record<MysteryEventId, MysteryEventDefinition> = {
   },
   corrupted_forge: {
     id: 'corrupted_forge',
-    icon: '🧬',
+    icon: 'forge',
     title: '暴走した自動最適化サーバー',
     lead: '学習用AIが制御を失い、接続したプログラムを強制的に最終形態へ書き換えている。うまく使えば主力カードが一気に進化するが…。',
     choices: [
@@ -188,7 +189,7 @@ export const MYSTERY_EVENTS: Record<MysteryEventId, MysteryEventDefinition> = {
   },
   abandoned_cache: {
     id: 'abandoned_cache',
-    icon: '📦',
+    icon: 'package',
     title: '放棄された緊急キャッシュ',
     lead: '先代の侵入者が隠した隠しコンテナを発見した。物資を回収するか、残された学習データで手持ちのカードを強化するかを選べる。',
     choices: [

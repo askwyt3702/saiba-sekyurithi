@@ -6,6 +6,7 @@ import { DeckHubModal } from '../DeckBattle/DeckHubModal';
 import { HowToPlayModal } from '../DeckBattle/HowToPlayModal';
 import { usePlayerSync } from '../DeckBattle/usePlayerSync';
 import { PlayerPanel } from './PlayerPanel';
+import { GameIcon } from '../GameIcon/GameIcon';
 import './MissionScreen.css';
 
 interface MissionScreenProps {
@@ -44,7 +45,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                 setHowToPlayOpen(true);
               }}
             >
-              ❓ 遊び方
+              <GameIcon name="help" /> 遊び方
             </button>
             <button
               type="button"
@@ -55,7 +56,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                 setHubOpen(true);
               }}
             >
-              🎴 カード基地
+              <GameIcon name="layers" /> カード基地
             </button>
             <span className="ms-status-dot" />
             <span>STEALTH LINK: ACTIVE</span>

@@ -16,6 +16,8 @@ import {
 } from '../../game/deckbattle/profile';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import { GameIcon } from '../GameIcon/GameIcon';
+import { CARD_KIND_ICON as KIND_ICON } from '../../game/deckbattle/icons';
 import { EffectText } from './EffectText';
 import './DeckBattle.css';
 
@@ -81,7 +83,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
               DECK BREACH // カード基地
             </div>
             <p className="db-muted" style={{ margin: '2px 0 0' }}>
-              図鑑・進化ツリー・弱点ノート復習・戦績・実績（次回開始コインボーナス: 🪙 {profile.bonusStartCoins} / {MAX_BONUS_START_COINS}）
+              図鑑・進化ツリー・弱点ノート復習・戦績・実績（次回開始コインボーナス: <GameIcon name="coin" /> {profile.bonusStartCoins} / {MAX_BONUS_START_COINS}）
             </p>
           </div>
           <button type="button" className="db-btn db-btn--ghost" onClick={onClose}>
@@ -91,16 +93,16 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
 
         <div className="db-hub__tabs" role="tablist">
           <button type="button" className={`db-hub__tab ${tab === 'codex' ? 'db-hub__tab--active' : ''}`} onClick={() => setTab('codex')}>
-            🎴 図鑑・進化 ({profile.seenCardIds.length}/{REWARD_CARD_IDS.length})
+            <GameIcon name="layers" /> 図鑑・進化 ({profile.seenCardIds.length}/{REWARD_CARD_IDS.length})
           </button>
           <button type="button" className={`db-hub__tab ${tab === 'weakness' ? 'db-hub__tab--active' : ''}`} onClick={() => setTab('weakness')}>
-            📖 弱点ノート ({weaknessList.length})
+            <GameIcon name="book" /> 弱点ノート ({weaknessList.length})
           </button>
           <button type="button" className={`db-hub__tab ${tab === 'stats' ? 'db-hub__tab--active' : ''}`} onClick={() => setTab('stats')}>
-            📊 戦績
+            <GameIcon name="stats" /> 戦績
           </button>
           <button type="button" className={`db-hub__tab ${tab === 'achievements' ? 'db-hub__tab--active' : ''}`} onClick={() => setTab('achievements')}>
-            🏆 実績 ({profile.achievements.length}/{ACHIEVEMENTS.length})
+            <GameIcon name="trophy" /> 実績 ({profile.achievements.length}/{ACHIEVEMENTS.length})
           </button>
         </div>
 
@@ -126,7 +128,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                 onClick={onTogglePreviewAll}
                 title="試作用: 全40種のカード・全Lv.3進化先・敵を表示します(記録には残りません)"
               >
-                {allCodexUnlocked ? '✔ 全カード図鑑解放済み' : previewAllCodex ? '🧪 試用表示中(記録には残らない)' : '🧪 試用：全カード図鑑を表示'}
+                <GameIcon name={allCodexUnlocked ? 'check' : 'flask'} /> {allCodexUnlocked ? '全カード図鑑解放済み' : previewAllCodex ? '試用表示中(記録には残らない)' : '試用：全カード図鑑を表示'}
               </button>
             </div>
             <div className="db-codex-grid">
@@ -137,7 +139,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                   <div key={id} className={`db-codex-card ${seen ? '' : 'db-codex-card--locked'}`}>
                     <div className="db-codex-card__top">
                       <span>
-                        {seen ? def.icon : '❓'} <strong>{seen ? def.name : '未発見のカード'}</strong>
+                        <GameIcon name={seen ? KIND_ICON[def.kind] : 'unknown'} /> <strong>{seen ? def.name : '未発見のカード'}</strong>
                       </span>
                       <span className="db-muted">{def.rarity.toUpperCase()}</span>
                     </div>
@@ -157,7 +159,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                             return (
                               <div key={b.id} className={`db-codex-branch ${unlocked ? 'db-codex-branch--open' : ''}`}>
                                 <span>
-                                  {unlocked ? `${b.icon ?? def.icon} ${b.name}` : '🔒 未進化ルート'}
+                                  <GameIcon name={unlocked ? 'evolve' : 'lock'} /> {unlocked ? b.name : '未進化ルート'}
                                 </span>
                                 <span className="db-muted">{unlocked ? <>{b.cost}EN / <EffectText text={b.text} /></> : 'Lv.3進化で解放'}</span>
                               </div>
@@ -182,7 +184,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                 return (
                   <div key={enemy.id} className="db-deck-pill">
                     <span>
-                      {seen ? enemy.icon : '❓'} {seen ? enemy.name : '未遭遇'}
+                      <GameIcon name={seen ? enemy.icon : 'unknown'} /> {seen ? enemy.name : '未遭遇'}
                     </span>
                     <span className="db-muted">{seen ? `最大HP ${enemy.maxHp}` : '戦闘で遭遇すると登録'}</span>
                   </div>
@@ -242,10 +244,10 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                               [{idx + 1}] {c.title}
                             </div>
                             {selectedChoiceId !== null && c.isCorrect && (
-                              <span className="db-event-choice__badge db-event-choice__badge--ok">✔ 正解</span>
+                              <span className="db-event-choice__badge db-event-choice__badge--ok"><GameIcon name="check" /> 正解</span>
                             )}
                             {picked && !c.isCorrect && (
-                              <span className="db-event-choice__badge db-event-choice__badge--ng">✖ 選択した回答</span>
+                              <span className="db-event-choice__badge db-event-choice__badge--ng"><GameIcon name="cross" /> 選択した回答</span>
                             )}
                           </div>
                           {c.command && <code className="db-event-choice__cmd">{c.command}</code>}
@@ -262,13 +264,13 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                       <div className={`db-event-feedback ${isReviewOk ? 'db-event-feedback--ok' : 'db-event-feedback--ng'}`}>
                         <div className="db-event-feedback__badge">
                           {isReviewOk
-                            ? '✔ 復習クリア！次回ラン開始時に 🪙 解析コイン+1 を獲得しました'
-                            : '✖ まだ不正解です。解説を確認して再挑戦できます'}
+                            ? <><GameIcon name="check" /> 復習クリア！次回ラン開始時に解析コイン+1 を獲得しました</>
+                            : <><GameIcon name="cross" /> まだ不正解です。解説を確認して再挑戦できます</>}
                         </div>
                         <p>{pickedChoice?.feedback}</p>
                         {!isReviewOk && correctChoice && (
                           <div className="db-event-feedback__correct-box">
-                            <strong>💡 正解の選択肢：「{correctChoice.title}」</strong>
+                            <strong><GameIcon name="hint" /> 正解の選択肢：「{correctChoice.title}」</strong>
                             <p style={{ margin: '4px 0 0' }}>{correctChoice.feedback}</p>
                           </div>
                         )}
@@ -297,12 +299,12 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
               <div className="db-muted" style={{ padding: 18, textAlign: 'center' }}>
                 現在、弱点ノートに記録されたミス問題はありません！
                 <br />
-                イベントマスで間違えた問題があるとここに自動保存され、復習で正解すると次回ラン開始時の 🪙 解析コインが +1 されます。
+                イベントマスで間違えた問題があるとここに自動保存され、復習で正解すると次回ラン開始時の解析コインが +1 されます。
               </div>
             ) : (
               <div className="db-xp-list">
                 <div className="db-muted" style={{ marginBottom: 6 }}>
-                  復習で正解するとノートから消え、次回ラン開始時に 🪙 解析コイン +1（最大 {MAX_BONUS_START_COINS} 枚）が付きます。
+                  復習で正解するとノートから消え、次回ラン開始時に解析コイン +1（最大 {MAX_BONUS_START_COINS} 枚）が付きます。
                 </div>
                 {weaknessList.map((q) => (
                   <div key={q.id} className="db-xp-row">
@@ -364,9 +366,9 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                   <div key={ach.id} className={`db-codex-card ${done ? 'db-codex-branch--open' : 'db-codex-card--locked'}`}>
                     <div className="db-codex-card__top">
                       <span>
-                        {ach.icon} <strong>{ach.title}</strong>
+                        <GameIcon name={ach.icon} /> <strong>{ach.title}</strong>
                       </span>
-                      <span className={done ? 'db-xp-row__lv' : 'db-muted'}>{done ? '解除済 ✔' : '未解除'}</span>
+                      <span className={done ? 'db-xp-row__lv' : 'db-muted'}>{done ? <>解除済 <GameIcon name="check" /></> : '未解除'}</span>
                     </div>
                     <div className="db-muted" style={{ fontSize: 11, marginTop: 4 }}>
                       {ach.description}

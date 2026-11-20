@@ -5,6 +5,7 @@ import { playerSync } from '../../game/deckbattle/defaultPlayerSync';
 import type { SyncStatus } from '../../game/deckbattle/playerSync';
 import { playSound } from '../../game/sound/soundEffects';
 import { usePlayerSync } from '../DeckBattle/usePlayerSync';
+import { GameIcon } from '../GameIcon/GameIcon';
 
 const STATUS_LABEL: Record<SyncStatus, string> = {
   unregistered: 'ブラウザだけに保存中',
@@ -54,8 +55,8 @@ export function PlayerPanel() {
     <>
       {player ? (
         <span className={`ms-player ms-player--${status}`} title={STATUS_LABEL[status]}>
-          <span className="ms-player__name">👤 {player.name}</span>
-          <span className="ms-player__status">{status === 'synced' ? '☁ 保存済み' : status === 'offline' ? '⚠ オフライン' : '…'}</span>
+          <span className="ms-player__name"><GameIcon name="user" /> {player.name}</span>
+          <span className="ms-player__status">{status === 'synced' ? <><GameIcon name="cloud" /> 保存済み</> : status === 'offline' ? <><GameIcon name="cloudOff" /> オフライン</> : '…'}</span>
         </span>
       ) : (
         <button
@@ -68,7 +69,7 @@ export function PlayerPanel() {
             setOpen(true);
           }}
         >
-          👤 プレイヤー登録
+          <GameIcon name="user" /> プレイヤー登録
         </button>
       )}
 

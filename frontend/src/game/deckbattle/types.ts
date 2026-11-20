@@ -1,5 +1,6 @@
 // ローグライク・カードバトル(試作)の型。ルールの中身は docs/deckbattle-plan-v0.3.md を参照。
 // ルールは画面に依存しない純粋な関数で扱い、この型だけを受け渡しする。
+import type { GameIconName } from './icons';
 
 export type CardKind = 'attack' | 'defense' | 'utility';
 export type CardRarity = 'common' | 'uncommon' | 'rare';
@@ -64,7 +65,6 @@ export interface CardStats {
 export interface CardBranch extends CardStats {
   id: string;
   name: string;
-  icon?: string;
 }
 
 export interface CardDefinition {
@@ -72,7 +72,6 @@ export interface CardDefinition {
   name: string;
   kind: CardKind;
   rarity: CardRarity;
-  icon: string;
   /** 実際の攻撃・防御の仕組みの解説(1行) */
   lore: string;
   /** Lv.1 と Lv.2 の性能 */
@@ -111,7 +110,7 @@ export type EnemyWeakness = 'multi' | 'pierce' | 'burn' | 'all';
 export interface EnemyDefinition {
   id: string;
   name: string;
-  icon: string;
+  icon: GameIconName;
   maxHp: number;
   /** 弱点タイプ(一致する攻撃は1.5倍) */
   weakness: EnemyWeakness;
@@ -130,7 +129,7 @@ export interface EnemyState {
   uid: string;
   defId: string;
   name: string;
-  icon: string;
+  icon: GameIconName;
   hp: number;
   maxHp: number;
   block: number;
@@ -172,7 +171,7 @@ export type MysteryEventId =
 export interface RelicDefinition {
   id: RelicId;
   name: string;
-  icon: string;
+  icon: GameIconName;
   description: string;
 }
 
@@ -181,7 +180,7 @@ export type ToolId = 'hotfix' | 'overclock' | 'packet_purge' | 'jammer_pulse';
 export interface ToolDefinition {
   id: ToolId;
   name: string;
-  icon: string;
+  icon: GameIconName;
   description: string;
 }
 

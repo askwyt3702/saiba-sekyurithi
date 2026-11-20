@@ -1,5 +1,6 @@
 // デッキ構築ローグライトの永続プロフィール(図鑑・弱点ノート・戦績・実績)。
 // localStorage が使えない環境(Node テスト等)でも安全に動作する。
+import type { GameIconName } from './icons';
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
 import { CARD_DEFINITIONS, REWARD_CARD_IDS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
@@ -10,18 +11,18 @@ export const MAX_BONUS_START_COINS = 3;
 
 export interface AchievementDef {
   id: string;
-  icon: string;
+  icon: GameIconName;
   title: string;
   description: string;
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'first_clear', icon: '🏆', title: 'ARGUS 撃破', description: 'ランを最後まで進め、監視AI ARGUSを倒す。' },
-  { id: 'elite_slayer', icon: '⛩️', title: '強敵突破', description: 'エリート敵「ゼロトラストゲート」を撃破する。' },
-  { id: 'quiz_streak_3', icon: '🧠', title: '連続診断パーフェクト', description: 'イベントマスの連続クイズで3問連続正解を達成する。' },
-  { id: 'evo_collector', icon: '🌟', title: '進化の探求者', description: 'Lv.3 進化先を累計5種類以上解放する。' },
-  { id: 'card_collector', icon: '🎴', title: 'ツール収集家', description: 'カードを累計12種類以上図鑑に登録する。' },
-  { id: 'weakness_cleared', icon: '📖', title: '弱点克服', description: 'ホームの弱点ノートで復習クイズに1問以上正解する。' },
+  { id: 'first_clear', icon: 'trophy', title: 'ARGUS 撃破', description: 'ランを最後まで進め、監視AI ARGUSを倒す。' },
+  { id: 'elite_slayer', icon: 'zeroTrustGate', title: '強敵突破', description: 'エリート敵「ゼロトラストゲート」を撃破する。' },
+  { id: 'quiz_streak_3', icon: 'brain', title: '連続診断パーフェクト', description: 'イベントマスの連続クイズで3問連続正解を達成する。' },
+  { id: 'evo_collector', icon: 'evolve', title: '進化の探求者', description: 'Lv.3 進化先を累計5種類以上解放する。' },
+  { id: 'card_collector', icon: 'layers', title: 'ツール収集家', description: 'カードを累計12種類以上図鑑に登録する。' },
+  { id: 'weakness_cleared', icon: 'book', title: '弱点克服', description: 'ホームの弱点ノートで復習クイズに1問以上正解する。' },
 ];
 
 export interface DeckProfileStats {
