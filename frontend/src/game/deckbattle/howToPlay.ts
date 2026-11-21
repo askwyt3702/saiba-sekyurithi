@@ -69,7 +69,7 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
     {
       title: 'このゲームの目的',
       icon: 'target',
-      lead: `侵入者(ハッカー)として、分岐したマップを下から上へ進み、${MAP_TOTAL_FLOORS}段目の監視AIを倒せばクリア。途中でHPが0になるとやり直し。`,
+      lead: `分岐マップを下から上へ${MAP_TOTAL_FLOORS}段進み、ACT 1のボスを倒すとECHOに遭遇する。深層ネットワークのNEXUSを倒せばランをクリア。HPが0になるとやり直し。`,
       items: [
         { term: 'マップ', text: `マスを終えるたびにマップが出て、線でつながった次のマスから行き先を選ぶ。マップは毎回ランダムに作られるが、段ごとの役割は決まっている(${describeFloorPlan()})。全部の道が最後は1体のボスに集まる。` },
         { term: '起動ノード', text: `スタート地点。出発前の強化を${START_BONUS_CHOICES}つから1つ選ぶ(${bonusNames}のどれかが出る)。` },
@@ -78,7 +78,7 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
         { term: 'HP(回線耐久)', text: `最大HPは初期ビルドで${Math.min(...hps)}〜${Math.max(...hps)}。次のマスにも引き継ぐ。通常の戦闘に勝つと最大HPの${healPercent}%回復する。` },
         { term: '高難度モード', text: `セキュリティLv.0〜${MAX_SECURITY_LEVEL}を選べる。Lvが上がるほど敵が強くなる(Lv.3以上は最大HP−10)。まずはLv.0から。` },
         { term: 'デッキ', text: '攻撃・防御・補助のカードの山。戦闘の報酬や闇市で、カードを足したり減らしたりできる。' },
-        { term: '注意', text: 'ブラウザを読み込み直すと、ランは最初からになる(カード基地の記録は残る)。' },
+        { term: '自動保存', text: '確定したランの進行はこのブラウザに保存され、読み込み直しても再開できる。' },
       ],
     },
     {

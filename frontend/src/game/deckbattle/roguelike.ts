@@ -119,6 +119,24 @@ export interface MysteryEventDefinition {
 }
 
 export const MYSTERY_EVENTS: Record<MysteryEventId, MysteryEventDefinition> = {
+  echo_quarantine: { id: 'echo_quarantine', icon: 'shield', title: '隔離区画の分岐',
+    lead: '隔離された保守区画に電力が残っている。回線を修復するか、区画を封鎖して報酬を得るか。',
+    choices: [
+      { id: 'repair', label: '保守端末を利用', riskTag: '回復', tone: 'safe', description: 'HPを最大12回復。' },
+      { id: 'seal', label: '区画を封鎖', riskTag: '補給', tone: 'neutral', description: '解析コイン2枚。' },
+    ] },
+  echo_archive: { id: 'echo_archive', icon: 'cache', title: '残響アーカイブ',
+    lead: '破損した保管庫には復元できそうなカードがある。復元には回線耐久を使う。',
+    choices: [
+      { id: 'restore', label: 'カードを復元', riskTag: '負荷', tone: 'risk', description: 'HPを最大8支払い、入手可能なカードを1枚獲得。' },
+      { id: 'leave', label: '立ち去る', riskTag: '安全', tone: 'safe', description: '回線耐久を消費しない。' },
+    ] },
+  echo_exchange: { id: 'echo_exchange', icon: 'heal', title: '深層の修理交換所',
+    lead: '旧式の設備が一度だけ回線を修復できる。決済には解析コインが必要だ。',
+    choices: [
+      { id: 'exchange', label: '回線を修復', riskTag: 'コイン1枚', tone: 'neutral', description: '解析コイン1枚でHPを最大18回復。' },
+      { id: 'leave', label: '温存する', riskTag: '安全', tone: 'safe', description: '解析コインを消費しない。' },
+    ] },
   dark_zero_day: {
     id: 'dark_zero_day',
     icon: 'zeroDay',

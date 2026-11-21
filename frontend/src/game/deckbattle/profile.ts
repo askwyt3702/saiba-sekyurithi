@@ -2,6 +2,7 @@
 // localStorage が使えない環境(Node テスト等)でも安全に動作する。
 import type { GameIconName } from './icons';
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
+import { DEEP_QUESTIONS } from './deepQuestions';
 import { CARD_DEFINITIONS, REWARD_CARD_IDS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
 import type { RunState } from './types';
@@ -18,7 +19,8 @@ export interface AchievementDef {
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'first_clear', icon: 'trophy', title: 'ボス撃破', description: 'ランを最後まで進め、最上階のボスを倒す。' },
-  { id: 'elite_slayer', icon: 'zeroTrustGate', title: '強敵突破', description: 'エリート敵「ゼロトラストゲート」を撃破する。' },
+  { id: 'act2_clear', icon: 'trophy', title: '深層ネットワーク突破', description: 'ACT 2の統合防衛中枢NEXUSを倒す。' },
+   { id: 'elite_slayer', icon: 'zeroTrustGate', title: '強敵突破', description: 'エリート敵「ゼロトラストゲート」を撃破する。' },
   { id: 'quiz_streak_3', icon: 'brain', title: '連続診断パーフェクト', description: 'イベントマスの連続クイズで3問連続正解を達成する。' },
   { id: 'evo_collector', icon: 'evolve', title: '進化の探求者', description: 'Lv.3 進化先を累計5種類以上解放する。' },
   { id: 'card_collector', icon: 'layers', title: 'ツール収集家', description: 'カードを累計12種類以上図鑑に登録する。' },
@@ -210,12 +212,15 @@ export function recordEliteDefeat(profile: DeckProfile): DeckProfile {
 export function recordRunResult(profile: DeckProfile, run: RunState): DeckProfile {
   // チュートリアルは練習なので、挑戦回数・クリア回数・実績に数えない
   if (run.tutorial) return profile;
+  if (run.status === 'playing') return profile;
   const cardIds = run.deck.map((c) => c.defId);
   const branches = run.deck.map((c) => c.branchId).filter((b): b is string => Boolean(b));
   return evaluateAchievements({
     ...profile,
     seenCardIds: uniqueAdd(profile.seenCardIds, cardIds),
     unlockedBranches: uniqueAdd(profile.unlockedBranches, branches),
+    achievements: run.status === 'won' && run.act === 2
+      ? unlockAchievement(profile.achievements, 'act2_clear') : profile.achievements,
     stats: {
       ...profile.stats,
       runsPlayed: profile.stats.runsPlayed + 1,
@@ -251,7 +256,7 @@ export function consumeBonusStartCoins(profile: DeckProfile): { profile: DeckPro
 /** 問題ID一覧から弱点ノートの問題データを取得する */
 export function getWeaknessQuestions(wrongQuestionIds: string[]): DeckQuizQuestion[] {
   if (wrongQuestionIds.length === 0) return [];
-  const all = [...getQuizQuestionsByType('TYPE A'), ...getQuizQuestionsByType('TYPE B')];
+  const all = [...getQuizQuestionsByType('TYPE A'), ...getQuizQuestionsByType('TYPE B'), ...DEEP_QUESTIONS];
   const byId = new Map(all.map((q) => [q.id, q]));
   return wrongQuestionIds.map((id) => byId.get(id)).filter((q): q is DeckQuizQuestion => Boolean(q));
 }

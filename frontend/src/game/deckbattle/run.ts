@@ -3,7 +3,8 @@
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
 import { createBattle, getCardDefinition } from './battle';
 import { canAcquireCard, getEvolutionBranches, RARE_CARD_IDS, REWARD_CARD_IDS } from './cards';
-import { ALL_RELIC_IDS, FORENSICS_LAB_XP, RELIC_DEFINITIONS, SIPHON_MODULE_HEAL } from './relics';
+import { ALL_RELIC_IDS, ECHO_HP_COST, ECHO_REPAIR_RATIO, ECHO_RELIC_IDS, FORENSICS_LAB_XP, RELIC_DEFINITIONS, SIPHON_MODULE_HEAL } from './relics';
+import { DEEP_QUESTIONS } from './deepQuestions';
 import { ENEMY_DEFINITIONS } from './enemies';
 import { BOSS_ENEMY_IDS, generateRunMap } from './map';
 import { nextRandom, shuffled } from './rng';
@@ -56,6 +57,7 @@ export const START_BONUS_DEFINITIONS: Record<StartBonusId, { name: string; descr
 export const ALL_START_BONUS_IDS = Object.keys(START_BONUS_DEFINITIONS) as StartBonusId[];
 /** 起動ノードで出す強化の数 */
 export const START_BONUS_CHOICES = 3;
+const DEEP_MYSTERIES = ['echo_quarantine', 'echo_archive', 'echo_exchange'] as const;
 
 export function createCardInstance(defId: string, uid: string): CardInstance {
   return { uid, defId, level: 1, xp: 0 };
@@ -75,6 +77,7 @@ export function createTutorialTrialRun(): RunState {
   const t2: RunNode = { id: 't2', floor: 1, col: 3, kind: 'boss', next: [], enemyIds: ['argus_tutorial'] };
   return {
     status: 'playing',
+    act: 1,
     tutorial: true,
     deck,
     hp: PLAYER_MAX_HP,
@@ -121,6 +124,7 @@ export function createRun(
   const map = generateRunMap(mapSeed);
   return {
     status: 'playing',
+    act: 1,
     deck,
     hp: maxHp,
     maxHp,
@@ -189,11 +193,13 @@ export function getRunBoss(run: RunState): EnemyDefinition {
 
 /** ボスの短い呼び名(「監視AI ARGUS」→「ARGUS」)。結果画面の見出しに使う */
 export function bossShortName(boss: EnemyDefinition): string {
+  if (boss.name.includes(' // ')) return boss.name.split(' // ')[0];
   return boss.name.split(' ').pop() ?? boss.name;
 }
 
 /** 次のマスへ進む(線でつながったマスだけ選べる) */
 export function moveToNode(run: RunState, nodeId: string): RunState {
+  if (run.intermission && run.act !== 2) throw new Error('ECHOの権限を選んでください');
   if (run.pendingEvolutions.length > 0) {
     throw new Error('進化先の選択が終わるまで次のマスに進めません');
   }
@@ -305,6 +311,7 @@ export interface BattleResolutionResult {
 
 /** 戦闘終了時(勝利/敗北)に HP・経験値・進化待ち・報酬3択・解析コインドロップを反映する */
 export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed: number): BattleResolutionResult {
+  if (run.status !== 'playing' || (run.intermission && run.act !== 2)) throw new Error('戦闘結果は処理済みです');
   if (battle.status === 'lost') {
     return {
       run: { ...run, hp: 0, status: 'lost' },
@@ -319,9 +326,12 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
   }
 
   const isBoss = getCurrentNode(run).kind === 'boss';
+  const actCleared = isBoss && !run.tutorial && run.act !== 2;
+  const finalBoss = isBoss && !actCleared;
   const baseHp = Math.max(1, Math.min(run.maxHp, battle.player.hp));
   const siphonBonus = run.relics.includes('siphon_module') ? SIPHON_MODULE_HEAL : 0;
-  const healAmount = isBoss ? 0 : Math.floor(run.maxHp * BATTLE_WIN_HEAL_RATIO) + siphonBonus;
+  const repairBonus = run.relics.includes('echo_repair') ? Math.floor(run.maxHp * ECHO_REPAIR_RATIO) : 0;
+  const healAmount = (isBoss ? 0 : Math.floor(run.maxHp * BATTLE_WIN_HEAL_RATIO) + siphonBonus) + repairBonus;
   const nextHp = Math.min(run.maxHp, baseHp + healAmount);
   const healed = nextHp - baseHp;
 
@@ -341,8 +351,8 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
   }
 
   let rewardChoices: string[] = [];
-  if (!isBoss) {
-    if (run.currentBattleElite) {
+  if (!finalBoss) {
+    if (run.currentBattleElite || actCleared) {
       const rare = pickRarePool(run, rewardSeed)[0];
       const others = pickRewardPool(run, rewardSeed + 1, REWARD_CARD_IDS.length).filter((id) => id !== rare).slice(0, 2);
       rewardChoices = [rare, ...others];
@@ -350,7 +360,6 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
       rewardChoices = pickRewardPool(run, rewardSeed);
     }
   }
-
   // 倒した敵1体ごとに20%で解析コインがドロップ(エリート敵は確定1枚)
   let coinsDropped = 0;
   if (!isBoss) {
@@ -371,24 +380,48 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
       coinsDropped += 1;
     }
   }
+  if (run.relics.includes('echo_defense')) coinsDropped = Math.max(0, coinsDropped - 1);
 
   return {
     run: {
       ...run,
-      status: isBoss ? 'won' : run.status,
+      status: finalBoss ? 'won' : run.status,
+      intermission: actCleared ? { step: 'cleared' } : run.intermission,
       hp: nextHp,
       deck,
       tools: [...battle.tools],
       reconCoins: run.reconCoins + coinsDropped,
       currentBattleElite: false,
       // ボスに勝てばランは終わりなので、Lv.3 に届いても進化先は選ばせない(結果画面へそのまま進む)
-      pendingEvolutions: isBoss ? [] : pendingEvolutions,
+      pendingEvolutions: finalBoss ? [] : pendingEvolutions,
     },
     xpGains,
     rewardChoices,
     healed,
     coinsDropped,
   };
+}
+
+export function arriveAtEcho(run: RunState, seed: number): RunState {
+  if (run.intermission?.step !== 'cleared' || run.pendingEvolutions.length) throw new Error('第1層の報酬処理を完了してください');
+  const choices = shuffled(ECHO_RELIC_IDS.filter((id) => !run.relics.includes(id)), seed).items.slice(0, 3);
+  return { ...run, hp: run.maxHp, intermission: { step: 'echo', choices, previousHp: run.hp } };
+}
+
+export function selectEchoRelic(run: RunState, relicId: RelicId): RunState {
+  if (run.intermission?.step !== 'echo' || !run.intermission.choices?.includes(relicId)) {
+    throw new Error('ECHOの権限はこのイベントで1回だけ選べます');
+  }
+  const selected = grantRelic(run, relicId);
+  const maxHp = relicId === 'echo_repair' ? Math.max(1, run.maxHp - ECHO_HP_COST) : run.maxHp;
+  return { ...selected, maxHp, hp: Math.min(maxHp, run.hp), intermission: { ...run.intermission, step: 'accepted', relicId } };
+}
+
+export function enterDeepNetwork(run: RunState, seed: number): RunState {
+  if (run.act === 2 || run.intermission?.step !== 'accepted') throw new Error('ECHOの権限を選んでください');
+  const map = generateRunMap(seed, 2);
+  return { ...run, act: 2, map, mapSeed: seed, currentNodeId: map.startId,
+    visitedNodeIds: [map.startId], shopCardActionNodeIds: [], startBonusChoices: [] };
 }
 
 /** 解析コインを1枚消費してイベントの事前調査を実行する */
@@ -473,6 +506,7 @@ export function spendCoinShop(run: RunState, action: CoinShopAction): RunState {
         reconCoins: run.reconCoins - 2,
       };
     case 'relic':
+      if (ECHO_RELIC_IDS.includes(action.relicId)) throw new Error('ECHO専用の権限です');
       if (run.reconCoins < 3) throw new Error('解析コインが足りません');
       if (run.relics.includes(action.relicId)) throw new Error('すでに所持しています');
       return {
@@ -516,9 +550,17 @@ export function pickRewardCard(run: RunState, defId: string | null): RunState {
 /** イベントマスの問題を1問選ぶ(同じランで同じ問題は出さない) */
 export function pickEventQuestion(run: RunState, eventId: RunEventId, seed: number): DeckQuizQuestion {
   const prefix = eventId === 'vuln_check' ? 'TYPE A' : 'TYPE B';
+  if (run.act === 2) {
+    const unused = DEEP_QUESTIONS.filter((question) => !run.askedQuestionIds.includes(question.id));
+    const advanced = unused.filter((question) => DEEP_QUESTIONS.indexOf(question) >= 5);
+    const early = unused.filter((question) => DEEP_QUESTIONS.indexOf(question) < 5);
+    const preferred = getCurrentFloor(run) >= 7 ? advanced : early;
+    if (unused.length) return shuffled(preferred.length ? preferred : unused, seed).items[0];
+  }
   const pool = getQuizQuestionsByType(prefix);
   const unused = pool.filter((q) => !run.askedQuestionIds.includes(q.id));
-  const candidates = unused.length > 0 ? unused : pool;
+  const candidates = unused.length > 0 ? unused : [...getQuizQuestionsByType('TYPE A'), ...getQuizQuestionsByType('TYPE B')]
+    .filter((q) => !run.askedQuestionIds.includes(q.id));
   if (candidates.length === 0) {
     throw new Error(`no quiz questions found for ${prefix}`);
   }
@@ -712,8 +754,9 @@ export function applyRestAction(run: RunState, action: RestAction): { run: RunSt
 
 /** ハプニングマスで発生するイベントを1つ選ぶ(同じラン内では重複を避ける) */
 export function pickMysteryEvent(run: RunState, seed: number): MysteryEventId {
-  const unseen = ALL_MYSTERY_EVENT_IDS.filter((id) => !run.seenMysteryIds.includes(id));
-  const pool = unseen.length > 0 ? unseen : ALL_MYSTERY_EVENT_IDS;
+  const events: readonly MysteryEventId[] = run.act === 2 ? DEEP_MYSTERIES : ALL_MYSTERY_EVENT_IDS;
+  const unseen = events.filter((id) => !run.seenMysteryIds.includes(id));
+  const pool = unseen.length > 0 ? unseen : [...events];
   return shuffled(pool, seed).items[0];
 }
 
@@ -728,6 +771,18 @@ export function resolveMysteryChoice(
     ...run,
     seenMysteryIds: run.seenMysteryIds.includes(eventId) ? run.seenMysteryIds : [...run.seenMysteryIds, eventId],
   };
+  if (eventId === 'echo_quarantine') return choiceId === 'repair'
+    ? { run: { ...baseRun, hp: Math.min(run.maxHp, run.hp + 12) }, summary: '隔離区画で回線耐久を最大12修復した。' }
+    : { run: { ...baseRun, reconCoins: run.reconCoins + 2 }, summary: '区画を封鎖し、解析コイン2枚を回収した。' };
+  if (eventId === 'echo_archive') {
+    if (choiceId !== 'restore') return { run: baseRun, summary: 'アーカイブを閉じた。' };
+    const id = pickRewardPool(run, seed, 1)[0];
+    return { run: pickRewardCard({ ...baseRun, hp: Math.max(1, run.hp - 8) }, id),
+      summary: `HPを最大8支払い、「${getCardDefinition(id).name}」を入手した。`, discoveredCardId: id };
+  }
+  if (eventId === 'echo_exchange') return choiceId === 'exchange' && run.reconCoins > 0
+    ? { run: { ...baseRun, reconCoins: run.reconCoins - 1, hp: Math.min(run.maxHp, run.hp + 18) }, summary: '解析コイン1枚で回線耐久を最大18修復した。' }
+    : { run: baseRun, summary: '交換せずに立ち去った。' };
 
   if (eventId === 'dark_zero_day') {
     if (choiceId === 'buy_rare') {

@@ -2,9 +2,9 @@
 // すべて「今の状態を受け取って、新しい状態を返す」純粋な関数。画面からもテストからも同じように呼ぶ。
 import { CARD_DEFINITIONS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
-import { ADAPTIVE_FILTER_FW, RELIC_DEFINITIONS, THERMAL_CORE_BURN, THORN_DAEMON_RETALIATE } from './relics';
+import { ADAPTIVE_FILTER_FW, ECHO_OVERCLOCK_HP, RELIC_DEFINITIONS, THERMAL_CORE_BURN, THORN_DAEMON_RETALIATE } from './relics';
 import { SECURITY_ATTACK_BONUS, SECURITY_BOSS_ATTACK_BONUS } from './roguelike';
-import { shuffled } from './rng';
+ import { shuffled } from './rng';
 import { TOOL_DEFINITIONS } from './tools';
 import type {
   BattleLogActor,
@@ -72,13 +72,15 @@ export function hasReachedCardTurnLimit(state: BattleState, card: CardInstance):
 /** 「次のカード−1EN」を考えた、今このカードを使うのに必要な帯域 */
 export function getPlayCost(state: BattleState, uid: string): number {
   const card = state.cards[uid];
-  return Math.max(0, getCardStats(card).cost - state.modifiers.nextCardDiscount);
+  const firstCardDiscount = state.relics.includes('echo_analysis') && !state.playedThisTurn?.length ? 1 : 0;
+  return Math.max(0, getCardStats(card).cost - state.modifiers.nextCardDiscount - firstCardDiscount);
 }
 
 // ---------- 敵 ----------
 
 function currentPattern(enemy: EnemyState): EnemyMove[] {
   const def = ENEMY_DEFINITIONS[enemy.defId];
+  if (enemy.phase === 3 && def.phase3) return def.phase3.pattern;
   return enemy.phase === 2 && def.phase2 ? def.phase2.pattern : def.pattern;
 }
 
@@ -99,9 +101,13 @@ export function getEnemyIntent(enemy: EnemyState): EnemyMove {
   const pattern = currentPattern(enemy);
   const move = pattern[enemy.moveIndex % pattern.length];
   const factor = enemy.jammed && enemy.jammed > 0 ? 0.7 : 1;
-  if (move.type === 'attack') {
-    // 高難度の上乗せは1回の攻撃ぶん。連撃では1発あたりに分ける(切り上げ)。1発ごとに足すと連撃の敵だけ極端に強くなるため
-    const security = Math.ceil(enemy.securityBonus / (move.hits ?? 1));
+  if (move.type === 'watch') {
+    return { ...move, amount: Math.floor((move.amount + enemy.attackBonus + enemy.securityBonus) * factor),
+      extra: Math.floor(move.extra * factor) };
+  }
+  if (move.type === 'attack' || move.type === 'mirror') {
+    // 高難度の上乗せは連撃の各ヒットに分配する。
+    const security = Math.ceil(enemy.securityBonus / (move.type === 'attack' ? move.hits ?? 1 : 1));
     return { ...move, amount: Math.floor((move.amount + enemy.attackBonus + security) * factor) };
   }
   if (move.type === 'blockAttack') {
@@ -177,6 +183,11 @@ export function createBattle({
     cards[noiseUid] = { uid: noiseUid, defId: 'noise', level: 1, xp: 0 };
     discard.push(noiseUid);
   }
+  if (relics.includes('echo_analysis')) {
+    const uid = `n${nextUid++}`;
+    cards[uid] = { uid, defId: 'noise', level: 1, xp: 0 };
+    drawPile.unshift(uid);
+  }
 
   const state: BattleState = {
     status: 'playing',
@@ -186,11 +197,11 @@ export function createBattle({
       maxHp: playerMaxHp,
       block: 0,
       energy: 0,
-      maxEnergy: ENERGY_PER_TURN,
+      maxEnergy: ENERGY_PER_TURN + Number(relics.includes('echo_bandwidth')) - Number(relics.includes('echo_compression')),
       retaliate: 0,
       energyPenalty: 0,
-      turnBlockBonus: relics.includes('encrypted_vpn') ? 3 : 0,
-      turnDrawBonus: relics.includes('packet_cache') ? 1 : 0,
+      turnBlockBonus: (relics.includes('encrypted_vpn') ? 3 : 0) + (relics.includes('echo_defense') ? 6 : 0),
+      turnDrawBonus: Number(relics.includes('packet_cache')) + (relics.includes('echo_compression') ? 2 : 0),
       turnEnergyBonus: relics.includes('zero_trust_key') ? 1 : 0,
       turnAttackBonus: relics.includes('auto_scraper') ? 3 : 0,
     },
@@ -256,8 +267,8 @@ function startPlayerTurn(state: BattleState): void {
   state.playedThisTurn = [];
   state.attacksThisTurn = 0;
   state.player.block = state.player.turnBlockBonus;
-  const firstTurnBonusEnergy = state.turn === 1 && state.relics.includes('overclock_bus') ? 2 : 0;
-  const firstTurnBonusDraw = state.turn === 1 && state.relics.includes('overclock_bus') ? 1 : 0;
+  const firstTurnBonusEnergy = state.turn === 1 ? 2 * (Number(state.relics.includes('overclock_bus')) + Number(state.relics.includes('echo_overclock'))) : 0;
+  const firstTurnBonusDraw = state.turn === 1 ? Number(state.relics.includes('overclock_bus')) - Number(state.relics.includes('echo_bandwidth')) : 0;
   state.player.energy = Math.max(
     0,
     state.player.maxEnergy + state.player.turnEnergyBonus + firstTurnBonusEnergy - state.player.energyPenalty,
@@ -303,7 +314,21 @@ function updatePhases(state: BattleState): void {
     if (enemy.hp > 0 && enemy.phase === 1 && def.phase2 && enemy.hp <= enemy.maxHp * def.phase2.hpRatio) {
       enemy.phase = 2;
       enemy.moveIndex = 0;
+      if (def.summon) {
+        const support = ENEMY_DEFINITIONS[def.summon];
+        state.enemies.push({
+          uid: `${enemy.uid}-support`, defId: support.id, name: support.name, icon: support.icon,
+          hp: support.maxHp, maxHp: support.maxHp, block: 0, weakness: support.weakness,
+          attackBonus: 0, securityBonus: Math.min(enemy.securityBonus, SECURITY_ATTACK_BONUS), moveIndex: 0, phase: 1,
+        });
+        addLog(state, `${enemy.name} が ${support.name} を召喚した。`, 'bad', 'enemy');
+      }
       addLog(state, `${enemy.name} が本気を出した!行動が変わる。`, 'bad', 'enemy');
+    }
+    if (enemy.hp > 0 && enemy.phase === 2 && def.phase3 && enemy.hp <= enemy.maxHp * def.phase3.hpRatio) {
+      enemy.phase = 3;
+      enemy.moveIndex = 0;
+      addLog(state, `${enemy.name} が最終防衛へ移行した。`, 'bad', 'enemy');
     }
   }
 }
@@ -614,15 +639,24 @@ export function endTurn(prev: BattleState): BattleState {
   state.discard.push(...state.hand);
   state.hand = [];
   state.lastEnemyActions = [];
+  if (state.turn === 1 && state.relics.includes('echo_overclock')) {
+    const damage = Math.min(Math.max(0, state.player.hp - 1), ECHO_OVERCLOCK_HP);
+    state.player.hp -= damage;
+    if (damage) {
+      recordAction(state, { kind: 'hazard', enemyUid: '', damage });
+      addLog(state, `オーバークロック装置: HP−${damage}。`, 'bad');
+    }
+  }
 
   for (const enemy of state.enemies) {
     if (enemy.hp <= 0 || state.status !== 'playing') continue;
     // 敵のファイアウォールは、その敵の次の行動の前に消える
     enemy.block = 0;
+    const phase = enemy.phase;
     const move = getEnemyIntent(enemy);
     runEnemyMove(state, enemy, move);
     const pattern = currentPattern(enemy);
-    enemy.moveIndex = (enemy.moveIndex + 1) % pattern.length;
+    if (enemy.phase === phase) enemy.moveIndex = (enemy.moveIndex + 1) % pattern.length;
     if (state.player.hp <= 0) {
       state.player.hp = 0;
       state.status = 'lost';
@@ -673,6 +707,33 @@ function battleSnapshot(state: BattleState): BattleSnapshot {
 function runEnemyMove(state: BattleState, enemy: EnemyState, move: EnemyMove): void {
   const push = (event: EnemyActionKind) => recordAction(state, event);
   switch (move.type) {
+    case 'watch':
+      enemyAttack(state, enemy, move.amount, 1);
+      if (enemy.hp > 0 && state.player.hp > 0 && (state.playedThisTurn?.length ?? 0) >= move.threshold) {
+        enemyAttack(state, enemy, move.extra, 1);
+      }
+      break;
+    case 'mirror': {
+      const defenses = state.playedThisTurn?.filter((uid) => CARD_DEFINITIONS[state.cards[uid]?.defId]?.kind === 'defense').length ?? 0;
+      if ((state.attacksThisTurn ?? 0) <= defenses) enemyAttack(state, enemy, move.amount, 1);
+      else runEnemyMove(state, enemy, { type: 'block', amount: move.block });
+      break;
+    }
+    case 'support': {
+      const allies = livingEnemies(state).filter((ally) => ally.uid !== enemy.uid);
+      if (!allies.length) {
+        runEnemyMove(state, enemy, { type: 'block', amount: move.block });
+        break;
+      }
+      for (const ally of allies) {
+        ally.hp = Math.min(ally.maxHp, ally.hp + move.heal);
+        ally.block += move.block;
+        ally.attackBonus += move.buff;
+        push({ kind: 'block', enemyUid: ally.uid, amount: move.block });
+      }
+      addLog(state, `${enemy.name} が味方を修復・強化した。`, 'bad', 'enemy');
+      break;
+    }
     case 'blockAttack':
       enemy.block += move.block;
       push({ kind: 'block', enemyUid: enemy.uid, amount: move.block });
@@ -696,11 +757,13 @@ function runEnemyMove(state: BattleState, enemy: EnemyState, move: EnemyMove): v
       push({ kind: 'detect', enemyUid: enemy.uid, amount: move.amount });
       addLog(state, `${enemy.name} → あなた：検知、次のターンの帯域−${move.amount}`, 'bad', 'enemy', 'status');
       break;
+    case 'interfere':
     case 'noise':
       for (let i = 0; i < move.count; i++) {
         const uid = `noise-${state.nextUid++}`;
         state.cards[uid] = { uid, defId: 'noise', level: 1, xp: 0 };
-        state.discard.push(uid);
+        if (move.type === 'interfere') state.drawPile.unshift(uid);
+        else state.discard.push(uid);
       }
       push({ kind: 'noise', enemyUid: enemy.uid, count: move.count });
       addLog(state, `${enemy.name} → あなた：ノイズ${move.count}枚`, 'bad', 'enemy', 'status');

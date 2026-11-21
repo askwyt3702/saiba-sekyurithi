@@ -17,6 +17,23 @@ export function describeEnemyGroup(enemyIds: string[]): string {
 }
 
 export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
+  watcher: { id: 'watcher', name: 'WATCHER // 監視ドローン', icon: 'scannerBot', maxHp: 48, weakness: 'burn',
+    pattern: [{ type: 'watch', amount: 9, extra: 6, threshold: 4 }, { type: 'attack', amount: 12 }] },
+  bulwark: { id: 'bulwark', name: 'BULWARK // 防衛ユニット', icon: 'firewallAi', maxHp: 68, weakness: 'pierce',
+    pattern: [{ type: 'block', amount: 15 }, { type: 'blockAttack', block: 13, amount: 8 }, { type: 'blockAttack', block: 10, amount: 20 }] },
+  repair_node: { id: 'repair_node', name: 'REPAIR NODE // 修復プロセス', icon: 'idsSensor', maxHp: 31, weakness: 'all',
+    pattern: [{ type: 'support', heal: 7, block: 4, buff: 1 }, { type: 'attack', amount: 7 }] },
+  null_process: { id: 'null_process', name: 'NULL PROCESS // 無効化プロセス', icon: 'idsSensor', maxHp: 42, weakness: 'pierce',
+    pattern: [{ type: 'interfere', count: 1 }, { type: 'attack', amount: 12 }, { type: 'noise', count: 2 }] },
+  guardian_proxy: { id: 'guardian_proxy', name: 'GUARDIAN PROXY // 門番代理', icon: 'zeroTrustGate', maxHp: 138, weakness: 'pierce',
+    pattern: [{ type: 'blockAttack', block: 25, amount: 11 }, { type: 'block', amount: 20 }, { type: 'blockAttack', block: 12, amount: 28 }] },
+  mirror_daemon: { id: 'mirror_daemon', name: 'MIRROR DAEMON // 模倣デーモン', icon: 'zeroTrustGate', maxHp: 126, weakness: 'multi',
+    pattern: [{ type: 'mirror', amount: 19, block: 19 }, { type: 'attack', amount: 13, hits: 2 }] },
+  nexus: { id: 'nexus', name: 'NEXUS // 統合防衛中枢', icon: 'argus', maxHp: 305, weakness: 'all',
+    pattern: [{ type: 'attack', amount: 18 }, { type: 'blockAttack', block: 24, amount: 10 }, { type: 'interfere', count: 1 }],
+    phase2: { hpRatio: .65, pattern: [{ type: 'attack', amount: 11, hits: 2 }, { type: 'interfere', count: 2 }, { type: 'blockAttack', block: 18, amount: 14 }] },
+    phase3: { hpRatio: .28, pattern: [{ type: 'attack', amount: 33 }, { type: 'block', amount: 26 }, { type: 'attack', amount: 12, hits: 2 }] },
+    summon: 'repair_node' },
   scanner_bot: {
     id: 'scanner_bot',
     name: 'スキャナーbot',

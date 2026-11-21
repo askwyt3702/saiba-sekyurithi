@@ -179,8 +179,8 @@ export function RunMapView({ run, onChoose, onClose }: RunMapViewProps) {
       ))}
       <section className="rm-panel rm-map-panel">
         <header className="rm-head">
-          <h2 className="rm-label">ルートマップ</h2>
-          <strong className="rm-floor">{current.floor + 1} / {MAP_TOTAL_FLOORS} 階層</strong>
+          <h2 className="rm-label">{run.act === 2 ? 'ACT 02 // DEEP NETWORK · 深層ネットワーク' : 'ACT 01 // ルートマップ'}</h2>
+          <strong className="rm-floor">FLOOR {current.floor + 1} / {run.map.floorCount}</strong>
           <button type="button" className="db-btn db-btn--ghost" onClick={() => reveal(current.floor)}>
             <GameIcon name="target" /> 現在地へ戻る
           </button>

@@ -56,7 +56,16 @@ export const BOSS_ENEMY_IDS = ['argus', 'aegis_omega', 'hydra_net'];
 const nodeId = (floor: number, col: number) => `${floor}-${col}`;
 
 /** 種から分岐マップを作る(同じ種なら同じマップ) */
-export function generateRunMap(seed: number): RunMap {
+const DEEP_PLAN = FLOOR_PLAN.map((floor, index): FloorPlan => floor.fixed ? floor : ({
+  ...floor,
+  battles: index < 4 ? [['watcher'], ['bulwark'], ['null_process'], ['watcher', 'repair_node']]
+    : [['bulwark', 'repair_node'], ['watcher', 'null_process'], ['bulwark', 'watcher'], ['null_process', 'repair_node']],
+  elites: [['guardian_proxy'], ['mirror_daemon']],
+  weights: index >= 4 && index !== 7 ? { ...floor.weights, elite: 22, mystery: 19 } : floor.weights,
+}));
+
+export function generateRunMap(seed: number, act: 1 | 2 = 1): RunMap {
+  const floorPlan = act === 2 ? DEEP_PLAN : FLOOR_PLAN;
   let state = seed;
   const rand = () => {
     const r = nextRandom(state);
@@ -115,7 +124,7 @@ export function generateRunMap(seed: number): RunMap {
   }
 
   // 最後の段から、ランダム選出された1体のボスへ全部つなぐ
-  const pickedBossId = pick(BOSS_ENEMY_IDS);
+  const pickedBossId = act === 2 ? 'nexus' : pick(BOSS_ENEMY_IDS);
   const boss: RunNode & { prev: string[] } = { id: 'boss', floor: MAP_FLOORS, col: CENTER, kind: 'boss', next: [], prev: [], enemyIds: [pickedBossId] };
   nodes[boss.id] = boss;
   for (const n of Object.values(nodes)) {
@@ -133,7 +142,7 @@ export function generateRunMap(seed: number): RunMap {
     .filter((n) => n.id !== boss.id)
     .sort((a, b) => a.floor - b.floor || a.col - b.col);
   for (const n of order) {
-    const plan = FLOOR_PLAN[n.floor];
+    const plan = floorPlan[n.floor];
     const parents = n.prev.map((id) => nodes[id]);
     if (plan.fixed) {
       n.kind = plan.fixed;
@@ -145,9 +154,9 @@ export function generateRunMap(seed: number): RunMap {
       // 戦闘は3回続かない
       if (Math.max(0, ...parents.map((p) => streak[p.id] ?? 0)) >= 2) weights = weights.filter(([k]) => k !== 'battle');
       // 補給(闇市)の段の直後は休憩にしない
-      if (FLOOR_PLAN[n.floor - 1]?.fixed === 'shop') weights = weights.filter(([k]) => k !== 'rest');
+      if (floorPlan[n.floor - 1]?.fixed === 'shop') weights = weights.filter(([k]) => k !== 'rest');
       // 補給の段の手前までに、どの道でもクイズを1回は通る
-      if (FLOOR_PLAN[n.floor + 1]?.fixed === 'shop' && Math.min(...parents.map((p) => quizMin[p.id] ?? 0)) === 0) {
+      if (floorPlan[n.floor + 1]?.fixed === 'shop' && Math.min(...parents.map((p) => quizMin[p.id] ?? 0)) === 0) {
         weights = [['event', 1]];
       }
       const total = weights.reduce((s, [, w]) => s + w, 0);
