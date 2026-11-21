@@ -78,6 +78,7 @@ import type {
   BattleSnapshot,
   CardInstance,
   CardKind,
+  CardStats,
   EnemyActionEvent,
   EnemyMove,
   EnemyState,
@@ -91,7 +92,7 @@ import type {
   XpGainEntry,
 } from '../../game/deckbattle/types';
 import { bgm, isBgmEnabled, setBgmEnabled } from '../../game/sound/bgm';
-import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
+import { isSoundEnabled, playSound, setSoundEnabled, type SoundEffectType } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
 import { RunMapView } from './RunMapView';
 import { OracleEncounter } from './OracleEncounter';
@@ -147,6 +148,28 @@ interface ActionBanner {
   lore?: string;
   isAoe?: boolean;
   power?: FxPower;
+  sound?: SoundEffectType;
+}
+
+function soundForCard(kind: CardKind, stats: CardStats): SoundEffectType {
+  const effects = stats.effects;
+  const hasBurn = effects.some((e) => e.type === 'burn' || e.type === 'triggerBurn');
+  const hasDebuff = effects.some(
+    (e) => e.type === 'vulnerable' || e.type === 'jam' || e.type === 'clearEnemyBuff',
+  );
+  const hasArmorBreak = effects.some(
+    (e) =>
+      e.type === 'stripBlock' ||
+      e.type === 'shieldBash' ||
+      (e.type === 'damage' && e.pierce && e.amount >= 12),
+  );
+  if (hasBurn) return 'burn';
+  if (hasDebuff) return 'debuff';
+  if (kind === 'attack') {
+    return hasArmorBreak ? 'breach' : 'strike';
+  }
+  if (kind === 'defense') return 'recover';
+  return 'scan';
 }
 
 const HEAVY_DAMAGE_THRESHOLD = 12;
@@ -874,7 +897,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         if (action.kind === 'attack' && frame.damageKind !== 'burn') {
           pushFx([{ at: 'player-launch', text: '', tone: 'buff', power }], PLAYER_POSE_MS);
         }
-        playSound(action.kind === 'attack' ? 'breach' : action.kind === 'defense' ? 'recover' : 'scan');
+        const hitSound: SoundEffectType =
+          frame.damageKind === 'burn'
+            ? 'burn'
+            : (action.sound ?? (action.kind === 'attack' ? 'strike' : action.kind === 'defense' ? 'recover' : 'scan'));
+        playSound(hitSound);
         const title = frame.damageKind === 'burn' ? '過熱ダメージ'
           : events.length > 1 ? `${action.title} · ${next + 1}/${events.length}` : action.title;
         showBanner({ ...action, title, power }, finalFrame && action.command ? 1850 : events.length > 1 ? HIT_STEP_MS : FX_MS);
@@ -887,7 +914,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       const previousHp = playback.events[index]?.after.playerHp ?? base.player.hp;
       const ev = event.kind === 'attack' ? { ...event, damage: previousHp - event.after.playerHp } : event;
       if (ev.kind === 'attack') playSound(ev.damage > 0 ? 'alert' : 'recover');
-      else if (ev.kind === 'burn' || ev.kind === 'retaliate') playSound('breach');
+      else if (ev.kind === 'burn') playSound('burn');
+      else if (ev.kind === 'retaliate') playSound('breach');
+      else if (ev.kind === 'detect' || ev.kind === 'noise') playSound('debuff');
+      else if (ev.kind === 'block') playSound('recover');
       else playSound('scan');
       pushFx(fxForEvent(ev));
       showBanner(bannerForEnemyEvent(ev, base), ev.kind === 'attack' && ev.hits > 1 ? HIT_STEP_MS : ENEMY_STEP_MS);
@@ -1121,6 +1151,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       command: telemetry.command,
       lore: def.lore,
       isAoe,
+      sound: soundForCard(kind, stats),
     };
     const enemy = targetUid ?? livingEnemies(battle)[0]?.uid;
     launchCard(uid, kind === 'attack' && enemy ? enemy : 'player');
@@ -1202,6 +1233,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         icon: toolDef?.icon ?? 'heal',
         title: toolDef?.name ?? 'ツール',
         detail: toolDef?.description,
+        sound: usedToolId === 'jammer' ? 'debuff' : usedToolId === 'patch' ? 'recover' : 'scan',
       },
     });
     setRun((prev) => ({ ...prev, tools: [...res.state.tools] }));
