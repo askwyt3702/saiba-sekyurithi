@@ -33,6 +33,7 @@ const htp = load(new URL('../src/game/deckbattle/howToPlay.ts', import.meta.url)
 const battle = load(new URL('../src/game/deckbattle/battle.ts', import.meta.url));
 const run = load(new URL('../src/game/deckbattle/run.ts', import.meta.url));
 const rogue = load(new URL('../src/game/deckbattle/roguelike.ts', import.meta.url));
+const mapMod = load(new URL('../src/game/deckbattle/map.ts', import.meta.url));
 
 const allText = (pages) => pages.map((p) => [p.title, p.lead, ...p.items.map((i) => `${i.term} ${i.text}`)].join('\n')).join('\n');
 
@@ -55,14 +56,15 @@ test('説明の数値はルールの定数から作られている', () => {
   const hps = Object.values(rogue.LOADOUT_DEFINITIONS).map((l) => l.maxHp);
   assert.ok(text.includes(`${Math.min(...hps)}〜${Math.max(...hps)}`), '最大HPは初期ビルドの範囲で書く');
   assert.ok(text.includes(`${run.STARTING_RECON_COINS}枚で始まり`));
-  assert.ok(text.includes(`${run.DEFAULT_RUN_NODES.length}つのマス`));
+  assert.ok(text.includes(`${mapMod.MAP_TOTAL_FLOORS}段目の監視AI`));
+  assert.ok(text.includes(`強化を${run.START_BONUS_CHOICES}つから1つ`));
 });
 
-test('マスの順番の説明に、すべてのマスが出てくる', () => {
-  const route = htp.buildHowToPlayPages()[0].items.find((i) => i.term === 'マスの順番').text;
-  run.DEFAULT_RUN_NODES.forEach((_, index) => assert.ok(route.includes(`${index + 1}. `), `${index + 1}番目のマス`));
-  assert.ok(route.includes('闇市'));
-  assert.ok(route.includes('ボス'));
+test('マップの説明に、段の役割(起動ノード・闇市・休憩・ボス)がすべて出てくる', () => {
+  const text = htp.buildHowToPlayPages()[0].items.find((i) => i.term === 'マップ').text;
+  for (const word of ['起動ノード', '序盤', '中盤', '全部が闇市', '終盤', '全部が休憩', 'ボス']) assert.ok(text.includes(word), word);
+  // 段の範囲は map.ts の段の数と合っている
+  assert.ok(text.includes(`${mapMod.MAP_TOTAL_FLOORS}段目:ボス`));
 });
 
 test('説明に必要な用語がそろっている', () => {

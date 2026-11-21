@@ -52,8 +52,19 @@ function play(state, uid, target) {
   return r.state;
 }
 
+/** ランを、マップの中で条件に合う一番下のマスに置く(起動ノードの強化は選び終わった扱い) */
+function atNode(r, match) {
+  const node = Object.values(r.map.nodes)
+    .filter(match)
+    .sort((a, b) => a.floor - b.floor || a.col - b.col)[0];
+  assert.ok(node, 'マップに条件に合うマスがない');
+  return { ...r, currentNodeId: node.id, startBonusChoices: [], currentBattleElite: node.kind === 'elite' };
+}
+const isScannerBattle = (n) => n.kind === 'battle' && n.enemyIds[0] === 'scanner_bot' && n.enemyIds.length === 1;
+const isKind = (kind) => (n) => n.kind === kind;
+
 test('戦闘開始:手札・帯域・山札は定数どおり、敵は定義どおりのHP', () => {
-  const r = run.createRun();
+  const r = atNode(run.createRun(), isScannerBattle);
   assert.equal(r.deck.length, 10);
   const s = run.createBattleForCurrentNode(r, 42);
   assert.equal(s.hand.length, battle.DRAW_PER_TURN);
@@ -65,7 +76,7 @@ test('戦闘開始:手札・帯域・山札は定数どおり、敵は定義ど�
 });
 
 test('同じ種から作った戦闘は、同じ手札になる', () => {
-  const r = run.createRun();
+  const r = atNode(run.createRun(), isScannerBattle);
   const a = run.createBattleForCurrentNode(r, 7);
   const b = run.createBattleForCurrentNode(r, 7);
   assert.equal(a.hand.join(','), b.hand.join(','));
@@ -362,20 +373,21 @@ test('試用高速成長モードでは1回使うだけで即Lv.3になり進化
 });
 
 test('同じSSH辞書攻撃2枚を別々の進化先にでき、進化を選び終わるまで次のマスに進めない', () => {
-  let r = run.createRun({ fastGrowth: false });
+  let r = { ...run.createRun({ fastGrowth: false }), startBonusChoices: [] };
+  const nextId = run.getNextNodes(r)[0].id;
   // c1, c2 に経験値+5を付与してどちらもLv.3にする
   r.deck[0] = { ...r.deck[0], xp: 5, level: 3 };
   r.deck[1] = { ...r.deck[1], xp: 5, level: 3 };
   r.pendingEvolutions = ['c1', 'c2'];
 
-  assert.throws(() => run.advanceToNextNode(r));
+  assert.throws(() => run.moveToNode(r, nextId), /進化先/);
   r = run.chooseEvolution(r, 'c1', 'ssh_rapid');
-  assert.throws(() => run.advanceToNextNode(r));
+  assert.throws(() => run.moveToNode(r, nextId), /進化先/);
   r = run.chooseEvolution(r, 'c2', 'ssh_breaker');
   assert.equal(r.pendingEvolutions.length, 0);
 
-  const next = run.advanceToNextNode(r);
-  assert.equal(next.nodeIndex, 1);
+  const next = run.moveToNode(r, nextId);
+  assert.equal(next.currentNodeId, nextId);
   assert.equal(next.deck[0].branchId, 'ssh_rapid');
   assert.equal(next.deck[1].branchId, 'ssh_breaker');
 
@@ -452,8 +464,7 @@ test('イベントの事前調査で除外される選択肢は必ず不正解�
 });
 
 test('最後のマスのボス(ARGUS)に勝つとラン勝利になる', () => {
-  const r = run.createRun({ fastGrowth: false });
-  r.nodeIndex = r.nodes.length - 1;
+  const r = atNode(run.createRun({ fastGrowth: false }), isKind('boss'));
   const b = run.createBattleForCurrentNode(r, 11);
   b.status = 'won';
   const res = run.applyBattleResult(r, b, 12);
@@ -490,11 +501,10 @@ test('解析コンボ:補助カード後に攻撃カードを使うと1ターン
 
 test('適応型フィルターは購入後の戦闘で、解析コンボに1ターン1回だけFWを追加する', () => {
   const base = { ...run.createRun(), reconCoins: 3 };
-  const beforePurchase = run.createBattleForCurrentNode(base, 1);
-  const atShop = { ...base, nodeIndex: base.nodes.findIndex((node) => node.kind === 'shop') };
+  const beforePurchase = run.createBattleForCurrentNode(atNode(base, isScannerBattle), 1);
+  const atShop = atNode(base, isKind('shop'));
   const purchased = run.spendCoinShop(atShop, { type: 'relic', relicId: 'adaptive_filter' });
-  const nextBattleIndex = purchased.nodes.findIndex((node, index) => index > purchased.nodeIndex && node.kind === 'battle');
-  let s = run.createBattleForCurrentNode({ ...purchased, nodeIndex: nextBattleIndex }, 1);
+  let s = run.createBattleForCurrentNode(atNode(purchased, isScannerBattle), 1);
   assert.equal(beforePurchase.relics.includes('adaptive_filter'), false);
   assert.equal(purchased.reconCoins, 0);
   const utility = purchased.deck.find((card) => card.defId === 'port_scan').uid;
@@ -546,10 +556,9 @@ test('パッシブ装備(暗号化VPN・ゼロトラスト鍵・パケットキ�
 });
 
 test('エリートルート(ゼロトラストゲート)はEXP2倍＆レアカード確定報酬になる', () => {
-  let r = run.createRun({ fastGrowth: false });
-  r.nodeIndex = r.nodes.findIndex((node) => node.kind === 'battle' && node.eliteEnemyIds);
-  r.currentBattleElite = true;
-  const b = run.createBattleForCurrentNode(r, 5, true);
+  const r = atNode(run.createRun({ fastGrowth: false }), isKind('elite'));
+  assert.equal(r.currentBattleElite, true);
+  const b = run.createBattleForCurrentNode(r, 5);
   assert.equal(b.enemies[0].defId, 'zero_trust_gate');
   b.status = 'won';
   b.usesThisBattle = { c1: 1 }; // 通常2EXP -> エリートで4EXP
@@ -568,9 +577,8 @@ test('解析コインは敵撃破時に約20%・エリート撃破で確定ド�
   assert.throws(() => run.spendReconCoin({ ...baseRun, reconCoins: 0 }));
 
   // エリート撃破は確定+1
-  const eliteIndex = baseRun.nodes.findIndex((node) => node.kind === 'battle' && node.eliteEnemyIds);
-  const eliteRun = { ...baseRun, nodeIndex: eliteIndex, currentBattleElite: true };
-  const eliteBattle = run.createBattleForCurrentNode(eliteRun, 1, true);
+  const eliteRun = atNode(baseRun, isKind('elite'));
+  const eliteBattle = run.createBattleForCurrentNode(eliteRun, 1);
   eliteBattle.status = 'won';
   eliteBattle.enemies.forEach((e) => { e.hp = 0; });
   const eliteRes = run.applyBattleResult(eliteRun, eliteBattle, 5);
@@ -582,11 +590,12 @@ test('解析コインは敵撃破時に約20%・エリート撃破で確定ド�
 
   // 通常戦闘100回シミュレーションでドロップ率が20%前後になることを確認
   let drops = 0;
+  const battleRun = atNode(baseRun, isScannerBattle);
   for (let seed = 1; seed <= 100; seed++) {
-    const b = run.createBattleForCurrentNode(baseRun, seed);
+    const b = run.createBattleForCurrentNode(battleRun, seed);
     b.status = 'won';
     b.enemies.forEach((e) => { e.hp = 0; });
-    drops += run.applyBattleResult(baseRun, b, seed * 7).coinsDropped;
+    drops += run.applyBattleResult(battleRun, b, seed * 7).coinsDropped;
   }
   assert.ok(drops >= 10 && drops <= 35, `expected ~20 drops out of 100, got ${drops}`);
 });
@@ -657,9 +666,8 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
   assert.equal(s2.enemies[0].hp, hp('scanner_bot') - 9);
 
   // 3. コイン闇市ショップ: 回復(1)・ツール補充(1)・削除(2)・レリック(3)
-  let r = run.createRun({ fastGrowth: false });
-  const shopIndex = r.nodes.findIndex((node) => node.kind === 'shop');
-  r = { ...r, nodeIndex: shopIndex, hp: 40, reconCoins: 7, tools: [] };
+  let r = atNode(run.createRun({ fastGrowth: false }), isKind('shop'));
+  r = { ...r, hp: 40, reconCoins: 7, tools: [] };
   r = run.spendCoinShop(r, { type: 'heal' });
   assert.equal(r.hp, 52);
   assert.equal(r.reconCoins, 6);
@@ -674,32 +682,18 @@ test('常備ツール(0EN)・弱点1.5倍・脆弱1.5倍・ジャミング-30%�
   assert.equal(r.reconCoins, 0);
 });
 
-test('16マスは戦闘7・イベント4・闇市1・休憩3と最後のボスで構成される', () => {
-  const route = run.createRun().nodes;
-  assert.deepEqual(Array.from(route, (node) => node.kind), [
-    'battle', 'event', 'battle', 'rest', 'battle', 'mystery', 'battle', 'shop',
-    'event', 'rest', 'battle', 'mystery', 'battle', 'battle', 'rest', 'boss',
-  ]);
-  assert.ok(route[6].eliteEnemyIds?.length);
-  assert.equal(route.at(-1).enemyIds[0], 'argus');
-});
-
-test('8マス目の闇市で開始コインを使え、購入結果を持って進める', () => {
+test('闇市マスで開始コインを使え、購入結果を持って次の段へ進める', () => {
   const start = run.createRun();
-  const shop = { ...start, nodeIndex: 7 };
+  const shop = atNode(start, isKind('shop'));
   assert.equal(start.reconCoins, 2);
-  assert.equal(shop.nodes[shop.nodeIndex].kind, 'shop');
   assert.throws(() => run.spendCoinShop(start, { type: 'heal' }), /闇市マス/);
   assert.throws(() => run.createBattleForCurrentNode(shop, 1), /not a battle/);
   const purchase = run.spendCoinShop(shop, { type: 'remove', cardUid: 'c1' });
   assert.equal(purchase.reconCoins, 0);
   assert.throws(() => run.spendCoinShop(purchase, { type: 'heal' }), /足りません/);
-  const next = run.advanceToNextNode(purchase);
-  assert.equal(next.nodes[next.nodeIndex].eventId, 'patch');
-  const battleIndex = next.nodes.findIndex((node, index) => index > next.nodeIndex && node.kind === 'battle');
-  const nextBattle = run.createBattleForCurrentNode({ ...next, nodeIndex: battleIndex }, 1);
-  assert.equal(nextBattle.enemies[0].defId, 'firewall_ai');
-  assert.equal(nextBattle.cards.c1, undefined);
+  const next = run.moveToNode(purchase, run.getNextNodes(purchase)[0].id);
+  assert.equal(run.getCurrentFloor(next), run.getCurrentFloor(shop) + 1);
+  assert.equal(next.deck.some((c) => c.uid === 'c1'), false);
   assert.throws(() => run.spendCoinShop(next, { type: 'heal' }), /闇市マス/);
 });
 
@@ -792,7 +786,7 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
   assert.equal(r.loadoutId, 'red_team');
   assert.equal(r.maxHp, 50, 'red_team(60) - Lv.3ペナルティ(10) = 50');
   assert.ok(r.relics.includes('auto_scraper'));
-  const b = run.createBattleForCurrentNode(r, 1);
+  const b = run.createBattleForCurrentNode(atNode(r, isScannerBattle), 1);
   assert.ok(b.enemies[0].maxHp > hp('scanner_bot'), 'Lv.1以上で敵HP増加');
   assert.equal(b.enemies[0].attackBonus, 2, 'Lv.2以上で敵攻撃力+2');
   assert.equal(b.discard.length, 1, 'Lv.4以上でノイズ1枚が捨て札に混入');
@@ -888,10 +882,10 @@ test('HPを払う攻撃カードは、敵へのダメージと自分のHP減少�
 });
 
 test('ボスに勝ったときは、Lv.3 に届いたカードがあっても進化先を選ばせない(通常の戦闘では選ばせる)', () => {
-  const finish = (nodeIndex) => {
-    const base = run.createRun();
+  const finish = (match) => {
+    const base = atNode(run.createRun(), match);
     const deck = base.deck.map((c, i) => (i === 0 ? { ...c, xp: run.XP_TO_LV3 - 1, level: 2 } : c));
-    const r = { ...base, deck, nodeIndex };
+    const r = { ...base, deck };
     const s = run.createBattleForCurrentNode(r, 1);
     const won = {
       ...s,
@@ -901,13 +895,12 @@ test('ボスに勝ったときは、Lv.3 に届いたカードがあっても進
     };
     return run.applyBattleResult(r, won, 1).run;
   };
-  const bossIndex = run.DEFAULT_RUN_NODES.findIndex((n) => n.kind === 'boss');
-  const afterBoss = finish(bossIndex);
+  const afterBoss = finish(isKind('boss'));
   assert.equal(afterBoss.status, 'won');
   assert.equal(afterBoss.deck[0].level, 3);
   assert.equal(afterBoss.pendingEvolutions.length, 0);
 
-  const afterNormal = finish(0);
+  const afterNormal = finish(isScannerBattle);
   assert.equal(afterNormal.status, 'playing');
   assert.deepEqual([...afterNormal.pendingEvolutions], [afterNormal.deck[0].uid]);
 });
