@@ -1,31 +1,25 @@
-/* 分岐マップの画面(RunMapView.tsx)。ミッション選択画面と同じ緑のターミナル風。
-   マスの種類ごとの色は --k に入れ、枠とアイコンに使う。 */
-
+/* 分岐マップ。画面内の寸法は1280×720を基準にする。 */
 .rm-wrap {
-  --rm-green: #00ff64;
-  --rm-green-rgb: 0, 255, 100;
-  --rm-mono: ui-monospace, 'Courier New', Consolas, 'Zen Kaku Gothic New', monospace;
-  position: relative;
+  --rm-green: #8debbb;
+  --rm-green-rgb: 141, 235, 187;
+  --rm-cyan: #7bf5ed;
+  --rm-mono: ui-monospace, Consolas, 'Zen Kaku Gothic New', monospace;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 14px;
-  padding: 12px 20px 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 16px 12px;
   overflow: hidden;
-  background-color: #010603;
-  background-image:
-    repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 0, 0, 0.22) 3px 4px),
-    linear-gradient(rgba(var(--rm-green-rgb), 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--rm-green-rgb), 0.03) 1px, transparent 1px),
-    radial-gradient(circle at 50% 45%, rgba(1, 10, 5, 0.45) 25%, rgba(0, 5, 3, 0.8) 82%, rgba(2, 8, 5, 0.92) 100%),
-    url('/mission-bg.jpg');
-  background-size: 100% 4px, 32px 32px, 32px 32px, cover, cover;
-  background-position: center;
-  color: #e6f5ec;
+  color: #e5f2eb;
+  background: #06100d;
 }
 
-/* 戦闘画面の上に重ねて開くとき(上のバーの「マップ」ボタン) */
+.rm-wrap--sidebar {
+  grid-template-columns: minmax(0, 1fr) 244px;
+}
+
 .rm-overlay {
   position: absolute;
   inset: 0;
@@ -34,223 +28,340 @@
 }
 
 .rm-panel {
-  position: relative;
   min-width: 0;
-  padding: 10px 12px;
-  background: rgba(2, 10, 6, 0.9);
-  border: 1px solid rgba(var(--rm-green-rgb), 0.3);
-  border-top: 2px solid var(--rm-green);
+  padding: 12px;
+  background: #0a1813;
+  border: 1px solid #284137;
+  border-top-color: #669982;
 }
 
 .rm-map-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 8px 10px;
+}
+
+.rm-head,
+.rm-overview,
+.rm-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .rm-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
+  padding: 0 1px 7px;
 }
 
 .rm-label {
   display: block;
-  font-family: var(--rm-mono);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 2px;
+  margin: 0;
   color: var(--rm-green);
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .rm-floor {
-  margin-left: auto;
-  font-family: var(--rm-mono);
+  margin-right: auto;
+  padding: 3px 7px;
+  border: 1px solid #416351;
+  background: #10281e;
+  color: #e3ffeb;
   font-size: 13px;
-  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.rm-head .db-btn {
+  min-height: 32px;
+  padding: 4px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.rm-overview {
+  justify-content: space-between;
+  padding: 0 1px 7px;
+}
+
+.rm-progress,
+.rm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rm-progress button {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  min-height: 25px;
+  padding: 0;
+  border: 1px solid #30463e;
+  background: #101b17;
+  color: #b4c9bd;
+  font: 700 12px var(--rm-mono);
+  cursor: pointer;
+}
+
+.rm-progress .rm-progress__passed {
   color: var(--rm-green);
+  border-color: #4a7e64;
+}
+
+.rm-progress button[aria-current] {
+  color: #071714;
+  background: var(--rm-cyan);
+  border-color: var(--rm-cyan);
+}
+
+.rm-progress button:hover:not([aria-current]) {
+  background: #214738;
+  color: #e4fff0;
+}
+
+.rm-direction {
+  color: #bbd5c9;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .rm-box {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  border: 1px solid rgba(var(--rm-green-rgb), 0.12);
-  background: rgba(0, 0, 0, 0.35);
+  overflow: auto;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+  scrollbar-color: #537b68 #101b17;
+  border: 1px solid #2a4539;
+  background: #081410;
 }
 
-.rm-svg {
-  display: block;
-  width: 100%;
-  height: auto;
+.rm-graph {
+  position: relative;
+  min-width: 760px;
+  background-image: repeating-linear-gradient(90deg, #9bd5b608 0 1px, transparent 1px 54px);
 }
 
-.rm-band { fill: rgba(var(--rm-green-rgb), 0.035); }
-.rm-band--alt { fill: transparent; }
+.rm-band {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border-block: 1px solid #8ab9a211;
+  pointer-events: none;
+}
 
-.rm-band-label {
-  font-family: var(--rm-mono);
+.rm-band:nth-child(odd) { background: #a4d0b507; }
+.rm-band--current { background: #59e3b518 !important; }
+.rm-band span {
+  display: grid;
+  gap: 1px;
+  padding-left: 12px;
+  color: #98b9aa;
   font-size: 11px;
-  letter-spacing: 1.5px;
-  fill: rgba(147, 181, 160, 0.75);
 }
 
-.rm-edge { stroke: rgba(var(--rm-green-rgb), 0.22); stroke-width: 2; stroke-dasharray: 4 5; }
-.rm-edge--taken { stroke: var(--rm-green); stroke-dasharray: none; stroke-width: 3; }
-.rm-edge--next { stroke: rgba(var(--rm-green-rgb), 0.65); }
-
-/* マスの種類ごとの色 */
-.rm-node--start { --k: #5ef2d6; }
-.rm-node--battle { --k: #e6f5ec; }
-.rm-node--elite { --k: #ff9924; }
-.rm-node--event { --k: #19f0c8; }
-.rm-node--mystery { --k: #b98cff; }
-.rm-node--shop { --k: #ffd84d; }
-.rm-node--rest { --k: #00ff64; }
-.rm-node--boss { --k: #ff4d6a; }
-
-.rm-ring {
-  fill: #04110a;
-  stroke: var(--k);
-  stroke-width: 2;
-  opacity: 0.55;
+.rm-band strong {
+  color: #ccdfd6;
+  font: 700 19px var(--rm-mono);
 }
 
-.rm-icon { color: var(--k); opacity: 0.6; pointer-events: none; }
-.rm-icon .game-icon { width: 100%; height: 100%; vertical-align: top; }
+.rm-band--current strong { color: var(--rm-cyan); }
 
-.rm-node--visited .rm-ring { fill: rgba(var(--rm-green-rgb), 0.12); opacity: 1; }
-.rm-node--visited .rm-icon { opacity: 1; }
-.rm-node--current .rm-ring { stroke: #fff; stroke-width: 3; opacity: 1; fill: rgba(var(--rm-green-rgb), 0.22); }
-.rm-node--current .rm-icon { opacity: 1; }
-.rm-node--reach { cursor: pointer; }
-.rm-node--reach .rm-ring { opacity: 1; stroke-width: 3; animation: rm-pulse 1.4s ease-in-out infinite; }
-.rm-node--reach .rm-icon { opacity: 1; }
-.rm-node--reach:hover .rm-ring,
-.rm-node--reach:focus-visible .rm-ring { fill: rgba(var(--rm-green-rgb), 0.22); }
-.rm-node:focus-visible { outline: none; }
-.rm-node:focus-visible .rm-ring { stroke: #fff; }
-.rm-node--dead .rm-ring,
-.rm-node--dead .rm-icon { opacity: 0.18; }
-
-@keyframes rm-pulse {
-  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
-  50% { filter: drop-shadow(0 0 7px var(--k)); }
+.rm-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  pointer-events: none;
 }
 
-.rm-hint {
-  margin: 8px 0 0;
-  padding: 6px 10px;
-  border-left: 2px solid var(--rm-green);
-  background: rgba(0, 0, 0, 0.5);
-  font-size: 13px;
-  color: #cfe9d9;
+.rm-edge--future { stroke: #476458; stroke-width: 1.5; stroke-dasharray: 3 5; }
+.rm-edge--taken { stroke: #8ad3a7; stroke-width: 2.5; }
+.rm-edge--next { stroke: var(--rm-cyan); stroke-width: 3; stroke-dasharray: 8 3; }
+
+/* マスの種類はアイコンと色を共有し、接続状態は枠とラベルで伝える。 */
+.rm-node--start { --k: #8debbb; }
+.rm-node--battle { --k: #e4f6ed; }
+.rm-node--elite { --k: #ffbf71; }
+.rm-node--event { --k: #90efea; }
+.rm-node--mystery { --k: #d3b8ff; }
+.rm-node--shop { --k: #ffe092; }
+.rm-node--rest { --k: #97e4ac; }
+.rm-node--boss { --k: #ff9ea4; }
+
+.rm-node {
+  position: absolute;
+  width: min(110px, 12%);
+  height: 58px;
+  box-sizing: border-box;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  transform: translate(-50%, -50%);
+  padding: 2px 4px;
+  border: 1px solid #466655;
+  background: #14241d;
+  color: #b5c9bd;
+  text-align: center;
+  font-family: inherit;
+  cursor: default;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
+
+.rm-node__type,
+.rm-node__status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.rm-node__type { font-size: 13px; font-weight: 800; line-height: 17px; }
+.rm-node__type .game-icon { color: var(--k); width: 16px; height: 16px; }
+.rm-node__status { color: #a6bbaf; font-size: 11px; line-height: 14px; }
+.rm-node__status .game-icon { width: 13px; height: 13px; }
+.rm-node--future { border-style: dashed; background: #0c1813; }
+.rm-node--future .rm-node__type .game-icon { opacity: .7; }
+.rm-node--visited { border-color: #619e7c; }
+.rm-node--visited .rm-node__status { color: var(--rm-green); }
+
+.rm-node--current,
+.rm-node--next {
+  color: #eafff4;
+  border: 2px solid var(--rm-cyan);
+  background: #103329;
+}
+
+.rm-node--current {
+  box-shadow: inset 0 0 0 2px #0a1613, 0 0 0 2px #6adab5;
+}
+
+.rm-node--current .rm-node__status,
+.rm-node--next .rm-node__status { color: var(--rm-cyan); font-weight: 700; }
+.rm-node--next { cursor: pointer; }
+.rm-node--moving,
+.rm-node--moving:hover {
+  color: #f4fffd;
+  border-color: #e2fffc;
+  animation: rm-connect-node 180ms ease-out both;
+}
+
+.rm-edge--next .rm-edge--moving {
+  stroke: #e2fffc;
+  stroke-width: 4;
+  stroke-dasharray: 12 4;
+  animation: rm-connect-line 180ms linear both;
+}
+.rm-node--inspected:not(.rm-node--current) { box-shadow: 0 0 0 2px #abc8bd; }
+.rm-node--next:hover { background: #1b4a3d; box-shadow: 0 0 14px #7bf5ed45; }
+.rm-node:focus-visible,
+.rm-progress button:focus-visible { outline: 2px solid #ecfff9; outline-offset: 3px; }
+
+.rm-footer {
+  justify-content: space-between;
+  min-height: 26px;
+  padding: 5px 1px 0;
+  color: #bacfc4;
+  font-size: 12px;
+}
+
+.rm-legend { gap: 4px 12px; }
+.rm-legend li { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rm-legend li::before { content: ''; width: 14px; border-top: 2px solid; }
+.rm-legend li:first-child::before { display: none; }
+.rm-legend .rm-legend--next::before { color: var(--rm-cyan); border-top-style: dashed; }
+.rm-legend .rm-legend--taken::before { color: #8ad3a7; }
+.rm-legend .rm-legend--future::before { color: #759486; border-top-style: dotted; }
 
 .rm-side {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
 }
+.rm-side[hidden],
+.rm-info[hidden] { display: none; }
+
+.rm-focus {
+  margin-top: 12px;
+  color: #c6ded1;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.rm-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  color: #a6c3b5;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.rm-badge--current,
+.rm-badge--next { color: var(--rm-cyan); }
+.rm-badge--visited { color: var(--rm-green); }
 
 .rm-focus__name {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.rm-focus__desc {
   margin: 6px 0 0;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: #93b5a0;
+  color: #f1fff7;
+  font-size: 19px;
 }
 
-.rm-legend {
+.rm-focus p { margin: 3px 0 8px; }
+.rm-focus__detail { color: #e5fff1; font-weight: 700; }
+.rm-focus h4 { margin: 8px 0 0; color: var(--rm-green); font-size: 12px; }
+
+.rm-head .rm-inspect-toggle[aria-pressed='true'] {
+  border-color: var(--rm-cyan);
+  color: var(--rm-cyan);
+  background: #194c3c;
+}
+
+.rm-move-error { color: #ffadb0; }
+
+@keyframes rm-connect-node {
+  35% { background: #366c5f; box-shadow: 0 0 20px #7bf5ed99; }
+}
+
+@keyframes rm-connect-line {
+  from { stroke-dashoffset: 16; }
+  to { stroke-dashoffset: 0; }
+}
+
+.rm-peek {
+  position: absolute;
+  z-index: 2;
+  right: 25px;
+  bottom: 43px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 10px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12.5px;
-}
-
-.rm-legend__item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.rm-legend__icon {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1.5px solid var(--k);
-  color: var(--k);
-  font-size: 13px;
-}
-
-/* 起動ノードの強化 */
-.rm-bonus {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.rm-bonus__btn {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
-  text-align: left;
-  background: rgba(6, 22, 13, 0.92);
-  border: 1px solid rgba(var(--rm-green-rgb), 0.35);
-  border-top: 2px solid #5ef2d6;
-  color: #e6f5ec;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.rm-bonus__btn:hover,
-.rm-bonus__btn:focus-visible {
-  border-color: #5ef2d6;
-  box-shadow: 0 0 14px rgba(94, 242, 214, 0.25);
-  outline: none;
-}
-
-.rm-bonus__icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border: 1.5px solid #5ef2d6;
-  color: #5ef2d6;
-  font-size: 16px;
-}
-
-.rm-bonus__name {
-  display: block;
-  font-weight: 700;
-  color: #fff;
-}
-
-.rm-bonus__desc {
-  display: block;
+  gap: 4px;
+  width: min(310px, 45%);
+  padding: 9px 12px;
+  border: 1px solid #547d6a;
+  background: #0c2118;
+  box-shadow: 0 6px 14px #0008;
+  color: #daeee2;
   font-size: 12px;
-  color: #93b5a0;
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rm-node--reach .rm-ring { animation: none; filter: drop-shadow(0 0 5px var(--k)); }
+  .rm-node { transition: none; }
+  .rm-node--moving,
+  .rm-edge--next .rm-edge--moving { animation: none; }
 }
