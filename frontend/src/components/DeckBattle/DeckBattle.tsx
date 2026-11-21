@@ -47,6 +47,7 @@ import {
   chooseEvolution,
   createBattleForCurrentNode,
   createRun,
+  createTutorialTrialRun,
   getFilteredOutQuizChoiceId,
   getQuizXpReward,
   getXpProgress,
@@ -550,6 +551,111 @@ function BattleLogRow({ entry }: { entry: BattleLog }) {
   );
 }
 
+interface Turn1Coach {
+  step: 1 | 2 | 3;
+  title: string;
+  detail: string;
+  highlightCardUid?: string;
+  cardBadge?: string;
+  highlightEndTurn?: boolean;
+  highlightIntentEnemyUid?: string;
+  intentBadge?: string;
+}
+
+function computeTurn1Coach(state: BattleState, playsThisTurn: number): Turn1Coach {
+  const target = livingEnemies(state)[0];
+  const affordable = state.hand
+    .map((uid) => {
+      const card = state.cards[uid];
+      const def = getCardDefinition(card.defId);
+      const stats = getCardStats(card);
+      const cost = getPlayCost(state, uid);
+      return { uid, def, stats, cost };
+    })
+    .filter((c) => !c.def.unplayable && c.cost <= state.player.energy);
+
+  if (affordable.length === 0 || playsThisTurn >= 2) {
+    return {
+      step: 3,
+      highlightEndTurn: true,
+      title: '「ターン終了」を押して敵の行動を見よう！',
+      detail: '自分の行動が終わったら右下の「ターン終了」をクリック。次のターンに帯域（EN）は全回復します。',
+    };
+  }
+
+  const weakAttack = target
+    ? affordable.find((c) => c.def.kind === 'attack' && doesCardHitWeakness(c.stats, target))
+    : undefined;
+  const anyAttack = affordable.find((c) => c.def.kind === 'attack');
+  const anyUtility = affordable.find((c) => c.def.kind === 'utility');
+  const anyDefense = affordable.find((c) => c.def.kind === 'defense');
+
+  if (playsThisTurn === 0) {
+    if (weakAttack) {
+      return {
+        step: 1,
+        highlightCardUid: weakAttack.uid,
+        cardBadge: '弱点 ×1.5',
+        title: '光っているカードで弱点を突こう！',
+        detail: '敵の弱点に合う攻撃は 1.5倍ダメージ！まずは光っているカードをクリックしてみよう。',
+      };
+    }
+    if (anyUtility && state.modifiers.reconCombo === 'none' && anyAttack) {
+      return {
+        step: 1,
+        highlightCardUid: anyUtility.uid,
+        cardBadge: 'コンボ始動',
+        title: '補助カードでコンボを始めよう！',
+        detail: '補助カードのあとに攻撃カードを使うと「解析コンボ」で帯域（EN）が +1 増えるよ。',
+      };
+    }
+    const pick = anyAttack ?? affordable[0];
+    return {
+      step: 1,
+      highlightCardUid: pick.uid,
+      cardBadge: 'ここをクリック',
+      title: '最初の一手を打ってみよう！',
+      detail: '光っているカードをクリックすると、帯域（EN）を使ってカードを発動できるよ。',
+    };
+  }
+
+  if (state.modifiers.reconCombo === 'ready' && (weakAttack ?? anyAttack)) {
+    const pick = weakAttack ?? anyAttack!;
+    return {
+      step: 2,
+      highlightCardUid: pick.uid,
+      cardBadge: 'コンボ発動!',
+      title: '攻撃カードで「解析コンボ」を決めよう！',
+      detail: '光っている攻撃カードをクリック！コンボ発動で帯域（EN）が +1 回復するよ。',
+    };
+  }
+  const enemyMove = target ? getEnemyIntent(target) : null;
+  const enemyAttacking = enemyMove?.type === 'attack' || enemyMove?.type === 'blockAttack';
+  if (target && enemyAttacking && state.player.block === 0 && anyDefense) {
+    const incoming =
+      enemyMove.type === 'attack' && enemyMove.hits && enemyMove.hits > 1
+        ? `${enemyMove.amount}×${enemyMove.hits}`
+        : `${enemyMove.amount}`;
+    return {
+      step: 2,
+      highlightCardUid: anyDefense.uid,
+      cardBadge: 'FWで防ごう！',
+      highlightIntentEnemyUid: target.uid,
+      intentBadge: `次の敵の攻撃（${incoming}）`,
+      title: '敵の攻撃を FW（盾）で防ごう！',
+      detail: `敵の頭上に次の攻撃（${incoming}ダメージ）が表示されているよ。光っている防御カードでFWを張って防ごう！`,
+    };
+  }
+  const nextPick = weakAttack ?? anyAttack ?? anyDefense ?? affordable[0];
+  return {
+    step: 2,
+    highlightCardUid: nextPick.uid,
+    cardBadge: '続けて使う',
+    title: 'もう1枚カードを使ってみよう！',
+    detail: '帯域（EN）が残っているうちは何枚でもカードを使えるよ。光っているカードをクリック！',
+  };
+}
+
 export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const { hoverProps, previewNode, hoveredUid } = useCardHoverPreview();
   const [eliteNode, setEliteNode] = useState<number | null>(null);
@@ -565,11 +671,16 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const [mysteryView, setMysteryView] = useState<MysteryViewState | null>(null);
   const [restSummary, setRestSummary] = useState<string | null>(null);
   const [showDeckModal, setShowDeckModal] = useState(false);
-  // 遊び方:初めて戦闘画面を開いたときだけ自動で出す
-  const [showHowToPlay, setShowHowToPlay] = useState(() => !hasSeenHowToPlay());
+  // 遊び方モーダルは「遊び方」ボタンからいつでも開ける。初回戦闘の1ターン目は軽いインタラクティブガイドで誘導する
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [turn1CoachActive, setTurn1CoachActive] = useState(() => !hasSeenHowToPlay());
   const closeHowToPlay = useCallback(() => {
     markHowToPlaySeen();
     setShowHowToPlay(false);
+  }, []);
+  const dismissTurn1Coach = useCallback(() => {
+    markHowToPlaySeen();
+    setTurn1CoachActive(false);
   }, []);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
@@ -728,6 +839,26 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     updateProfile((p) => recordDiscovery(p, fresh.deck.map((c) => c.defId), []));
     setRun(fresh);
     setBattle(createBattleForCurrentNode(fresh, randomSeed()));
+    setPhase('battle');
+    setPostBattle(null);
+    setEventView(null);
+    setMysteryView(null);
+    setRestSummary(null);
+    setSelectedUid(null);
+    setNotice(null);
+    setPlayback(null);
+    setFx([]);
+    setBanner(null);
+  };
+
+  const startTutorialTrialRun = () => {
+    playSound('breach');
+    const fresh = createTutorialTrialRun();
+    setRunNumber((n) => n + 1);
+    setEliteNode(null);
+    setRun(fresh);
+    setBattle(createBattleForCurrentNode(fresh, 42));
+    setTurn1CoachActive(true);
     setPhase('battle');
     setPostBattle(null);
     setEventView(null);
@@ -934,6 +1065,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const onEndTurn = () => {
     if (busy) return;
+    if (turn1CoachActive && run.nodeIndex === 0 && battle.turn === 1) {
+      dismissTurn1Coach();
+    }
     playSound('click');
     const final = endTurn(battle);
     const base: BattleState = { ...battle, hand: [], discard: [...battle.discard, ...battle.hand] };
@@ -1147,6 +1281,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const { player, modifiers } = shown;
   const hpRatio = Math.max(0, player.hp / player.maxHp);
   const isBoss = run.nodes[run.nodeIndex]?.kind === 'boss';
+  const playsThisBattle = Object.values(shown.usesThisBattle).reduce((sum, n) => sum + n, 0);
+  const turn1Coach =
+    turn1CoachActive && phase === 'battle' && run.nodeIndex === 0 && shown.turn === 1 && shown.status === 'playing' && !busy
+      ? computeTurn1Coach(shown, playsThisBattle)
+      : null;
 
   return (
     <div className="db-shell">
@@ -1235,6 +1374,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           initialLoadout={run.loadoutId}
           initialSecurityLevel={run.securityLevel}
           onDeploy={(loadoutId, securityLevel) => startRun(loadoutId, securityLevel)}
+          onStartTutorialTrial={startTutorialTrialRun}
           onBack={onBackToMissions}
         />
       ) : phase === 'mystery' && mysteryView ? (
@@ -1265,7 +1405,41 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         />
       ) : phase !== 'shop' && (
         <div className={`db-main ${isBoss ? 'db-main--boss' : ''}`}>
-          <section className="db-left">
+          <section className={`db-left${turn1Coach ? ' db-left--tutorial' : ''}`}>
+            {turn1Coach && <div className="db-tutorial-dim" aria-hidden="true" />}
+            {turn1Coach && (
+              <div className="db-coach-card" role="status" aria-live="polite">
+                <div className="db-coach-card__top">
+                  <span className="db-coach-bar__step">TUTORIAL {turn1Coach.step} / 3</span>
+                  <span className="db-coach-card__dots" aria-hidden="true">
+                    {[1, 2, 3].map((n) => (
+                      <span
+                        key={n}
+                        className={`db-coach-card__dot${n <= turn1Coach.step ? ' db-coach-card__dot--on' : ''}`}
+                      />
+                    ))}
+                  </span>
+                  <span className="db-coach-bar__actions">
+                    <button
+                      type="button"
+                      className="db-coach-bar__btn"
+                      onClick={() => setShowHowToPlay(true)}
+                    >
+                      遊び方を見る
+                    </button>
+                    <button
+                      type="button"
+                      className="db-coach-bar__btn db-coach-bar__btn--skip"
+                      onClick={dismissTurn1Coach}
+                    >
+                      ✕ スキップ
+                    </button>
+                  </span>
+                </div>
+                <div className="db-coach-card__title">{turn1Coach.title}</div>
+                <div className="db-coach-card__detail">{turn1Coach.detail}</div>
+              </div>
+            )}
             <div
               className={[
                 'db-arena',
@@ -1377,7 +1551,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                               key={`${toolId}-${idx}`}
                               type="button"
                               className="db-tool-btn"
-                              disabled={busy}
+                              disabled={busy || Boolean(turn1Coach)}
                               onClick={() => onUseTool(idx)}
                               title={`帯域0で使用: ${t.description}`}
                             >
@@ -1421,12 +1595,20 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       disabled={dead || !selectedUid || busy}
                       aria-label={`${enemy.name}、HP ${enemy.hp}/${enemy.maxHp}${dead ? '、撃破済み' : `、次の行動 ${intent.title}、弱点 ${WEAKNESS_LABEL[enemy.weakness]}`}`}
                     >
-                      <span className="db-enemy__intent-slot">
+                      <span
+                        className={`db-enemy__intent-slot${turn1Coach?.highlightIntentEnemyUid === enemy.uid ? ' db-enemy__intent-slot--spotlight' : ''}`}
+                      >
                         {!dead && (
-                          <span className={`db-intent db-intent--${intent.tone}`} title={intent.title}>
+                          <span
+                            className={`db-intent db-intent--${intent.tone}${turn1Coach?.highlightIntentEnemyUid === enemy.uid ? ' db-intent--coach-spotlight' : ''}`}
+                            title={intent.title}
+                          >
                             <span className="db-intent__icon">{intent.icon.map((name) => <GameIcon key={name} name={name} />)}</span>
                             <span>{intent.text}</span>
                           </span>
+                        )}
+                        {!dead && turn1Coach?.highlightIntentEnemyUid === enemy.uid && turn1Coach.intentBadge && (
+                          <span className="db-intent__coach-tag">▲ {turn1Coach.intentBadge}</span>
                         )}
                       </span>
                       <span className="db-enemy__stage" aria-hidden="true">
@@ -1528,6 +1710,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     const unplayable = !!def.unplayable;
                     const affordable = !unplayable && cost <= player.energy;
                     const xpProg = getXpProgress(card);
+                    const isCoachCard = turn1Coach?.highlightCardUid === uid;
+                    const lockedByCoach = Boolean(turn1Coach) && !isCoachCard;
                     return (
                       <button
                         type="button"
@@ -1538,15 +1722,32 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                           `db-card--${def.rarity}`,
                           unplayable ? 'db-card--noise' : '',
                           selectedUid === uid ? 'db-card--selected' : '',
+                          isCoachCard ? 'db-card--coach' : '',
+                          lockedByCoach ? 'db-card--coach-locked' : '',
                           !affordable ? 'db-card--unaffordable' : '',
-                        ].join(' ')}
-                        {...hoverProps(card, cost)}
-                        onClick={() => { if (affordable) onCardClick(uid); }}
-                        disabled={busy}
-                        aria-disabled={!affordable}
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        {...(lockedByCoach ? {} : hoverProps(card, cost))}
+                        onClick={() => {
+                          if (!lockedByCoach && affordable) onCardClick(uid);
+                        }}
+                        disabled={busy || lockedByCoach}
+                        aria-disabled={!affordable || lockedByCoach}
                         aria-pressed={selectedUid === uid}
-                        title={!affordable ? (unplayable ? '使用不可' : '帯域不足') : undefined}
+                        title={
+                          lockedByCoach
+                            ? 'チュートリアル案内のボタンを押してください'
+                            : !affordable
+                              ? unplayable
+                                ? '使用不可'
+                                : '帯域不足'
+                              : undefined
+                        }
                       >
+                        {isCoachCard && turn1Coach?.cardBadge && (
+                          <span className="db-card__coach-tag">▼ {turn1Coach.cardBadge}</span>
+                        )}
                         <span className={`db-card__cost ${cost < stats.cost ? 'db-card__cost--discounted' : ''}`}>{unplayable ? '×' : cost}</span>
                         <span className="db-card__band">{unplayable ? 'NOISE' : KIND_LABEL[def.kind]}</span>
                         <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={card.level} branchId={card.branchId} />
@@ -1563,7 +1764,15 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 <span className="db-pile__count">{shown.discard.length}</span>
                 <span>捨て札</span>
               </div>
-              <button type="button" className="db-btn db-btn--end" onClick={onEndTurn} disabled={busy}>
+              <button
+                type="button"
+                className={`db-btn db-btn--end${turn1Coach?.highlightEndTurn ? ' db-btn--coach-pulse' : ''}${turn1Coach && !turn1Coach.highlightEndTurn ? ' db-btn--coach-locked' : ''}`}
+                onClick={onEndTurn}
+                disabled={busy || Boolean(turn1Coach && !turn1Coach.highlightEndTurn)}
+              >
+                {turn1Coach?.highlightEndTurn && (
+                  <span className="db-btn__coach-tag">▼ ここを押す！</span>
+                )}
                 ターン終了
               </button>
             </div>
@@ -2565,11 +2774,13 @@ function RunSetupScreen({
   initialLoadout,
   initialSecurityLevel,
   onDeploy,
+  onStartTutorialTrial,
   onBack,
 }: {
   initialLoadout: LoadoutId;
   initialSecurityLevel: number;
   onDeploy: (loadoutId: LoadoutId, securityLevel: number) => void;
+  onStartTutorialTrial: () => void;
   onBack: () => void;
 }) {
   const [loadoutId, setLoadoutId] = useState<LoadoutId>(initialLoadout);
@@ -2680,9 +2891,19 @@ function RunSetupScreen({
           <span className="db-setup__foot-info">
             ENCRYPTED TUNNEL: READY // {LOADOUT_DEFINITIONS[loadoutId].tag} / SEC Lv.{secLevel}
           </span>
-          <button type="button" className="db-setup__deploy" onClick={() => onDeploy(loadoutId, secLevel)}>
-            ▶ この構成で出撃する <span className="db-setup__deploy-en">// DEPLOY</span>
-          </button>
+          <div className="db-setup__foot-actions">
+            <button
+              type="button"
+              className="db-setup__trial"
+              onClick={onStartTutorialTrial}
+              title="はじめての方向け：操作ガイド付きで弱点攻撃・防御・ボス戦を実戦で学べるチュートリアル"
+            >
+              チュートリアルをプレイ <span className="db-setup__trial-en">// TUTORIAL</span>
+            </button>
+            <button type="button" className="db-setup__deploy" onClick={() => onDeploy(loadoutId, secLevel)}>
+              ▶ この構成で出撃する <span className="db-setup__deploy-en">// DEPLOY</span>
+            </button>
+          </div>
         </footer>
       </div>
     </main>

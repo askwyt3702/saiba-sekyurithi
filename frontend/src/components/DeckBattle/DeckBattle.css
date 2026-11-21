@@ -3394,3 +3394,302 @@
     animation: none;
   }
 }
+
+
+/* ---------- 初回戦闘1ターン目の軽量インタラクティブガイド ---------- */
+.db-coach-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 14px;
+  background: linear-gradient(90deg, rgba(6, 54, 42, 0.94) 0%, rgba(10, 32, 52, 0.94) 100%);
+  border-top: 1.5px solid #34d399;
+  border-bottom: 1.5px solid rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.25);
+  color: #ecfdf5;
+  font-size: 12.5px;
+}
+
+.db-coach-bar__step {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #10b981;
+  color: #022c22;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+}
+
+.db-coach-bar__msg {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  color: #f0fdf4;
+}
+
+.db-coach-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.db-coach-bar__btn {
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  background: rgba(15, 23, 42, 0.8);
+  color: #7dd3fc;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.db-coach-bar__btn:hover {
+  border-color: #38bdf8;
+  background: rgba(14, 116, 144, 0.45);
+}
+
+.db-coach-bar__btn--skip {
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #cbd5e1;
+}
+
+.db-card--coach {
+  border-color: #fde047;
+  box-shadow: 0 0 0 2px #fde047, 0 0 22px rgba(250, 204, 21, 0.65);
+  animation: db-coach-card-glow 1.3s ease-in-out infinite;
+  z-index: 2;
+}
+
+.db-card__coach-tag {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f59e0b, #fde047);
+  color: #1c1917;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(251, 191, 36, 0.65);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.db-btn--coach-pulse {
+  box-shadow: 0 0 0 2px #fde047, 0 0 22px rgba(250, 204, 21, 0.75);
+  animation: db-coach-card-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes db-coach-card-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #fde047, 0 0 14px rgba(250, 204, 21, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #fef08a, 0 0 28px rgba(250, 204, 21, 0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-card--coach,
+  .db-btn--coach-pulse {
+    animation: none;
+  }
+}
+
+
+/* ---------- チュートリアル・スポットライト演出（周囲暗転＋指定ボタン以外ロック） ---------- */
+.db-left {
+  position: relative;
+}
+
+.db-tutorial-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  background: rgba(2, 6, 14, 0.58);
+  pointer-events: none;
+}
+
+.db-left--tutorial .db-coach-bar {
+  position: relative;
+  z-index: 30;
+}
+
+.db-left--tutorial .db-table {
+  position: relative;
+}
+
+.db-left--tutorial .db-hand {
+  overflow: visible;
+}
+
+.db-card--coach {
+  position: relative;
+  z-index: 30;
+  transform: translateY(-10px);
+}
+
+.db-card--coach:hover:not(:disabled) {
+  transform: translateY(-18px) scale(1.06);
+  z-index: 32;
+}
+
+.db-card--coach-locked {
+  opacity: 0.36;
+  filter: brightness(0.6) saturate(0.5);
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.db-card__coach-tag,
+.db-btn__coach-tag {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f59e0b, #fde047);
+  color: #1c1917;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 3px 14px rgba(251, 191, 36, 0.8);
+  pointer-events: none;
+  z-index: 35;
+  animation: db-coach-bounce 0.9s ease-in-out infinite;
+}
+
+.db-btn--coach-pulse {
+  position: relative;
+  z-index: 30;
+}
+
+.db-btn--coach-locked {
+  opacity: 0.38;
+  filter: brightness(0.65);
+  pointer-events: none;
+}
+
+@keyframes db-coach-bounce {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-card__coach-tag,
+  .db-btn__coach-tag {
+    animation: none;
+  }
+}
+
+
+/* ---------- チュートリアル案内カード（視認性向上）＆敵攻撃予告スポットライト ---------- */
+.db-coach-card {
+  position: absolute;
+  top: 14px;
+  left: 22px;
+  z-index: 32;
+  width: 540px;
+  max-width: calc(100% - 44px);
+  padding: 12px 16px 13px;
+  border-radius: 12px;
+  border: 2px solid #34d399;
+  background: linear-gradient(180deg, rgba(6, 36, 32, 0.97) 0%, rgba(5, 18, 28, 0.97) 100%);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.8),
+    0 0 24px rgba(16, 185, 129, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+.db-coach-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.db-coach-card__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+}
+
+.db-coach-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+.db-coach-card__dot--on {
+  background: #34d399;
+  border-color: #a7f3d0;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.85);
+}
+
+.db-coach-card__title {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.35;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+}
+
+.db-coach-card__detail {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #d1fae5;
+}
+
+/* 防御チュートリアル時：敵の攻撃予告を暗転の手前に浮かび上がらせる */
+.db-enemy__intent-slot--spotlight {
+  position: relative;
+  z-index: 32;
+}
+
+.db-intent--coach-spotlight {
+  border-color: #fde047;
+  background: rgba(127, 29, 29, 0.96);
+  color: #fff1f2;
+  box-shadow: 0 0 0 2px #fde047, 0 0 24px rgba(244, 63, 94, 0.9);
+  transform: scale(1.16);
+  animation: db-coach-card-glow 1.1s ease-in-out infinite;
+}
+
+.db-intent__coach-tag {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f43f5e, #fb923c);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 3px 14px rgba(244, 63, 94, 0.85);
+  pointer-events: none;
+  z-index: 35;
+  animation: db-coach-bounce 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-intent--coach-spotlight,
+  .db-intent__coach-tag {
+    animation: none;
+  }
+}

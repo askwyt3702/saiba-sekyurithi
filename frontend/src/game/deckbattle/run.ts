@@ -62,6 +62,42 @@ export function createCardInstance(defId: string, uid: string): CardInstance {
   return { uid, defId, level: 1, xp: 0 };
 }
 
+export const TUTORIAL_TRIAL_NODES: RunNode[] = [
+  { kind: 'battle', enemyIds: ['scanner_bot'] },
+  { kind: 'boss', enemyIds: ['argus'] },
+];
+
+/** 試用チュートリアルマップ(1戦目で1Tガイド＆弱点×1.5、2戦目でボスARGUS演出を確認できる2マス構成) */
+export function createTutorialTrialRun(): RunState {
+  const trialDeckIds = [
+    'thermal_spike', 'thermal_spike',
+    'port_scan', 'port_scan',
+    'firewall', 'firewall', 'firewall',
+    'ssh_brute', 'ssh_brute',
+    'sql_injection',
+  ];
+  const deck = trialDeckIds.map((defId, i) => createCardInstance(defId, `c${i + 1}`));
+  return {
+    status: 'playing',
+    deck,
+    hp: PLAYER_MAX_HP,
+    maxHp: PLAYER_MAX_HP,
+    nodes: TUTORIAL_TRIAL_NODES.map((n) => ({ ...n })),
+    nodeIndex: 0,
+    relics: [],
+    tools: ['hotfix', 'overclock'],
+    reconCoins: STARTING_RECON_COINS,
+    currentBattleElite: false,
+    pendingEvolutions: [],
+    askedQuestionIds: [],
+    fastGrowth: true,
+    loadoutId: 'thermal_ops',
+    securityLevel: 0,
+    seenMysteryIds: [],
+    nextUid: deck.length + 1,
+  };
+}
+
 export function createRun(
   options: { fastGrowth?: boolean; loadoutId?: LoadoutId; securityLevel?: number } = {},
 ): RunState {

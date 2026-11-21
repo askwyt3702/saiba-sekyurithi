@@ -394,3 +394,37 @@
     animation: none;
   }
 }
+
+
+/* ---- 試用チュートリアルマップ出撃ボタン ---- */
+.db-setup__foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.db-setup__trial {
+  padding: 10px 16px;
+  background: rgba(14, 38, 56, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  color: #7dd3fc;
+  font-family: var(--setup-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.db-setup__trial:hover {
+  background: rgba(14, 116, 144, 0.55);
+  border-color: #38bdf8;
+  color: #f0f9ff;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+}
+
+.db-setup__trial-en {
+  opacity: 0.72;
+  font-size: 10.5px;
+}
