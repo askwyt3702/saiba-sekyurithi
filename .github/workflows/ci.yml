@@ -13,8 +13,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: npm
@@ -22,25 +22,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      # Mock比較テストは実バックエンドをメモリ内SQLiteで再生する。
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -m pip install -r ../backend/requirements-dev.txt
       - run: npm test
       - run: npm run build
-
-  # backend/game_data.py・balance_config.py を変えたのに stageData.ts を生成し直していないと失敗する。
-  # 失敗したら、リポジトリのルートで `python scripts/gen_stage_data.py` を実行してコミットし直すこと。
-  stage-data:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python scripts/gen_stage_data.py
-      - run: git diff --ignore-cr-at-eol --exit-code -- frontend/src/game/data/stageData.ts
 
   backend:
     runs-on: ubuntu-latest
@@ -64,13 +47,13 @@ jobs:
     env:
       DATABASE_URL: postgresql://detective:secretpassword@localhost:5432/cyber_mystery
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - run: pip install -r requirements-dev.txt
       # 実際にPostgreSQLに接続してアプリを起動時まで通すことで、
       # importのtypoやモデル定義ミスなど「起動して初めて分かる」不具合を検知する。
       - run: python -c "import main"
-      # ゲームルールのテスト(backend/tests)。テスト自体は使い捨てのSQLiteで動くので、DBの状態に依存しない。
+      # API のテスト(backend/tests)。テスト自体は使い捨てのSQLiteで動くので、DBの状態に依存しない。
       - run: pytest

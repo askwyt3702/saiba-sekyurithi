@@ -1,0 +1,242 @@
+// ローグライク拡張データ: 初期ビルド(ロードアウト)・セキュリティレベル(高難度)・ハプニングイベント。
+import type { GameIconName } from './icons';
+import { STARTER_DECK_IDS } from './cards';
+import type { LoadoutId, MysteryEventId, RelicId, ToolId } from './types';
+
+export interface LoadoutDefinition {
+  id: LoadoutId;
+  name: string;
+  tag: string;
+  icon: GameIconName;
+  description: string;
+  maxHp: number;
+  deckIds: string[];
+  relics: RelicId[];
+  tools: ToolId[];
+}
+
+export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
+  balanced: {
+    id: 'balanced',
+    name: '標準侵入者',
+    tag: 'BALANCED',
+    icon: 'balanced',
+    description: '攻守のバランスが良く、どんな進化ルートにも伸ばしやすい基本構成。',
+    maxHp: 65,
+    deckIds: [...STARTER_DECK_IDS],
+    relics: [],
+    tools: ['hotfix'],
+  },
+  red_team: {
+    id: 'red_team',
+    name: 'レッドチーム（速攻連撃）',
+    tag: 'RED TEAM',
+    icon: 'redTeam',
+    description: '手数と貫通力で押し切る攻撃特化構成。毎ターン「次の攻撃+3」付き。',
+    maxHp: 60,
+    deckIds: [
+      'ssh_brute', 'ssh_brute', 'target_queue',
+      'fuzz_probe', 'fuzz_probe',
+      'sql_injection',
+      'firewall', 'firewall',
+      'port_scan', 'rapid_entry',
+    ],
+    relics: ['auto_scraper'],
+    tools: ['overclock'],
+  },
+  blue_team: {
+    id: 'blue_team',
+    name: 'ブルーチーム（重装甲反撃）',
+    tag: 'BLUE TEAM',
+    icon: 'blueTeam',
+    description: '高い耐久とFW・反撃で敵の攻撃を跳ね返す要塞構成。毎ターン開始時に反撃4がそろう。',
+    maxHp: 75,
+    deckIds: [
+      'firewall', 'firewall', 'mirror_wall',
+      'tls_shield', 'honeypot', 'shield_slam',
+      'waf_rule', 'port_scan',
+      'ssh_brute', 'ssh_brute',
+    ],
+    relics: ['thorn_daemon'],
+    tools: ['hotfix'],
+  },
+  thermal_ops: {
+    id: 'thermal_ops',
+    name: 'ウイルス工作員（ウイルス＆妨害）',
+    tag: 'VIRUS OPS',
+    icon: 'thermalOps',
+    description: 'ウイルスと状態異常を積み上げて起爆するテクニカル構成。毎ターン敵全体にウイルス+2。',
+    maxHp: 62,
+    deckIds: [
+      'thermal_spike', 'thermal_spike',
+      'burn_detonate', 'dns_spoof', 'cmd_inject',
+      'firewall', 'firewall', 'firewall',
+      'heat_sink', 'ssh_brute',
+    ],
+    relics: ['thermal_core'],
+    tools: ['jammer_pulse'],
+  },
+};
+
+export const ALL_LOADOUT_IDS: LoadoutId[] = ['balanced', 'red_team', 'blue_team', 'thermal_ops'];
+
+export const MAX_SECURITY_LEVEL = 5;
+
+export interface SecurityLevelInfo {
+  level: number;
+  label: string;
+  summary: string;
+}
+
+/** 高難度 Lv.2 以上で、敵の1回の攻撃に足す攻撃力。連撃では1発あたりに分ける(切り上げ) */
+export const SECURITY_ATTACK_BONUS = 2;
+/** 高難度 Lv.5 で、ボス(第2形態がある敵)にさらに足す攻撃力 */
+export const SECURITY_BOSS_ATTACK_BONUS = 2;
+
+export const SECURITY_LEVELS: SecurityLevelInfo[] = [
+  { level: 0, label: 'Lv.0 標準', summary: '通常の難易度。まずはここから。' },
+  { level: 1, label: 'Lv.1 警戒', summary: '全敵の最大HP +15%。' },
+  { level: 2, label: 'Lv.2 厳戒', summary: `Lv.1に加え、全敵の攻撃力 +${SECURITY_ATTACK_BONUS}(連撃は1発あたりに分ける)。` },
+  { level: 3, label: 'Lv.3 遮断', summary: 'Lv.2に加え、開始時の最大HP −10。' },
+  { level: 4, label: 'Lv.4 攪乱', summary: 'Lv.3に加え、戦闘開始時に「ノイズ」1枚が捨て札に混入。' },
+  { level: 5, label: 'Lv.5 極限', summary: `Lv.4に加え、ボスのHPさらに+20%＆攻撃力+${SECURITY_BOSS_ATTACK_BONUS}。` },
+];
+
+export interface MysteryChoiceDef {
+  id: string;
+  label: string;
+  riskTag: string;
+  tone: 'risk' | 'safe' | 'neutral';
+  description: string;
+}
+
+export interface MysteryEventDefinition {
+  id: MysteryEventId;
+  icon: GameIconName;
+  title: string;
+  lead: string;
+  choices: MysteryChoiceDef[];
+}
+
+export const MYSTERY_EVENTS: Record<MysteryEventId, MysteryEventDefinition> = {
+  echo_quarantine: { id: 'echo_quarantine', icon: 'shield', title: '隔離区画の分岐',
+    lead: '隔離された保守区画に電力が残っている。回線を修復するか、区画を封鎖して報酬を得るか。',
+    choices: [
+      { id: 'repair', label: '保守端末を利用', riskTag: '回復', tone: 'safe', description: 'HPを最大12回復。' },
+      { id: 'seal', label: '区画を封鎖', riskTag: '補給', tone: 'neutral', description: '解析コイン2枚。' },
+    ] },
+  echo_archive: { id: 'echo_archive', icon: 'cache', title: '残響アーカイブ',
+    lead: '破損した保管庫には復元できそうなカードがある。復元には回線耐久を使う。',
+    choices: [
+      { id: 'restore', label: 'カードを復元', riskTag: '負荷', tone: 'risk', description: 'HPを最大8支払い、入手可能なカードを1枚獲得。' },
+      { id: 'leave', label: '立ち去る', riskTag: '安全', tone: 'safe', description: '回線耐久を消費しない。' },
+    ] },
+  echo_exchange: { id: 'echo_exchange', icon: 'heal', title: '深層の修理交換所',
+    lead: '旧式の設備が一度だけ回線を修復できる。決済には解析コインが必要だ。',
+    choices: [
+      { id: 'exchange', label: '回線を修復', riskTag: 'コイン1枚', tone: 'neutral', description: '解析コイン1枚でHPを最大18回復。' },
+      { id: 'leave', label: '温存する', riskTag: '安全', tone: 'safe', description: '解析コインを消費しない。' },
+    ] },
+  dark_zero_day: {
+    id: 'dark_zero_day',
+    icon: 'zeroDay',
+    title: '闇ブローカーのゼロデイ取引',
+    lead: '地下ネットワークの仲介人から暗号化メッセージが届いた。「未公開のレア・エクスプロイトを譲ってやろう。ただし代償は回線耐久だ」',
+    choices: [
+      {
+        id: 'buy_rare',
+        label: 'HP −12 を払って取引する',
+        riskTag: 'HIGH RISK',
+        tone: 'risk',
+        description: 'レアカード1枚をデッキに追加＋解析コイン +1（HPは最低1残る）。',
+      },
+      {
+        id: 'skim_coin',
+        label: '通信ログだけ抜き取って撤収する',
+        riskTag: 'SAFE',
+        tone: 'safe',
+        description: 'ノーダメージで解析コイン +1 を獲得。',
+      },
+    ],
+  },
+  overclock_terminal: {
+    id: 'overclock_terminal',
+    icon: 'terminal',
+    title: '違法オーバークロック端末',
+    lead: '放置された監視サーバーの奥で、未知の常駐モジュールが稼働している。強制抽出すれば大きな力になるが、逆流ダメージは避けられない。',
+    choices: [
+      {
+        id: 'extract_relic',
+        label: 'HP −8 を覚悟で常駐装備を抽出する',
+        riskTag: 'HIGH RISK',
+        tone: 'risk',
+        description: '未所持の常駐装備（レリック）をランダムで1つ獲得（全所持時は解析コイン+2）。',
+      },
+      {
+        id: 'siphon_coolant',
+        label: '冷却回路だけ流用して修復する',
+        riskTag: 'SAFE',
+        tone: 'safe',
+        description: '安全に HP を +8 回復する。',
+      },
+    ],
+  },
+  corrupted_forge: {
+    id: 'corrupted_forge',
+    icon: 'forge',
+    title: '暴走した自動最適化サーバー',
+    lead: '学習用AIが制御を失い、接続したプログラムを強制的に最終形態へ書き換えている。うまく使えば主力カードが一気に進化するが…。',
+    choices: [
+      {
+        id: 'force_evolve',
+        label: 'HP −10 でカード1枚を強制 Lv.3 進化させる',
+        riskTag: 'HIGH RISK',
+        tone: 'risk',
+        description: '未進化のカード1枚を一気に Lv.3 進化待ちにする（進化先をすぐ選べる）。',
+      },
+      {
+        id: 'coin_tune',
+        label: '解析コイン 1枚を使って安全にチューニング',
+        riskTag: 'COST: 1 COIN',
+        tone: 'neutral',
+        description: 'ノーダメージで未最大カード1枚に EXP +3 を付与。',
+      },
+      {
+        id: 'leave',
+        label: '危険なので接続を切る',
+        riskTag: 'SAFE',
+        tone: 'safe',
+        description: '何もせず次のマスへ進む。',
+      },
+    ],
+  },
+  abandoned_cache: {
+    id: 'abandoned_cache',
+    icon: 'package',
+    title: '放棄された緊急キャッシュ',
+    lead: '先代の侵入者が隠した隠しコンテナを発見した。物資を回収するか、残された学習データで手持ちのカードを強化するかを選べる。',
+    choices: [
+      {
+        id: 'take_supplies',
+        label: '緊急ツールと解析コインを回収する',
+        riskTag: 'SUPPLIES',
+        tone: 'safe',
+        description: '緊急ツールが2個未満なら1個獲得＋解析コイン +1。',
+      },
+      {
+        id: 'inject_xp',
+        label: '学習データを主力カードへ注入する',
+        riskTag: 'UPGRADE',
+        tone: 'neutral',
+        description: 'デッキ内のカード1枚に EXP +3 を付与する。',
+      },
+    ],
+  },
+};
+
+export const ALL_MYSTERY_EVENT_IDS: MysteryEventId[] = [
+  'dark_zero_day',
+  'overclock_terminal',
+  'corrupted_forge',
+  'abandoned_cache',
+];

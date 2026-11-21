@@ -1,0 +1,474 @@
+/* =============================================
+   戦闘以外の画面(クイズ・闇市・休憩・ハプニング)と、戦闘の上に出るパネル
+   (強敵ルートの選択・戦闘の結果・進化・報酬・ランの結果・デッキ・カード基地)を、
+   ミッション選択画面(MissionScreen.css)と同じ見た目にそろえる。
+   - 背景:ミッション選択画面と同じ画像＋走査線と格子
+   - 枠:黒に近い緑のガラス、上辺に蛍光グリーンの線、四隅の L 字
+   - 見出し・ラベル・ボタン:等幅の英字
+   - 日本語の説明文は読みやすさのため、白っぽい色と普通の字間のまま
+   DeckBattle.css より後に読み込んで、色と枠だけを上書きする(並びや大きさは変えない)。
+   ============================================= */
+
+.db-shell,
+.db-event-wrap,
+.db-overlay {
+  --term-green: #00ff64;
+  --term-green-rgb: 0, 255, 100;
+  --term-amber: #ff9924;
+  --term-red: #ff4d6a;
+  --term-text: #e6f5ec;
+  --term-muted: #93b5a0;
+  --term-panel: rgba(2, 10, 6, 0.9);
+  --term-mono: ui-monospace, 'Courier New', Consolas, 'Zen Kaku Gothic New', monospace;
+}
+
+/* ---- 背景 ---- */
+.db-event-wrap {
+  background-color: #010603;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 0, 0, 0.22) 3px 4px),
+    linear-gradient(rgba(var(--term-green-rgb), 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--term-green-rgb), 0.03) 1px, transparent 1px),
+    radial-gradient(circle at 50% 45%, rgba(1, 10, 5, 0.45) 25%, rgba(0, 5, 3, 0.8) 82%, rgba(2, 8, 5, 0.92) 100%),
+    url('/mission-bg.jpg');
+  background-size: 100% 4px, 32px 32px, 32px 32px, cover, cover;
+  background-position: center;
+  color: var(--term-text);
+}
+
+.db-overlay {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 0, 0, 0.2) 3px 4px),
+    rgba(1, 6, 3, 0.84);
+}
+
+/* ---- 枠(パネル) ---- */
+.db-event-wrap .db-event-card,
+.db-event-wrap .db-result,
+.db-overlay .db-result {
+  background: var(--term-panel);
+  border: 1px solid rgba(var(--term-green-rgb), 0.35);
+  border-top: 2px solid var(--term-green);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(var(--term-green-rgb), 0.08);
+  color: var(--term-text);
+}
+
+/* 四隅の L 字はどのパネルにも付ける(DeckBattle.css の .db-result::after と同じ描き方) */
+.db-event-wrap .db-event-card {
+  position: relative;
+}
+
+.db-event-wrap .db-event-card::after {
+  --corner: rgba(var(--term-green-rgb), 0.55);
+  content: '';
+  position: absolute;
+  inset: 5px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--corner), var(--corner)) top left / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top left / 2px 10px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top right / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top right / 2px 10px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom left / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom left / 2px 10px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom right / 10px 2px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom right / 2px 10px no-repeat;
+}
+
+/* 負けたときのパネルは赤 */
+.db-overlay .db-result--lost {
+  border-color: rgba(255, 77, 106, 0.4);
+  border-top-color: var(--term-red);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(255, 77, 106, 0.12);
+}
+
+.db-overlay .db-result--lost::after {
+  --corner: rgba(255, 77, 106, 0.6);
+}
+
+/* ---- 見出し ---- */
+.db-overlay .db-result__title,
+.db-event-wrap .db-result__title {
+  font-family: var(--term-mono);
+  font-weight: 600;
+  letter-spacing: 6px;
+  color: #f4fff8;
+  text-shadow: -1.5px 0 rgba(255, 45, 65, 0.45), 1.5px 0 rgba(0, 255, 100, 0.55);
+}
+
+.db-overlay .db-result--lost .db-result__title {
+  color: #ffd9df;
+  text-shadow: -1.5px 0 rgba(255, 45, 65, 0.7), 1.5px 0 rgba(255, 153, 36, 0.35);
+}
+
+.db-overlay .db-result__sub,
+.db-event-wrap .db-result__sub {
+  color: var(--term-muted);
+}
+
+.db-event-wrap .db-hub__sub,
+.db-overlay .db-hub__sub {
+  font-family: var(--term-mono);
+  letter-spacing: 1.5px;
+  color: var(--term-green);
+}
+
+/* ---- 上の小さな札(種類・何問目など) ---- */
+.db-event-wrap .db-event-pill {
+  font-family: var(--term-mono);
+  letter-spacing: 1.5px;
+}
+
+.db-event-wrap .db-event-pill--type {
+  background: rgba(var(--term-green-rgb), 0.12);
+  border: 1px solid rgba(var(--term-green-rgb), 0.5);
+  color: var(--term-green);
+}
+
+.db-event-wrap .db-event-pill--step {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(var(--term-green-rgb), 0.22);
+  color: #cfe9d9;
+}
+
+.db-event-wrap .db-event-hp {
+  font-family: var(--term-mono);
+  color: var(--term-green);
+}
+
+/* ---- 問題・説明の箱 ---- */
+.db-event-wrap .db-event-question-box {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(var(--term-green-rgb), 0.22);
+  border-left: 3px solid var(--term-green);
+}
+
+.db-event-wrap .db-event-cat {
+  font-family: var(--term-mono);
+  letter-spacing: 1.5px;
+  color: var(--term-green);
+}
+
+.db-event-wrap .db-event-prompt {
+  color: #f4fff8;
+}
+
+/* ---- 選択肢 ---- */
+.db-event-wrap .db-event-choice {
+  background: rgba(6, 22, 13, 0.85);
+  border: 1px solid rgba(var(--term-green-rgb), 0.25);
+  color: var(--term-text);
+}
+
+.db-event-wrap .db-event-choice:hover:not(:disabled) {
+  background: rgba(var(--term-green-rgb), 0.1);
+  border-color: var(--term-green);
+  box-shadow: 0 0 12px rgba(var(--term-green-rgb), 0.18);
+}
+
+.db-event-wrap .db-event-choice__num {
+  background: rgba(var(--term-green-rgb), 0.14);
+  border: 1px solid rgba(var(--term-green-rgb), 0.5);
+  color: var(--term-green);
+  font-family: var(--term-mono);
+}
+
+/* ---- 報酬などの箱 ---- */
+.db-event-wrap .db-event-reward-box {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(var(--term-green-rgb), 0.22);
+}
+
+.db-overlay .db-xp-row,
+.db-event-wrap .db-xp-row {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(var(--term-green-rgb), 0.16);
+}
+
+/* ---- 選べるカード型のボタン(進化先・闇市の品物・休憩の選択肢など) ---- */
+.db-event-wrap .db-evo-card,
+.db-overlay .db-evo-card {
+  background: rgba(2, 10, 6, 0.85);
+  border: 1px solid rgba(var(--term-green-rgb), 0.3);
+  border-top: 2px solid rgba(var(--term-green-rgb), 0.75);
+  color: var(--term-text);
+}
+
+.db-event-wrap .db-evo-card:hover:not(:disabled),
+.db-overlay .db-evo-card:hover:not(:disabled) {
+  border-color: var(--term-green);
+  box-shadow: 0 0 16px rgba(var(--term-green-rgb), 0.22);
+}
+
+.db-event-wrap .db-evo-card--elite,
+.db-overlay .db-evo-card--elite {
+  border-color: rgba(255, 153, 36, 0.4);
+  border-top-color: var(--term-amber);
+  background: rgba(30, 14, 2, 0.85);
+}
+
+.db-event-wrap .db-evo-card--elite:hover:not(:disabled),
+.db-overlay .db-evo-card--elite:hover:not(:disabled) {
+  border-color: var(--term-amber);
+  box-shadow: 0 0 16px rgba(255, 153, 36, 0.25);
+}
+
+.db-event-wrap .db-evo-card__icon,
+.db-overlay .db-evo-card__icon {
+  color: var(--term-green);
+}
+
+.db-event-wrap .db-evo-card--elite .db-evo-card__icon,
+.db-overlay .db-evo-card--elite .db-evo-card__icon {
+  color: var(--term-amber);
+}
+
+.db-event-wrap .db-evo-card__cost,
+.db-overlay .db-evo-card__cost {
+  background: rgba(var(--term-green-rgb), 0.12);
+  border: 1px solid rgba(var(--term-green-rgb), 0.4);
+  color: var(--term-green);
+  font-family: var(--term-mono);
+  letter-spacing: 1px;
+}
+
+.db-event-wrap .db-evo-card__cta,
+.db-overlay .db-evo-card__cta {
+  font-family: var(--term-mono);
+  letter-spacing: 1.5px;
+  color: var(--term-green);
+}
+
+/* ---- デッキのカード一覧 ---- */
+.db-event-wrap .db-deck-pill,
+.db-overlay .db-deck-pill {
+  background: rgba(6, 22, 13, 0.82);
+  border: 1px solid rgba(var(--term-green-rgb), 0.22);
+}
+
+.db-event-wrap .db-deck-pill:hover:not(:disabled),
+.db-overlay .db-deck-pill:hover:not(:disabled) {
+  border-color: var(--term-green);
+  box-shadow: 0 0 12px rgba(var(--term-green-rgb), 0.18);
+}
+
+/* ---- カード基地のタブ ---- */
+.db-overlay .db-hub__tab {
+  background: rgba(6, 22, 13, 0.85);
+  border-color: rgba(var(--term-green-rgb), 0.28);
+  color: #b7e4c7;
+  font-family: var(--term-mono);
+  letter-spacing: 1px;
+}
+
+.db-overlay .db-hub__tab--active {
+  background: rgba(var(--term-green-rgb), 0.16);
+  border-color: var(--term-green);
+  color: #f4fff8;
+}
+
+/* ---- ボタン ---- */
+.db-event-wrap .db-btn,
+.db-overlay .db-btn {
+  font-family: var(--term-mono);
+}
+
+.db-event-wrap .db-btn--end,
+.db-overlay .db-btn--end {
+  background: rgba(var(--term-green-rgb), 0.14);
+  border: 1px solid var(--term-green);
+  color: var(--term-green);
+  box-shadow: 0 0 14px rgba(var(--term-green-rgb), 0.2);
+  text-shadow: none;
+}
+
+.db-event-wrap .db-btn--end:hover:not(:disabled),
+.db-overlay .db-btn--end:hover:not(:disabled) {
+  background: var(--term-green);
+  color: #020804;
+  box-shadow: 0 0 22px rgba(var(--term-green-rgb), 0.5);
+}
+
+/* ---- 図鑑のカード・進化先の欄 ---- */
+.db-overlay .db-codex-card,
+.db-event-wrap .db-codex-card {
+  background: rgba(2, 10, 6, 0.85);
+  border-color: rgba(var(--term-green-rgb), 0.22);
+}
+
+.db-overlay .db-codex-branch,
+.db-event-wrap .db-codex-branch {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(var(--term-green-rgb), 0.18);
+}
+
+/* 普通のボタン(閉じる・戻るなど)の地の色 */
+.db-event-wrap .db-btn:not(.db-btn--end),
+.db-overlay .db-btn:not(.db-btn--end) {
+  background: rgba(6, 22, 13, 0.85);
+}
+
+.db-overlay .db-stat-box {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(var(--term-green-rgb), 0.22);
+}
+
+/* ---- クイズのスキャンログ・タグ・コマンド行(カード基地の弱点ノートでも使う) ---- */
+.db-event-wrap .db-event-scanlog,
+.db-overlay .db-event-scanlog {
+  border-color: rgba(var(--term-green-rgb), 0.2);
+  color: #9ee6b8;
+}
+
+.db-event-wrap .db-event-tag,
+.db-overlay .db-event-tag {
+  background: rgba(var(--term-green-rgb), 0.1);
+  border-color: rgba(var(--term-green-rgb), 0.5);
+  color: #9ee6b8;
+}
+
+.db-event-wrap .db-event-choice__cmd,
+.db-overlay .db-event-choice__cmd {
+  border-color: rgba(var(--term-green-rgb), 0.22);
+  color: var(--term-green);
+}
+
+/* =============================================
+   戦闘画面と、どの画面でも出る上のバー。戦闘の背景の絵・カードの色分け・HPバー・効果の数字の色は変えない。
+   ============================================= */
+
+/* ---- 上のバー ---- */
+.db-shell .db-topbar {
+  background: rgba(2, 10, 6, 0.95);
+  border-bottom: 1px solid rgba(var(--term-green-rgb), 0.3);
+  box-shadow: 0 1px 0 rgba(var(--term-green-rgb), 0.08), 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.db-shell .db-brand,
+.db-shell .db-brand__progress {
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-brand__progress {
+  color: var(--term-green);
+  border-color: rgba(var(--term-green-rgb), 0.4);
+}
+
+.db-shell .db-reload-note {
+  background: rgba(1, 6, 3, 0.88);
+  border-color: rgba(var(--term-green-rgb), 0.14);
+  color: #6f8f7c;
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-chip {
+  background: rgba(2, 10, 6, 0.85);
+}
+
+/* マスの印:種類ごとの色は残し、地を暗い緑に。今いるマスは緑に光らせる */
+.db-shell .db-route-node {
+  background: rgba(6, 22, 13, 0.85);
+}
+
+.db-shell .db-route-node__label {
+  font-family: var(--term-mono);
+  letter-spacing: 1px;
+}
+
+.db-shell .db-route-node[aria-current='step'] {
+  border-color: var(--term-green);
+  box-shadow: 0 0 0 1px var(--term-green), 0 0 12px rgba(var(--term-green-rgb), 0.45);
+}
+
+/* ---- 戦闘の場所の色味(背景の絵の上にかける暗いフィルターを、青から緑寄りに) ---- */
+.db-shell .db-main {
+  background:
+    linear-gradient(180deg, rgba(1, 8, 4, 0.6) 0%, rgba(1, 8, 4, 0.3) 43%, rgba(1, 8, 4, 0.55) 61%, rgba(1, 6, 3, 0.93) 100%),
+    var(--battle-background) center bottom / cover no-repeat;
+}
+
+/* ---- 戦闘の状況の帯と戦闘ログ ---- */
+.db-shell .db-battle-strip {
+  background: rgba(2, 10, 6, 0.92);
+  border-color: rgba(var(--term-green-rgb), 0.25);
+}
+
+.db-shell .db-battle-status {
+  color: var(--term-green);
+  border-color: rgba(var(--term-green-rgb), 0.6);
+  font-family: var(--term-mono);
+  letter-spacing: 1px;
+}
+
+.db-shell .db-battle-status--enemy {
+  color: #ff8fa3;
+  border-color: rgba(255, 77, 106, 0.6);
+}
+
+.db-shell .db-log__summary {
+  background: rgba(6, 22, 13, 0.9);
+  border-color: rgba(var(--term-green-rgb), 0.3);
+  color: #cfe9d9;
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-log__list {
+  background: rgba(2, 10, 6, 0.95);
+  border-color: rgba(var(--term-green-rgb), 0.3);
+}
+
+/* ---- 使い捨てツール・山札と捨て札・帯域 ---- */
+.db-shell .db-tool-btn {
+  background: rgba(6, 22, 13, 0.88);
+  border-color: rgba(var(--term-green-rgb), 0.5);
+  color: #b7f5cf;
+}
+
+.db-shell .db-tool-btn:hover:not(:disabled) {
+  border-color: var(--term-green);
+  box-shadow: 0 0 10px rgba(var(--term-green-rgb), 0.3);
+}
+
+.db-shell .db-pile {
+  background: repeating-linear-gradient(45deg, #04140b 0 6px, #020c06 6px 12px);
+  border-color: rgba(var(--term-green-rgb), 0.28);
+  color: #7fa58e;
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-energy {
+  border-color: #c9ffe0;
+  background: radial-gradient(circle at 35% 30%, #5dffa0, #047a3b 70%);
+  box-shadow: 0 0 18px rgba(var(--term-green-rgb), 0.5);
+}
+
+.db-shell .db-energy__value {
+  text-shadow: 0 0 10px rgba(var(--term-green-rgb), 0.8);
+}
+
+.db-shell .db-energy__label {
+  font-family: var(--term-mono);
+}
+
+/* ---- カードにカーソルを合わせたときの拡大表示 ---- */
+.db-shell .db-card-preview-panel {
+  border-color: rgba(var(--term-green-rgb), 0.6);
+  background: rgba(2, 10, 6, 0.96);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.85), 0 0 22px rgba(var(--term-green-rgb), 0.2);
+}
+
+.db-shell .db-card-preview-float__tag {
+  color: var(--term-green);
+  font-family: var(--term-mono);
+}
+
+.db-shell .db-glossary {
+  background: rgba(2, 10, 6, 0.96);
+  border-color: rgba(var(--term-green-rgb), 0.35);
+}
+
+.db-shell .db-card-preview-float__next,
+.db-overlay .db-card-preview-float__next {
+  background: rgba(2, 10, 6, 0.92);
+  border-color: rgba(var(--term-green-rgb), 0.34);
+}

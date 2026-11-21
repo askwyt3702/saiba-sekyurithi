@@ -1,0 +1,367 @@
+/* 分岐マップ。画面内の寸法は1280×720を基準にする。 */
+.rm-wrap {
+  --rm-green: #8debbb;
+  --rm-green-rgb: 141, 235, 187;
+  --rm-cyan: #7bf5ed;
+  --rm-mono: ui-monospace, Consolas, 'Zen Kaku Gothic New', monospace;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 16px 12px;
+  overflow: hidden;
+  color: #e5f2eb;
+  background: #06100d;
+}
+
+.rm-wrap--sidebar {
+  grid-template-columns: minmax(0, 1fr) 244px;
+}
+
+.rm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+}
+
+.rm-panel {
+  min-width: 0;
+  padding: 12px;
+  background: #0a1813;
+  border: 1px solid #284137;
+  border-top-color: #669982;
+}
+
+.rm-map-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 10px;
+}
+
+.rm-head,
+.rm-overview,
+.rm-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rm-head {
+  padding: 0 1px 7px;
+}
+
+.rm-label {
+  display: block;
+  margin: 0;
+  color: var(--rm-green);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.rm-floor {
+  margin-right: auto;
+  padding: 3px 7px;
+  border: 1px solid #416351;
+  background: #10281e;
+  color: #e3ffeb;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.rm-head .db-btn {
+  min-height: 32px;
+  padding: 4px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.rm-overview {
+  justify-content: space-between;
+  padding: 0 1px 7px;
+}
+
+.rm-progress,
+.rm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rm-progress button {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  min-height: 25px;
+  padding: 0;
+  border: 1px solid #30463e;
+  background: #101b17;
+  color: #b4c9bd;
+  font: 700 12px var(--rm-mono);
+  cursor: pointer;
+}
+
+.rm-progress .rm-progress__passed {
+  color: var(--rm-green);
+  border-color: #4a7e64;
+}
+
+.rm-progress button[aria-current] {
+  color: #071714;
+  background: var(--rm-cyan);
+  border-color: var(--rm-cyan);
+}
+
+.rm-progress button:hover:not([aria-current]) {
+  background: #214738;
+  color: #e4fff0;
+}
+
+.rm-direction {
+  color: #bbd5c9;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.rm-box {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+  scrollbar-color: #537b68 #101b17;
+  border: 1px solid #2a4539;
+  background: #081410;
+}
+
+.rm-graph {
+  position: relative;
+  min-width: 760px;
+  background-image: repeating-linear-gradient(90deg, #9bd5b608 0 1px, transparent 1px 54px);
+}
+
+.rm-band {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border-block: 1px solid #8ab9a211;
+  pointer-events: none;
+}
+
+.rm-band:nth-child(odd) { background: #a4d0b507; }
+.rm-band--current { background: #59e3b518 !important; }
+.rm-band span {
+  display: grid;
+  gap: 1px;
+  padding-left: 12px;
+  color: #98b9aa;
+  font-size: 11px;
+}
+
+.rm-band strong {
+  color: #ccdfd6;
+  font: 700 19px var(--rm-mono);
+}
+
+.rm-band--current strong { color: var(--rm-cyan); }
+
+.rm-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  pointer-events: none;
+}
+
+.rm-edge--future { stroke: #476458; stroke-width: 1.5; stroke-dasharray: 3 5; }
+.rm-edge--taken { stroke: #8ad3a7; stroke-width: 2.5; }
+.rm-edge--next { stroke: var(--rm-cyan); stroke-width: 3; stroke-dasharray: 8 3; }
+
+/* マスの種類はアイコンと色を共有し、接続状態は枠とラベルで伝える。 */
+.rm-node--start { --k: #8debbb; }
+.rm-node--battle { --k: #e4f6ed; }
+.rm-node--elite { --k: #ffbf71; }
+.rm-node--event { --k: #90efea; }
+.rm-node--mystery { --k: #d3b8ff; }
+.rm-node--shop { --k: #ffe092; }
+.rm-node--rest { --k: #97e4ac; }
+.rm-node--boss { --k: #ff9ea4; }
+
+.rm-node {
+  position: absolute;
+  width: min(110px, 12%);
+  height: 58px;
+  box-sizing: border-box;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  transform: translate(-50%, -50%);
+  padding: 2px 4px;
+  border: 1px solid #466655;
+  background: #14241d;
+  color: #b5c9bd;
+  text-align: center;
+  font-family: inherit;
+  cursor: default;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.rm-node__type,
+.rm-node__status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.rm-node__type { font-size: 13px; font-weight: 800; line-height: 17px; }
+.rm-node__type .game-icon { color: var(--k); width: 16px; height: 16px; }
+.rm-node__status { color: #a6bbaf; font-size: 11px; line-height: 14px; }
+.rm-node__status .game-icon { width: 13px; height: 13px; }
+.rm-node--future { border-style: dashed; background: #0c1813; }
+.rm-node--future .rm-node__type .game-icon { opacity: .7; }
+.rm-node--visited { border-color: #619e7c; }
+.rm-node--visited .rm-node__status { color: var(--rm-green); }
+
+.rm-node--current,
+.rm-node--next {
+  color: #eafff4;
+  border: 2px solid var(--rm-cyan);
+  background: #103329;
+}
+
+.rm-node--current {
+  box-shadow: inset 0 0 0 2px #0a1613, 0 0 0 2px #6adab5;
+}
+
+.rm-node--current .rm-node__status,
+.rm-node--next .rm-node__status { color: var(--rm-cyan); font-weight: 700; }
+.rm-node--next { cursor: pointer; }
+.rm-node--moving,
+.rm-node--moving:hover {
+  color: #f4fffd;
+  border-color: #e2fffc;
+  animation: rm-connect-node 180ms ease-out both;
+}
+
+.rm-edge--next .rm-edge--moving {
+  stroke: #e2fffc;
+  stroke-width: 4;
+  stroke-dasharray: 12 4;
+  animation: rm-connect-line 180ms linear both;
+}
+.rm-node--inspected:not(.rm-node--current) { box-shadow: 0 0 0 2px #abc8bd; }
+.rm-node--next:hover { background: #1b4a3d; box-shadow: 0 0 14px #7bf5ed45; }
+.rm-node:focus-visible,
+.rm-progress button:focus-visible { outline: 2px solid #ecfff9; outline-offset: 3px; }
+
+.rm-footer {
+  justify-content: space-between;
+  min-height: 26px;
+  padding: 5px 1px 0;
+  color: #bacfc4;
+  font-size: 12px;
+}
+
+.rm-legend { gap: 4px 12px; }
+.rm-legend li { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rm-legend li::before { content: ''; width: 14px; border-top: 2px solid; }
+.rm-legend li:first-child::before { display: none; }
+.rm-legend .rm-legend--next::before { color: var(--rm-cyan); border-top-style: dashed; }
+.rm-legend .rm-legend--taken::before { color: #8ad3a7; }
+.rm-legend .rm-legend--future::before { color: #759486; border-top-style: dotted; }
+
+.rm-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+.rm-side[hidden],
+.rm-info[hidden] { display: none; }
+
+.rm-focus {
+  margin-top: 12px;
+  color: #c6ded1;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.rm-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  color: #a6c3b5;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.rm-badge--current,
+.rm-badge--next { color: var(--rm-cyan); }
+.rm-badge--visited { color: var(--rm-green); }
+
+.rm-focus__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  color: #f1fff7;
+  font-size: 19px;
+}
+
+.rm-focus p { margin: 3px 0 8px; }
+.rm-focus__detail { color: #e5fff1; font-weight: 700; }
+.rm-focus h4 { margin: 8px 0 0; color: var(--rm-green); font-size: 12px; }
+
+.rm-head .rm-inspect-toggle[aria-pressed='true'] {
+  border-color: var(--rm-cyan);
+  color: var(--rm-cyan);
+  background: #194c3c;
+}
+
+.rm-move-error { color: #ffadb0; }
+
+@keyframes rm-connect-node {
+  35% { background: #366c5f; box-shadow: 0 0 20px #7bf5ed99; }
+}
+
+@keyframes rm-connect-line {
+  from { stroke-dashoffset: 16; }
+  to { stroke-dashoffset: 0; }
+}
+
+.rm-peek {
+  position: absolute;
+  z-index: 2;
+  right: 25px;
+  bottom: 43px;
+  display: grid;
+  gap: 4px;
+  width: min(310px, 45%);
+  padding: 9px 12px;
+  border: 1px solid #547d6a;
+  background: #0c2118;
+  box-shadow: 0 6px 14px #0008;
+  color: #daeee2;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rm-node { transition: none; }
+  .rm-node--moving,
+  .rm-edge--next .rm-edge--moving { animation: none; }
+}

@@ -5,37 +5,23 @@
 
 ## プロジェクトの前提
 
-- フロント:`frontend/`(React + TypeScript + Vite + React Flow)
-- バックエンド:`backend/`(FastAPI + SQLAlchemy + PostgreSQL)
+- ゲームはデッキ構築ローグライト(デッキバトル)。企画は `docs/deckbattle-plan-v0.3.md`
+- フロント:`frontend/`(React + TypeScript + Vite)。ゲームのルールはすべてフロントの `frontend/src/game/deckbattle/` にあり、画面は `frontend/src/components/DeckBattle/`
+- バックエンド:`backend/`(FastAPI + SQLAlchemy + PostgreSQL)。プレイヤーとカード基地(図鑑・弱点ノート・戦績・実績)を保存するだけで、ゲームのルールは持たない
 - フロントとバックエンドのデータの形は `docs/api-contract.md` で取り決めている
 - ゲームは**ターン制**(操作は即座に結果が確定する)。チームで決定済みのため、WebSocketや実時間で進む仕組みは追加しない
 
-## 最重要:バックエンドを変えたら、フロントの生成ファイルも更新する
+## ゲームのルールを変えるとき
 
-フロントは、バックエンドが止まっているときでも動くMock(ダミー)を持っている。
-Mockのステージやギミックの数値、データ回収ボタンの判定は、`backend/game_data.py` と `backend/balance_config.py` から
-自動生成した `frontend/src/game/data/stageData.ts` を使っている。
-
-次のどれかを変えたら、リポジトリのルートで `python scripts/gen_stage_data.py` を実行し、
-生成された `frontend/src/game/data/stageData.ts` も**同じコミットに含める**こと。
-
-- ステージ(ノード・エッジ・脆弱性)
-- ギミック(最終目標 `TARGET_NODE_IDS`・暗号鍵 `KEY_FRAGMENT_NODE_IDS`・ノードの特殊効果 `NODE_EFFECTS`)
-- 初期の解析資源などの数値
-- 各操作のコスト(`ACTION_COSTS`)や警戒度の減衰(`ALERT_DECAY_PER_SECOND`)
-
-`stageData.ts` は手で編集しない。フロントの `balanceConfig.ts` もこの生成値を読んでいるだけなので、数値を直接書かない。
-生成し忘れると、GitHubのCI(`stage-data` ジョブ)が失敗する。
-
-## ゲームのルール(判定の処理)を変えるとき
-
-`backend/game_logic.py` の判定を変えたら、同じルールを `frontend/src/game/client/mockGameClient.ts` にも反映する。
-Mockはバックエンドのルールを写したもので、片方だけ変えると挙動がずれる。
+- ルール(`frontend/src/game/deckbattle/` の `battle.ts`・`run.ts` など)は、画面に依存しない純粋な関数で書き、`frontend/tests/deckBattle.test.mjs` にテストを足す
+- 敵やカードの数値をテストに直接書かない(`ENEMY_DEFINITIONS` などの定義から計算する)。数値を調整してもテストが壊れないようにするため
+- 大きな数値の変更をしたら、企画書(`docs/deckbattle-plan-v0.3.md`)の表も合わせて直す
 
 ## APIやデータの形を変えるとき
 
-レスポンスの項目名・却下理由・エンドポイントを変えたら、`docs/api-contract.md` を更新する。
-フロントの型(`frontend/src/game/model/types.ts`)にも合わせて反映する。
+- エンドポイント・項目名・エラーを変えたら、`docs/api-contract.md` を更新する
+- 同じ変更を、バックエンド(`backend/main.py` と `backend/tests/`)とフロント(`frontend/src/game/deckbattle/api.ts`、カード基地の形は `profile.ts` の `DeckProfile`)の両方に入れる。片方だけ変えると保存に失敗する
+- カード基地に項目を足すときは、DB の列(`backend/models.py`)も足す。`create_all` は既存のテーブルに列を足さないので、各自の `postgres_data/` を作り直すか、列を足す処理を書く
 
 ## 画面のCSSを書くとき
 
@@ -47,8 +33,8 @@ Mockはバックエンドのルールを写したもので、片方だけ変え�
 
 ## コミット前の確認
 
-- バックエンドを変えた場合:`cd backend` して `pytest` を実行し、すべて通ることを確認する
-- フロントを変えた場合:`frontend` で `npm run typecheck`、`npm run lint`、`npm test`、`npm run build` を実行する(Python環境が無いとMockとバックエンドの比較テストはスキップされる。Mockを変えた場合は、CIの結果まで確認する)
+- バックエンドを変えた場合:`cd backend` して `pytest` を実行し、すべて通ることを確認する(手元に Python 環境が無ければ、README の「バックエンドのテスト」のとおり docker で実行する)
+- フロントを変えた場合:`frontend` で `npm run typecheck`、`npm run lint`、`npm test`、`npm run build` を実行する
 - テンプレートのままのプロジェクト、バックアップ用のコピー、ビルド成果物(`dist/` など)はコミットしない。古い内容はgitの履歴に残っているので、バックアップファイルは不要
 
 ## コミットメッセージ
@@ -76,5 +62,5 @@ Mockはバックエンドのルールを写したもので、片方だけ変え�
 
 ## 作業の最後に
 
-変更内容を説明するとき、上のルールのうち実施したもの(生成スクリプトの実行、Mockや契約書の更新、テストの結果)を明記すること。
+変更内容を説明するとき、上のルールのうち実施したもの(テストの結果、契約書・企画書の更新、依存ライブラリの連絡)を明記すること。
 該当しない場合は「該当なし」と書くこと。
