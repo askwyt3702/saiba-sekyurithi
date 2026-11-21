@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { REWARD_CARD_IDS } from '../../game/deckbattle/cards';
 import { isBgmEnabled, setBgmEnabled } from '../../game/sound/bgm';
 import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
 import { GameIcon } from '../GameIcon/GameIcon';
@@ -135,7 +136,7 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
             </div>
             <div className="ts-term-line ts-term-line--ok">
               <span className="ts-term-tag">[OK]</span>
-              <span>40 EXPLOIT &amp; FIREWALL MODULES LOADED</span>
+              <span>{REWARD_CARD_IDS.length} EXPLOIT &amp; FIREWALL MODULES LOADED</span>
             </div>
             <div className="ts-term-line ts-term-line--ready">
               <span className="ts-term-tag">[READY]</span>
@@ -176,7 +177,7 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
       <footer className="ts-hud-bottom">
         <span>CVE-SCANNER: READY</span>
         <span className="ts-hud-sep">//</span>
-        <span>TARGETS: ARGUS · AEGIS-OMEGA · HYDRA-NET</span>
+        <span>FINAL TARGET: NEXUS</span>
         <span className="ts-hud-sep">//</span>
         <span>v1.0.0 CYBER_LABYRINTH_SYS</span>
       </footer>

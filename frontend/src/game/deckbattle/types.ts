@@ -112,7 +112,11 @@ export type EnemyMove =
   /** 検知:プレイヤーの次のターンの帯域を減らす */
   | { type: 'detect'; amount: number }
   /** ノイズのカードをプレイヤーの捨て札に入れる */
-  | { type: 'noise'; count: number };
+  | { type: 'noise'; count: number }
+  | { type: 'watch'; amount: number; extra: number; threshold: number }
+  | { type: 'support'; heal: number; block: number; buff: number }
+  | { type: 'interfere'; count: number }
+  | { type: 'mirror'; amount: number; block: number };
 
 export type EnemyWeakness = 'multi' | 'pierce' | 'burn' | 'all';
 
@@ -127,6 +131,8 @@ export interface EnemyDefinition {
   pattern: EnemyMove[];
   /** HP がこの割合以下になったら phase2Pattern に切り替える(ボス用) */
   phase2?: { hpRatio: number; pattern: EnemyMove[] };
+  phase3?: { hpRatio: number; pattern: EnemyMove[] };
+  summon?: string;
 }
 
 export interface BurnStatus {
@@ -149,7 +155,7 @@ export interface EnemyState {
   securityBonus: number;
   /** pattern の何番目を次に行うか */
   moveIndex: number;
-  phase: 1 | 2;
+  phase: 1 | 2 | 3;
   burn?: BurnStatus;
   /** 脆弱(受けるダメージ1.5倍)の残りターン */
   vulnerable?: number;
@@ -169,7 +175,8 @@ export type RelicId =
   | 'siphon_module'
   | 'overclock_bus'
   | 'weak_scanner'
-  | 'coin_miner';
+  | 'coin_miner' | 'echo_bandwidth' | 'echo_repair' | 'echo_analysis'
+  | 'echo_overclock' | 'echo_compression' | 'echo_defense';
 
 export type LoadoutId = 'balanced' | 'red_team' | 'blue_team' | 'thermal_ops';
 
@@ -177,7 +184,7 @@ export type MysteryEventId =
   | 'dark_zero_day'
   | 'overclock_terminal'
   | 'corrupted_forge'
-  | 'abandoned_cache';
+  | 'abandoned_cache' | 'echo_quarantine' | 'echo_archive' | 'echo_exchange';
 
 export interface RelicDefinition {
   id: RelicId;
@@ -235,6 +242,7 @@ export interface BattleLog {
 /** 敵のターンに実際に起きたこと(画面で1つずつ演出する) */
 /** 敵のターンに起きたこと1つ(画面で1つずつ再生する) */
 export type EnemyActionKind =
+  | { kind: 'hazard'; enemyUid: string; damage: number }
   | { kind: 'attack'; enemyUid: string; damage: number; blocked: number; hits: number; hit: number }
   | { kind: 'block'; enemyUid: string; amount: number }
   | { kind: 'buff'; enemyUid: string; amount: number }
@@ -324,6 +332,8 @@ export interface XpGainEntry {
 }
 
 export interface RunState {
+  act?: 1 | 2;
+  intermission?: { step: 'cleared' | 'echo' | 'accepted'; previousHp?: number; choices?: RelicId[]; relicId?: RelicId };
   status: 'playing' | 'won' | 'lost';
   /** チュートリアルのラン。図鑑・実績・戦績には記録しない */
   tutorial?: boolean;

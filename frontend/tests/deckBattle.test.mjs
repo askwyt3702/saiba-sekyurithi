@@ -464,13 +464,14 @@ test('イベントの事前調査で除外される選択肢は必ず不正解�
   assert.throws(() => run.applyQuizXpReward(r, 'c3'));
 });
 
-test('最後のマスのボス(ARGUS)に勝つとラン勝利になる', () => {
+test('ACT 1のボスに勝ってもランを継続し、戦闘報酬を提示する', () => {
   const r = atNode(run.createRun({ fastGrowth: false }), isKind('boss'));
   const b = run.createBattleForCurrentNode(r, 11);
   b.status = 'won';
   const res = run.applyBattleResult(r, b, 12);
-  assert.equal(res.run.status, 'won');
-  assert.equal(res.rewardChoices.length, 0);
+  assert.equal(res.run.status, 'playing');
+  assert.equal(res.run.intermission.step, 'cleared');
+  assert.equal(res.rewardChoices.length, 3);
 });
 
 
@@ -927,11 +928,11 @@ test('HPを払う攻撃カードは、敵へのダメージと自分のHP減少�
   assert.ok(message.includes(`あなた：HPを${selfCost.amount}失った`), message);
 });
 
-test('ボスに勝ったときは、Lv.3 に届いたカードがあっても進化先を選ばせない(通常の戦闘では選ばせる)', () => {
-  const finish = (match) => {
+test('最終ボスでは進化を待たず、第1層ボスと通常戦では進化を待つ', () => {
+  const finish = (match, act = 1) => {
     const base = atNode(run.createRun(), match);
     const deck = base.deck.map((c, i) => (i === 0 ? { ...c, xp: run.XP_TO_LV3 - 1, level: 2 } : c));
-    const r = { ...base, deck };
+    const r = { ...base, deck, act };
     const s = run.createBattleForCurrentNode(r, 1);
     const won = {
       ...s,
@@ -941,10 +942,11 @@ test('ボスに勝ったときは、Lv.3 に届いたカードがあっても進
     };
     return run.applyBattleResult(r, won, 1).run;
   };
-  const afterBoss = finish(isKind('boss'));
+  const afterBoss = finish(isKind('boss'), 2);
   assert.equal(afterBoss.status, 'won');
   assert.equal(afterBoss.deck[0].level, 3);
   assert.equal(afterBoss.pendingEvolutions.length, 0);
+  assert.equal(finish(isKind('boss')).pendingEvolutions.length, 1);
 
   const afterNormal = finish(isScannerBattle);
   assert.equal(afterNormal.status, 'playing');
@@ -1100,4 +1102,148 @@ test('バッファ復元は捨て札のノイズを残し、最後の使用可�
   const next = play(state, 'c1');
   assert.equal(next.hand.join(','), 'c2');
   assert.equal(next.discard.join(','), 'c3,c1');
+});
+
+test('ACT 1戦利品と進化からECHOへ進み、全回復・権限・ACT 2を一度だけ確定する', () => {
+  const profile = load(new URL('../src/game/deckbattle/profile.ts', import.meta.url));
+  const base = profile.loadDeckProfile();
+  const start = { ...atNode(run.createRun({ loadoutId: 'red_team', securityLevel: 2 }), isKind('boss')), hp: 12 };
+  const b = run.createBattleForCurrentNode(start, 11);
+  let mid = run.applyBattleResult(start, { ...b, status: 'won' }, 12).run;
+  assert.equal(profile.recordRunResult(base, mid), base);
+  assert.throws(() => run.moveToNode(mid, 'boss'), /ECHO/);
+  assert.throws(() => run.applyBattleResult(mid, { ...b, status: 'won' }, 12), /処理済み/);
+  mid = run.arriveAtEcho(mid, 22);
+  assert.equal(mid.hp, start.maxHp);
+  assert.equal(mid.intermission.previousHp, start.hp);
+  assert.equal(new Set(mid.intermission.choices).size, 3);
+  assert.throws(() => run.arriveAtEcho(mid, 22), /報酬処理/);
+  const choice = mid.intermission.choices[0];
+  const accepted = run.selectEchoRelic(mid, choice);
+  assert.throws(() => run.selectEchoRelic(accepted, choice), /1回/);
+  const deep = run.enterDeepNetwork(accepted, 10);
+  assert.throws(() => run.enterDeepNetwork(deep, 10), /権限/);
+  assert.equal(deep.act, 2);
+  assert.equal(deep.map.floorCount, start.map.floorCount);
+  assert.equal(deep.map.nodes[deep.map.bossId].enemyIds[0], 'nexus');
+  assert.equal(deep.deck, accepted.deck);
+  assert.equal(deep.tools, accepted.tools);
+  assert.equal(deep.reconCoins, accepted.reconCoins);
+  assert.equal(deep.securityLevel, accepted.securityLevel);
+  assert.equal(deep.loadoutId, accepted.loadoutId);
+  assert.ok(deep.relics.includes(choice));
+  const boss = { ...deep, currentNodeId: deep.map.bossId };
+  const final = run.applyBattleResult(boss, { ...run.createBattleForCurrentNode(boss, 7), status: 'won' }, 8).run;
+  assert.equal(final.status, 'won');
+  assert.ok(profile.recordRunResult(base, final).achievements.includes('act2_clear'));
+});
+
+test('ECHOの権限6種類はメリットと負荷を戦闘に反映し、通常報酬からは出ない', () => {
+  const relic = load(new URL('../src/game/deckbattle/relics.ts', import.meta.url));
+  const baseline = atNode(run.createRun(), isScannerBattle);
+  const withRelic = (id) => run.createBattleForCurrentNode({ ...baseline, relics: [id] }, 5);
+  const normal = run.createBattleForCurrentNode(baseline, 5);
+  assert.equal(relic.ECHO_RELIC_IDS.length, 6);
+  assert.ok(relic.ALL_RELIC_IDS.every((id) => !id.startsWith('echo_')));
+  const bandwidth = withRelic('echo_bandwidth');
+  assert.equal(bandwidth.player.energy, normal.player.energy + 1);
+  assert.equal(bandwidth.hand.length, normal.hand.length - 1);
+  const analysis = withRelic('echo_analysis');
+  const paid = analysis.hand.find((uid) => battle.getCardStats(analysis.cards[uid]).cost > 0);
+  assert.equal(battle.getPlayCost(analysis, paid), battle.getCardStats(analysis.cards[paid]).cost - 1);
+  assert.equal(analysis.cards[analysis.hand[0]].defId, 'noise');
+  const overclock = withRelic('echo_overclock');
+  assert.equal(overclock.player.energy, normal.player.energy + 2);
+  assert.equal(battle.endTurn(overclock).player.hp, battle.endTurn(normal).player.hp - relic.ECHO_OVERCLOCK_HP);
+  const compression = withRelic('echo_compression');
+  assert.equal(compression.player.energy, normal.player.energy - 1);
+  assert.equal(compression.hand.length, normal.hand.length + 2);
+  const defense = withRelic('echo_defense');
+  assert.equal(defense.player.block, normal.player.block + 6);
+  const elite = { ...baseline, currentBattleElite: true, relics: ['echo_defense'] };
+  assert.equal(run.applyBattleResult(elite, { ...defense, status: 'won' }, 8).coinsDropped, 0);
+  const repair = run.selectEchoRelic({ ...baseline, hp: baseline.maxHp, intermission: {
+    step: 'echo', choices: ['echo_repair'],
+  } }, 'echo_repair');
+  assert.equal(repair.maxHp, baseline.maxHp - relic.ECHO_HP_COST);
+  const win = { ...normal, status: 'won', player: { ...normal.player, hp: 1 } };
+  assert.equal(run.applyBattleResult({ ...repair, act: 2 }, win, 8).healed,
+    Math.floor(repair.maxHp * run.BATTLE_WIN_HEAL_RATIO) + Math.floor(repair.maxHp * relic.ECHO_REPAIR_RATIO));
+});
+
+test('深層の監視・支援・妨害・模倣が予告どおりに動作する', () => {
+  const base = setup([{ defId: 'ssh_brute' }], ['watcher']);
+  const watch = ENEMY_DEFINITIONS.watcher.pattern[0];
+  const normal = battle.endTurn(base);
+  const watched = battle.endTurn({ ...base, playedThisTurn: Array(watch.threshold).fill('c1') });
+  assert.equal(normal.player.hp - watched.player.hp, watch.extra);
+
+  const supported = setup([{ defId: 'ssh_brute' }], ['bulwark', 'repair_node']);
+  const support = ENEMY_DEFINITIONS.repair_node.pattern[0];
+  supported.enemies[0].hp -= support.heal + 1;
+  const repaired = battle.endTurn(supported);
+  assert.equal(repaired.enemies[0].hp - supported.enemies[0].hp, support.heal);
+  assert.equal(repaired.enemies[0].attackBonus, support.buff);
+
+  const interference = battle.endTurn(setup([{ defId: 'ssh_brute' }], ['null_process']));
+  assert.equal(interference.cards[interference.hand[0]].defId, 'noise');
+
+  const mirror = setup([{ defId: 'ssh_brute' }], ['mirror_daemon']);
+  assert.ok(battle.endTurn(mirror).player.hp < mirror.player.hp);
+  const shield = battle.endTurn({ ...mirror, attacksThisTurn: 1 });
+  assert.equal(shield.player.hp, mirror.player.hp);
+  assert.equal(shield.enemies[0].block, ENEMY_DEFINITIONS.mirror_daemon.pattern[0].block);
+});
+
+test('ACT 2は専用のクイズを重複せず出し、3種類のハプニングを使う', () => {
+  const initial = run.createRun();
+  let deep = run.enterDeepNetwork({ ...initial, intermission: { step: 'accepted' } }, 21);
+  const ids = new Set();
+  for (let i = 0; i < 15; i++) {
+    const question = run.pickEventQuestion(deep, 'vuln_check', i);
+    assert.ok(question.id.startsWith('deep-network-'));
+    ids.add(question.id);
+    deep = run.resolveEventQuiz(deep, 'vuln_check', question.id, true).run;
+  }
+  assert.equal(ids.size, 15);
+  const events = new Set();
+  for (let i = 0; i < 3; i++) {
+    const event = run.pickMysteryEvent(deep, i);
+    events.add(event);
+    deep = run.resolveMysteryChoice(deep, event, 'leave', i).run;
+  }
+  assert.equal(events.size, 3);
+});
+
+test('NEXUSの召喚は1回だけ発生し、第三形態で予告が切り替わる', () => {
+  const def = ENEMY_DEFINITIONS.nexus;
+  const start = setup([{ defId: 'ssh_brute' }, { defId: 'ssh_brute' }], ['nexus']);
+  start.enemies[0].hp = Math.floor(start.enemies[0].maxHp * def.phase2.hpRatio) + 1;
+  const mid = play(start, 'c1');
+  assert.equal(mid.enemies[0].phase, 2);
+  assert.equal(mid.enemies[1].defId, def.summon);
+  mid.enemies[0].hp = Math.floor(mid.enemies[0].maxHp * def.phase3.hpRatio) + 1;
+  const last = play(mid, 'c2', mid.enemies[0].uid);
+  assert.equal(last.enemies[0].phase, 3);
+  assert.equal(last.enemies.length, 2);
+  assert.equal(battle.getEnemyIntent(last.enemies[0]).amount, def.phase3.pattern[0].amount);
+});
+
+test('ACT 2のチェックポイントは選択済み権限を復元し、破損データを無視する', () => {
+  const checkpoint = load(new URL('../src/game/deckbattle/runCheckpoint.ts', import.meta.url));
+  let data;
+  const storage = { setItem: (_, value) => { data = value; }, getItem: () => data, removeItem: () => { data = null; } };
+  const initial = atNode(run.createRun(), isScannerBattle);
+  const pending = run.arriveAtEcho({ ...initial, hp: 4, intermission: { step: 'cleared' } }, 23);
+  const committed = run.selectEchoRelic(pending, pending.intermission.choices[0]);
+  checkpoint.saveRunCheckpoint({ run: committed, battle: run.createBattleForCurrentNode(initial, 1), view: { phase: 'echo' } }, storage);
+  const restored = checkpoint.readRunCheckpoint(storage);
+  assert.equal(restored.run.intermission.step, 'accepted');
+  assert.equal(restored.run.hp, committed.hp);
+  assert.throws(() => run.selectEchoRelic(restored.run, committed.intermission.relicId), /1回/);
+  const resumed = run.enterDeepNetwork(restored.run, 1);
+  checkpoint.saveRunCheckpoint({ ...restored, run: resumed, view: { phase: 'map' } }, storage);
+  assert.equal(checkpoint.readRunCheckpoint(storage).run.act, 2);
+  data = '{bad';
+  assert.equal(checkpoint.readRunCheckpoint(storage), null);
 });

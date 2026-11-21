@@ -56,7 +56,8 @@ test('説明の数値はルールの定数から作られている', () => {
   const hps = Object.values(rogue.LOADOUT_DEFINITIONS).map((l) => l.maxHp);
   assert.ok(text.includes(`${Math.min(...hps)}〜${Math.max(...hps)}`), '最大HPは初期ビルドの範囲で書く');
   assert.ok(text.includes(`${run.STARTING_RECON_COINS}枚で始まり`));
-  assert.ok(text.includes(`${mapMod.MAP_TOTAL_FLOORS}段目の監視AI`));
+  assert.ok(text.includes(`${mapMod.MAP_TOTAL_FLOORS}段進み`));
+  assert.ok(text.includes('NEXUS'));
   assert.ok(text.includes(`強化を${run.START_BONUS_CHOICES}つから1つ`));
 });
 

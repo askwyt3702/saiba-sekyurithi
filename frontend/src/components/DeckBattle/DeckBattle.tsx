@@ -1,6 +1,6 @@
 // SECTOR 06 のゲーム画面(戦闘・成長・進化・連続クイズ・闇市・エリート分岐)。
 // ルールはすべて game/deckbattle/ にあり、この画面は表示と操作の受け渡しだけをする。
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DeckQuizQuestion } from '../../game/data/securityLearningData';
 import {
   cardNeedsTarget,
@@ -44,6 +44,9 @@ import {
   MAX_EVENT_STREAK,
   REST_HEAL_RATIO,
   applyBattleResult,
+  arriveAtEcho,
+  enterDeepNetwork,
+  selectEchoRelic,
   applyPatchBonus,
   applyQuizXpReward,
   applyRestAction,
@@ -103,6 +106,8 @@ import { isSoundEnabled, playSound, setSoundEnabled, type SoundEffectType } from
 import { CardArtwork } from './CardArtwork';
 import { RunMapView } from './RunMapView';
 import { OracleEncounter } from './OracleEncounter';
+import { EchoEncounter } from './EchoEncounter';
+import { readRunCheckpoint, saveRunCheckpoint } from '../../game/deckbattle/runCheckpoint';
 import { EnemyArtwork } from './EnemyArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
@@ -237,6 +242,8 @@ type StagePhase =
   | 'mystery'
   | 'rest'
   | 'shop'
+  | 'act_clear'
+  | 'echo'
   | 'run_result';
 
 interface MysteryViewState {
@@ -267,12 +274,33 @@ interface EventViewState {
   finished: boolean;
 }
 
+interface SavedRunView {
+  phase: StagePhase;
+  postBattle: PostBattleSummary | null;
+  evolveOrigin: 'post_battle' | 'event' | 'rest' | 'mystery';
+  eventView: EventViewState | null;
+  mysteryView: MysteryViewState | null;
+  restSummary: string | null;
+  resultRecorded?: boolean;
+}
+
 interface DeckBattleProps {
   onBackToMissions: () => void;
 }
 
 function describeIntent(move: EnemyMove): { icon: GameIconName[]; text: string; title: string; tone: 'attack' | 'defend' | 'debuff' } {
   switch (move.type) {
+    case 'watch':
+      return { icon: ['attack'], text: `${move.amount} / ${move.threshold}枚で+${move.extra}`,
+        title: `攻撃${move.amount}。今ターン${move.threshold}枚以上カードを使うと追加攻撃${move.extra}`, tone: 'attack' };
+    case 'mirror':
+      return { icon: ['attack', 'shield'], text: `${move.amount} / FW${move.block}`,
+        title: '使用した攻撃カードが防御カードより多いと敵がFWを獲得、それ以外は攻撃', tone: 'attack' };
+    case 'support':
+      return { icon: ['heal', 'shield'], text: `支援 +${move.heal}`,
+        title: `味方をHP+${move.heal}・FW+${move.block}・攻撃+${move.buff}で支援`, tone: 'defend' };
+    case 'interfere':
+      return { icon: ['noise'], text: `山札 ×${move.count}`, title: `山札の先頭にノイズを${move.count}枚追加`, tone: 'debuff' };
     case 'attack':
       return {
         icon: ['attack'],
@@ -295,6 +323,8 @@ function describeIntent(move: EnemyMove): { icon: GameIconName[]; text: string; 
 
 function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
   switch (ev.kind) {
+    case 'hazard':
+      return [{ at: 'player', text: `−${ev.damage} HP`, tone: 'hit', impact: 'strike', damaging: true }];
     case 'attack': {
       const effects: FxSpec[] = [];
       if (ev.damage > 0) {
@@ -351,6 +381,8 @@ function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<Acti
   const name = enemy?.name ?? '敵';
   const icon: GameIconName = enemy?.icon ?? 'elite';
   switch (ev.kind) {
+    case 'hazard':
+      return { actor: 'player', kind: 'utility', icon: 'energy', title: 'オーバークロック装置', detail: `反動 −${ev.damage} HP` };
     case 'attack':
       return {
         actor: 'enemy',
@@ -733,25 +765,35 @@ function computeTurn1Coach(state: BattleState, playsThisTurn: number): Turn1Coac
 }
 
 export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
+  const [checkpoint] = useState(() => readRunCheckpoint<SavedRunView>());
   const { hoverProps, previewNode, hoveredUid } = useCardHoverPreview();
   const [runNumber, setRunNumber] = useState(0);
-  // useState の初期化は開発時(StrictMode)に2回呼ばれるため、ここで開始コインを消費すると2回目が0枚になる。
-  // 読むのは初期化で、消費は下の useEffect で1回だけ行う
-  const [run, setRun] = useState<RunState>(createInitialRun);
+  // 開始コインは新しいランの出撃時に消費する。保存済みのランを開くときは読み込むだけ。
+  const [run, setRun] = useState<RunState>(() => checkpoint?.run ?? createInitialRun());
   const [levelUps, setLevelUps] = useState<LevelUpPresentation[]>([]);
   const cardPositions = useRef(new Map<string, DOMRect>());
   // 戦闘の画面は、最初の戦闘マスに入るまで使わない。それまでの間に表示が崩れないよう、仮の戦闘を入れておく
   const [battle, setBattle] = useState<BattleState>(() =>
-    createBattle({ deck: run.deck, playerHp: run.hp, playerMaxHp: run.maxHp, enemyIds: ['scanner_bot'], seed: 1 }),
+    checkpoint?.battle ?? createBattle({ deck: run.deck, playerHp: run.hp, playerMaxHp: run.maxHp, enemyIds: ['scanner_bot'], seed: 1 }),
   );
   const [showMap, setShowMap] = useState(false);
   const startBonusClaimed = useRef(false);
-  const [phase, setPhase] = useState<StagePhase>('setup');
-  const [postBattle, setPostBattle] = useState<PostBattleSummary | null>(null);
-  const [evolveOrigin, setEvolveOrigin] = useState<'post_battle' | 'event' | 'rest' | 'mystery'>('post_battle');
-  const [eventView, setEventView] = useState<EventViewState | null>(null);
-  const [mysteryView, setMysteryView] = useState<MysteryViewState | null>(null);
-  const [restSummary, setRestSummary] = useState<string | null>(null);
+  const [phase, setPhase] = useState<StagePhase>(() => checkpoint?.run.status === 'lost' ? 'run_result' : checkpoint?.view.phase ?? 'setup');
+  const [postBattle, setPostBattle] = useState<PostBattleSummary | null>(checkpoint?.view.postBattle ?? null);
+  const [evolveOrigin, setEvolveOrigin] = useState<SavedRunView['evolveOrigin']>(checkpoint?.view.evolveOrigin ?? 'post_battle');
+  const [eventView, setEventView] = useState<EventViewState | null>(checkpoint?.view.eventView ?? null);
+  const [mysteryView, setMysteryView] = useState<MysteryViewState | null>(checkpoint?.view.mysteryView ?? null);
+  const [restSummary, setRestSummary] = useState<string | null>(checkpoint?.view.restSummary ?? null);
+  const resultRecorded = useRef(checkpoint?.view.resultRecorded ?? false);
+  useLayoutEffect(() => {
+    if (phase !== 'setup' && run.status !== 'playing' && !resultRecorded.current) {
+      updateProfileForRun(run, (profile) => recordRunResult(profile, run));
+      resultRecorded.current = true;
+    }
+    saveRunCheckpoint(phase === 'setup' ? null : { run, battle, view: {
+      phase, postBattle, evolveOrigin, eventView, mysteryView, restSummary, resultRecorded: resultRecorded.current,
+    } });
+  }, [run, battle, phase, postBattle, evolveOrigin, eventView, mysteryView, restSummary]);
   const [showDeckModal, setShowDeckModal] = useState(false);
   // 遊び方モーダルは「遊び方」ボタンからいつでも開ける。初回戦闘の1ターン目は軽いインタラクティブガイドで誘導する
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -779,14 +821,16 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const maybeTriggerBossPhase2 = useCallback((before: BattleState, after: BattleState) => {
     const awakened = after.enemies.find((enemy) => {
       const prev = before.enemies.find((p) => p.uid === enemy.uid);
-      return prev && prev.phase === 1 && enemy.phase === 2 && enemy.hp > 0;
+      return prev && prev.phase < enemy.phase && enemy.hp > 0;
     });
     if (!awakened) return;
     playSound('alert');
     if (phaseCutinTimer.current !== null) window.clearTimeout(phaseCutinTimer.current);
     const id = fxId.current++;
     const sub =
-      awakened.defId === 'aegis_omega'
+      awakened.defId === 'nexus'
+        ? awakened.phase === 3 ? 'PHASE 3 // 最終防衛：大出力攻撃と防御を交互に使用' : 'PHASE 2 // 修復プロセス召喚・行動切替'
+        : awakened.defId === 'aegis_omega'
         ? '行動パターン変化：重装甲FW34 ＆ 攻撃強化＋連撃'
         : awakened.defId === 'hydra_net'
           ? '行動パターン変化：4連撃バースト ＆ 検知による帯域妨害'
@@ -814,7 +858,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     : playback.index >= 0 ? snapshotState(playback.base, playback.events[playback.index]) : playback.base
     : battle;
   const { layer: motionLayer, launch: launchCard, discard: animateDiscard, clear: clearMotion, drawing, isDrawing } =
-    useBattleMotion(shown.hand, shown.turn, `${runNumber}-${run.currentNodeId}`, phase === 'battle' && shown.status === 'playing');
+    useBattleMotion(shown.hand, shown.turn, `${runNumber}-${run.act ?? 1}-${run.currentNodeId}`, phase === 'battle' && shown.status === 'playing');
   const activeEnemyAction = playback?.actor === 'enemy' ? playback.events[playback.index] : undefined;
   const actingUid = activeEnemyAction?.enemyUid;
   const busy = playback !== null || drawing || battle.status !== 'playing' || phase !== 'battle';
@@ -830,12 +874,6 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     });
     if (upgrades.length > 0) setLevelUps(upgrades);
   }, [run.deck]);
-
-  // 最初のランに渡した開始コインを、プロフィールから消費する
-  useEffect(() => {
-    const profile = loadDeckProfile();
-    if (profile.bonusStartCoins > 0) saveDeckProfile(consumeBonusStartCoins(profile).profile);
-  }, []);
 
   const pushFx = useCallback((specs: FxSpec[], duration = FX_MS) => {
     if (specs.length === 0) return;
@@ -856,7 +894,6 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           finishedBattle.enemies.map((e) => e.defId),
         );
         if (wasElite && finishedBattle.status === 'won') next = recordEliteDefeat(next);
-        if (resolved.run.status !== 'playing') next = recordRunResult(next, resolved.run);
         return next;
       });
       setRun(resolved.run);
@@ -969,6 +1006,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   }, []);
 
   const startRun = (loadoutId: LoadoutId = run.loadoutId, securityLevel: number = run.securityLevel, fastGrowth = run.fastGrowth) => {
+    resultRecorded.current = false;
     startBonusClaimed.current = false;
     actionLocked.current = false;
     clearMotion();
@@ -993,6 +1031,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const startTutorialTrialRun = () => {
+    resultRecorded.current = false;
     playSound('breach');
     const fresh = createTutorialTrialRun();
     setRunNumber((n) => n + 1);
@@ -1094,7 +1133,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     setPlayback(null);
     setFx([]);
     setBanner(null);
-    setPhase('map');
+    setPhase(nextRun.act !== 2 && nextRun.intermission?.step === 'cleared' ? 'act_clear' : 'map');
   };
 
   const onChooseMapNode = (nodeId: string) => {
@@ -1364,11 +1403,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (!choice) return;
     const resolved = resolveEventQuiz(run, eventView.eventId, eventView.question.id, choice.isCorrect);
     playSound(choice.isCorrect ? 'extract' : 'alert');
-    updateProfileForRun(run, (p) => {
-      let next = recordQuizOutcome(p, eventView.question.id, choice.isCorrect, eventView.step);
-      if (resolved.run.status === 'lost') next = recordRunResult(next, resolved.run);
-      return next;
-    });
+    updateProfileForRun(run, (p) => recordQuizOutcome(p, eventView.question.id, choice.isCorrect, eventView.step));
     setRun(resolved.run);
     setEventView({
       ...eventView,
@@ -1487,17 +1522,17 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       : null;
 
   return (
-    <div className={`db-shell${phase === 'map' && run.visitedNodeIds.length === 1 ? ' db-shell--oracle-arrival' : ''}`}>
+    <div className={`db-shell${run.act === 2 ? ' db-shell--deep' : ''}${phase === 'map' && run.visitedNodeIds.length === 1 ? ' db-shell--oracle-arrival' : ''}`}>
       <header className="db-topbar">
         <div className="db-brand">
           <span className="db-brand__tag">SECTOR 06</span>
           <span>DECK BREACH</span>
           <span className="db-brand__progress" aria-label={`全${run.map.floorCount}段のうち${getCurrentFloor(run)}段目`}>
-            FLOOR {getCurrentFloor(run)}/{run.map.floorCount}
+            ACT {run.act ?? 1} / FLOOR {getCurrentFloor(run)}/{run.map.floorCount}
           </span>
         </div>
 
-        {phase !== 'setup' && phase !== 'map' && phase !== 'start_bonus' && (
+        {phase !== 'setup' && phase !== 'map' && phase !== 'start_bonus' && phase !== 'act_clear' && phase !== 'echo' && (
           <button type="button" className="db-btn db-btn--ghost db-map-btn" onClick={() => setShowMap(true)} title="マップを見る">
             <GameIcon name="map" /> マップを見る
           </button>
@@ -1529,7 +1564,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       </header>
 
       <div className="db-reload-note">
-        <span>※ 試作版のため、ブラウザを読み込み直すとランは最初からやり直しになります。</span>
+        <span>進行はこのブラウザに自動保存されます。</span>
         {run.relics.length > 0 && (
           <span className="db-relic-bar">
             {run.relics.map((id) => {
@@ -1564,6 +1599,25 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <RunMapView run={run} onChoose={onChooseMapNode} />
       ) : phase === 'start_bonus' ? (
         <OracleEncounter choices={run.startBonusChoices} onComplete={onChooseStartBonus} />
+      ) : phase === 'act_clear' ? (
+        <main className="echo-scene db-act-clear">
+          <h1>ACT 01 CLEAR</h1>
+          <p>第一防衛層を突破した。深層ネットワークから通信が届いている。</p>
+          <button type="button" className="db-btn" onClick={() => {
+            const seed = randomSeed();
+            setRun((previous) => previous.intermission?.step === 'cleared' ? arriveAtEcho(previous, seed) : previous);
+            setPhase('echo');
+          }}>通信に応答する</button>
+        </main>
+      ) : phase === 'echo' ? (
+        <EchoEncounter run={run} onChoose={(id) => {
+          setRun((previous) => previous.intermission?.step === 'echo' ? selectEchoRelic(previous, id) : previous);
+          playSound('extract');
+        }} onContinue={() => {
+          const seed = randomSeed();
+          setRun((previous) => previous.act === 2 ? previous : enterDeepNetwork(previous, seed));
+          setPhase('map');
+        }} />
       ) : phase === 'mystery' && mysteryView ? (
         <MysteryScreen
           run={run}
@@ -1702,7 +1756,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 <div key={`cutin-${bossPhaseCutin.id}`} className="db-phase2-cutin" role="alert" aria-live="assertive">
                   <div className="db-phase2-cutin__stripe" aria-hidden="true" />
                   <div className="db-phase2-cutin__body">
-                    <span className="db-phase2-cutin__tag">WARNING // PHASE 2 OVERDRIVE</span>
+                    <span className="db-phase2-cutin__tag">WARNING // SYSTEM OVERDRIVE</span>
                     <strong className="db-phase2-cutin__title">{bossPhaseCutin.name} リミッター解除</strong>
                     <span className="db-phase2-cutin__sub">{bossPhaseCutin.sub}</span>
                   </div>
@@ -1873,21 +1927,22 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                             'db-enemy__model',
                             'db-enemy__model--art',
                             `db-enemy__model--${def.phase2 ? 'argus' : enemy.defId}`,
-                            enemy.phase === 2 ? 'db-enemy__model--phase2' : '',
+                            enemy.phase >= 2 ? 'db-enemy__model--phase2' : '',
                             attacking ? 'db-enemy__model--attack' : '',
                             hpImpact && !attacking ? `db-enemy__model--hit${powerClass(hpImpact, 'db-enemy__model--hit')}` : '',
                           ]
                             .filter(Boolean)
                             .join(' ')}
                         >
-                          <EnemyArtwork defId={enemy.defId} phase={enemy.phase} dead={dead} />
+                          {enemy.defId === 'nexus' ? <span className="db-nexus-core"><GameIcon name="argus" /></span> :
+                            <EnemyArtwork defId={enemy.defId} phase={enemy.phase === 3 ? 2 : enemy.phase} dead={dead} />}
                         </span>
                         {impact && <span key={`impact-${impact.id}`} className={`db-impact db-impact--${impact.impact}${powerClass(impact, "db-impact--power")}`} />}
                         {dead && <span className="db-enemy-defeat" />}
                       </span>
                       <span className="db-enemy__name">
                         {enemy.name}
-                        {enemy.phase === 2 && <span className="db-enemy__phase">本気</span>}
+                        {enemy.phase >= 2 && <span className="db-enemy__phase">PHASE {enemy.phase}</span>}
                       </span>
                       <span className="db-bar">
                         <span className="db-bar__fill db-bar__fill--enemy" style={{ width: `${(enemy.hp / enemy.maxHp) * 100}%` }} />
@@ -2714,7 +2769,7 @@ function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: ()
     ? '回線耐久が尽きた…。'
     : run.tutorial
       ? `チュートリアル完了！${boss.name}を倒した。(練習なので、戦績・実績・図鑑には記録されない)`
-      : `全${run.map.floorCount}段を突破し、${boss.name}を攻略した！`;
+      : `ACT ${run.act ?? 1}の最深部に到達し、${boss.name}を攻略した！`;
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className={`db-result db-result--wide ${won ? 'db-result--won' : 'db-result--lost'}`}>
@@ -2833,7 +2888,7 @@ function CoinShopScreen({
   onBuy: (action: CoinShopAction) => void;
   onContinue: () => void;
 }) {
-  const [shopTools] = useState<ToolId[]>(() => pickShopTools(run.visitedNodeIds.length * 31 + run.reconCoins + 7));
+  const [shopTools] = useState<ToolId[]>(() => pickShopTools((run.mapSeed ?? 0) + run.visitedNodeIds.length * 31 + 7));
   const offeredRelic = pickAvailableRelic(run, run.visitedNodeIds.length * 17 + 5);
   const shopCards = pickShopCards(run);
   const cardServiceUsed = hasUsedShopCardService(run);

@@ -1,0 +1,75 @@
+.echo-scene {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  overflow: auto;
+  text-align: center;
+  color: #e9efff;
+  background: radial-gradient(ellipse at 50% 26%, #45328c91, transparent 59%),
+    linear-gradient(145deg, #140721dd, #0e1323ec), url('/game-bg.jpg') center / cover;
+}
+.echo-skip { position: absolute; top: 14px; right: 20px; }
+.echo-skip[hidden] { display: none; }
+.echo-core { position: relative; display: grid; place-items: center; width: 410px; height: 185px; flex-shrink: 0; }
+.echo-core strong { width: 128px; height: 154px; clip-path: polygon(50% 0%, 100% 38%, 73% 88%, 50% 100%, 27% 88%, 0 38%);
+  background: linear-gradient(70deg, #663dbf, #f8feff 47%, #6ff8ff 50%, #24125c 60%, #b496ff); animation: echo-float 4s ease-in-out infinite; }
+.echo-core span { position: absolute; width: 300px; height: 104px; border: 2px solid #9fcfff; border-radius: 50% !important;
+  box-shadow: 0 0 18px #8058db; transform: rotate(21deg); animation: echo-orbit 8s linear infinite; }
+.echo-core span:nth-child(2) { width: 235px; height: 130px; transform: rotate(-34deg); border-color: #d4b6ff; animation-direction: reverse; }
+.echo-core i { position: absolute; width: 7px; height: 7px; background: #e6fdff; box-shadow: 0 0 9px #74eaff;
+  animation: echo-orbit 6s linear infinite; transform-origin: 75px 25px; left: 80px; top: 50px; }
+.echo-core i:nth-of-type(2) { animation-delay: -2s; }
+.echo-core i:nth-of-type(3) { animation-delay: -4s; }
+.echo-scene h1 { margin: 0; color: #e8d8ff; font-size: 34px; }
+.echo-scene h1 small { font-size: 16px; color: #a9eaff; }
+.echo-dialogue p { margin: 0 0 3px; font-size: 15px; animation: echo-type 520ms steps(18) var(--echo-line-delay) both; }
+.echo-scene--ready .echo-dialogue p { animation: none; }
+.echo-recovery { position: relative; display: grid; grid-template-columns: auto auto; align-items: center; gap: 4px 12px; color: #89ffdf; font-size: 13px; }
+.echo-scene:not(.echo-scene--accepted) .echo-recovery::before {
+  content: ''; position: absolute; inset: -20px; pointer-events: none;
+  background: radial-gradient(ellipse, #61ffd951, transparent 69%);
+  animation: echo-aura 1000ms ease-out both;
+}
+.echo-hp { grid-column: 1 / -1; position: relative; overflow: hidden; width: 310px; height: 22px; background: #14253b; border: 1px solid #77d5cf; }
+.echo-hp i { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(90deg, #25846e, #60dfbe);
+  animation: echo-heal 950ms ease-out both; }
+.echo-hp b { position: relative; display: block; line-height: 20px; color: #011715; text-shadow: 0 0 4px #efffff; }
+.echo-scene--accepted .echo-hp i { animation: none; }
+.echo-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: min(950px, 100%); }
+.echo-option.db-btn { min-height: 95px; display: grid; gap: 4px; border-color: #9b86df; background: #21163e; color: #f0eaff; }
+.echo-option span { font-size: 13px; line-height: 1.55; }
+.echo-option:hover, .echo-option:focus-visible { box-shadow: 0 0 18px #ab89fb80; }
+.echo-accepted { font-size: 24px; color: #c3fbff; animation: echo-accept 850ms ease-out both; }
+.db-shell--deep .rm-wrap { background: #170d22; }
+.db-shell--deep .rm-graph { background-color: #141124; }
+.db-shell--deep .db-arena { background-image: linear-gradient(140deg, #2d12466b, #3b0c1ee8), url('/game-bg.jpg'); }
+.db-shell--deep .db-main--boss .db-arena { background-image: radial-gradient(ellipse at 68% 35%, #c218545c, #290728da), url('/game-bg.jpg'); }
+.db-nexus-core { width: 150px; height: 150px; display: grid; place-items: center; margin: auto;
+  clip-path: polygon(18% 0, 82% 0, 100% 50%, 82% 100%, 18% 100%, 0 50%);
+  background: radial-gradient(circle, #fff 0 6%, #e94d9a 9% 24%, #35144d 27% 45%, #c05cff 46% 48%, #180c26 51%);
+  box-shadow: inset 0 0 20px #e44aff; }
+.db-enemy__model--nexus::before,
+.db-enemy__model--nexus::after {
+  content: ''; position: absolute; top: 44%; width: 27px; height: 42px; pointer-events: none;
+  background: linear-gradient(90deg, #2f1549, #bf568f, #44245f);
+  clip-path: polygon(50% 0, 100% 40%, 78% 100%, 22% 100%, 0 40%);
+}
+.db-enemy__model--nexus::before { left: 10px; }
+.db-enemy__model--nexus::after { right: 10px; }
+.db-act-clear { animation: echo-accept 650ms ease-out both; }
+@keyframes echo-orbit { to { rotate: 360deg; } }
+@keyframes echo-float { 50% { translate: 0 -9px; } }
+@keyframes echo-heal { from { width: var(--echo-before); } }
+@keyframes echo-aura { 0%, 100% { opacity: 0; } 40% { opacity: 1; } }
+@keyframes echo-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+@keyframes echo-accept { from { transform: scale(.97); opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  .echo-scene *, .echo-recovery::before, .db-act-clear { animation: none !important; }
+  .echo-recovery::before { opacity: 0; }
+}

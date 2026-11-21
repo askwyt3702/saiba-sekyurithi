@@ -35,6 +35,23 @@ const run = load(new URL('../src/game/deckbattle/run.ts', import.meta.url));
 const { ENEMY_DEFINITIONS } = load(new URL('../src/game/deckbattle/enemies.ts', import.meta.url));
 const { FLOOR_PLAN, MAP_FLOORS, MAP_COLUMNS, generateRunMap } = mapMod;
 
+test('深層マップでも分岐の制約と13階層を維持し、通常敵と強敵の候補が分かれる', () => {
+  const elites = new Set();
+  for (let seed = 1; seed <= 40; seed++) {
+    const deep = generateRunMap(seed, 2);
+    assert.equal(deep.floorCount, MAP_FLOORS + 1);
+    assert.equal(deep.nodes[deep.bossId].enemyIds[0], 'nexus');
+    for (const node of Object.values(deep.nodes)) {
+      for (const id of node.next) assert.equal(deep.nodes[id].floor, node.floor + 1);
+      if (node.kind === 'elite') node.enemyIds.forEach((id) => elites.add(id));
+      if (node.kind === 'battle') assert.ok(node.enemyIds.every((id) =>
+        ['watcher', 'bulwark', 'repair_node', 'null_process'].includes(id)));
+    }
+  }
+  assert.deepEqual([...elites].sort(), ['guardian_proxy', 'mirror_daemon']);
+  assert.notEqual(JSON.stringify(generateRunMap(1, 2)), JSON.stringify(generateRunMap(2, 2)));
+});
+
 const SEEDS = Array.from({ length: 200 }, (_, i) => i * 7919 + 1);
 const nodesOf = (map) => Object.values(map.nodes);
 const at = (map, floor) => nodesOf(map).filter((n) => n.floor === floor);

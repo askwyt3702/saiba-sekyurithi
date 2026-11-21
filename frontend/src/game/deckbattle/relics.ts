@@ -6,8 +6,17 @@ export const FORENSICS_LAB_XP = 1;
 export const THERMAL_CORE_BURN = 2;
 export const THORN_DAEMON_RETALIATE = 4;
 export const SIPHON_MODULE_HEAL = 6;
+export const ECHO_REPAIR_RATIO = .16;
+export const ECHO_HP_COST = 8;
+export const ECHO_OVERCLOCK_HP = 4;
 
 export const RELIC_DEFINITIONS: Record<RelicId, RelicDefinition> = {
+  echo_bandwidth: { id: 'echo_bandwidth', name: '帯域拡張コア', icon: 'bus', description: '最大帯域+1。初回ドロー−1。' },
+  echo_repair: { id: 'echo_repair', name: '自動修復モジュール', icon: 'siphon', description: '戦闘勝利時に最大HPの16%を追加回復。獲得時に最大HP−8。' },
+  echo_analysis: { id: 'echo_analysis', name: '深層解析エンジン', icon: 'forensics', description: '毎ターン最初のカード−1EN。初手にノイズ1枚が入る。' },
+  echo_overclock: { id: 'echo_overclock', name: 'オーバークロック装置', icon: 'energy', description: '戦闘の初ターンの帯域+2。初ターン終了時にHP−4（最低1）。' },
+  echo_compression: { id: 'echo_compression', name: 'データ圧縮装置', icon: 'cache', description: '毎ターンドロー+2。最大帯域−1。' },
+  echo_defense: { id: 'echo_defense', name: '防衛同期システム', icon: 'filter', description: '毎ターン開始時にFW+6。戦闘ごとのコイン獲得−1（最低0）。' },
   encrypted_vpn: {
     id: 'encrypted_vpn',
     name: '暗号化VPN',
@@ -82,4 +91,5 @@ export const RELIC_DEFINITIONS: Record<RelicId, RelicDefinition> = {
   },
 };
 
-export const ALL_RELIC_IDS = Object.values(RELIC_DEFINITIONS).map(({ id }) => id);
+export const ECHO_RELIC_IDS = Object.values(RELIC_DEFINITIONS).map(({ id }) => id).filter((id) => id.startsWith('echo_'));
+export const ALL_RELIC_IDS = Object.values(RELIC_DEFINITIONS).map(({ id }) => id).filter((id) => !ECHO_RELIC_IDS.includes(id));

@@ -345,6 +345,10 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                 </strong>
               </div>
               <div className="db-stat-box">
+                <span className="db-muted">ACT 2 · 深層ネットワーク</span>
+                <strong>{profile.achievements.includes('act2_clear') ? '突破済み' : '未突破'}</strong>
+              </div>
+              <div className="db-stat-box">
                 <span className="db-muted">エリート撃破数</span>
                 <strong>{profile.stats.elitesDefeated} 回</strong>
               </div>

@@ -91,7 +91,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
           <div className="ms-hero-headline">
             <h1 className="ms-title">SELECT OPERATION</h1>
             <p className="ms-subtitle">
-              使うほど育つ攻撃・防御カードでデッキを構築し、セキュリティ脆弱性を突いて3体の監視AIボスが待つ最深層を突破せよ。
+              使うほど育つカードでデッキを構築し、第一防衛層を突破して深層ネットワークのNEXUSに挑め。
             </p>
           </div>
         </section>
@@ -133,9 +133,9 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                 OPERATION 01 // ACTIVE
               </span>
               <div className="ms-op-badges">
-                <span className="ms-op-badge">{MAP_TOTAL_FLOORS} FLOORS</span>
+                <span className="ms-op-badge">2 ACTS / {MAP_TOTAL_FLOORS} FLOORS EACH</span>
                 <span className="ms-op-badge">{TOTAL_CARDS} CARDS</span>
-                <span className="ms-op-badge ms-op-badge--accent">3 BOSSES</span>
+                <span className="ms-op-badge ms-op-badge--accent">FINAL BOSS · NEXUS</span>
               </div>
             </div>
 
