@@ -56,8 +56,8 @@ const BASS_LINE = [NOTE.A1, NOTE.A1, NOTE.C2, NOTE.A1, NOTE.G2 / 2, NOTE.A1, NOT
 // 16分音符ごとのアルペジオ(1小節 = 16個)
 const ARP = [NOTE.A3, NOTE.C4, NOTE.E4, NOTE.A4, NOTE.E4, NOTE.C4, NOTE.G4, NOTE.E4];
 
-const LOOKAHEAD_SEC = 0.12;
-const TICK_MS = 30;
+const LOOKAHEAD_SEC = 0.22;
+const TICK_MS = 80;
 
 class BgmEngine {
   private ctx: AudioContext | null = null;
