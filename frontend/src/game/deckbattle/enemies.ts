@@ -72,6 +72,26 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
       ],
     },
   },
+  argus_tutorial: {
+    id: 'argus_tutorial',
+    name: '監視AI ARGUS（訓練機）',
+    icon: 'argus',
+    maxHp: 70,
+    weakness: 'pierce',
+    pattern: [
+      { type: 'attack', amount: 6 },
+      { type: 'block', amount: 8 },
+      { type: 'noise', count: 1 },
+    ],
+    phase2: {
+      hpRatio: 0.5,
+      pattern: [
+        { type: 'attack', amount: 4, hits: 2 },
+        { type: 'attack', amount: 10 },
+        { type: 'noise', count: 1 },
+      ],
+    },
+  },
   zero_trust_gate: {
     id: 'zero_trust_gate',
     name: 'ゼロトラストゲート(強敵)',

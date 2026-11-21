@@ -40,7 +40,6 @@ import {
   type RestAction,
   MAX_EVENT_STREAK,
   REST_HEAL_RATIO,
-  START_BONUS_DEFINITIONS,
   applyBattleResult,
   applyPatchBonus,
   applyQuizXpReward,
@@ -94,6 +93,7 @@ import { bgm, isBgmEnabled, setBgmEnabled } from '../../game/sound/bgm';
 import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
 import { RunMapView } from './RunMapView';
+import { OracleEncounter } from './OracleEncounter';
 import { MAP_TOTAL_FLOORS } from '../../game/deckbattle/map';
 import { EnemyArtwork } from './EnemyArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
@@ -686,6 +686,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     createBattle({ deck: run.deck, playerHp: run.hp, playerMaxHp: run.maxHp, enemyIds: ['scanner_bot'], seed: 1 }),
   );
   const [showMap, setShowMap] = useState(false);
+  const startBonusClaimed = useRef(false);
   const [phase, setPhase] = useState<StagePhase>('setup');
   const [postBattle, setPostBattle] = useState<PostBattleSummary | null>(null);
   const [evolveOrigin, setEvolveOrigin] = useState<'post_battle' | 'event' | 'rest' | 'mystery'>('post_battle');
@@ -896,6 +897,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   }, []);
 
   const startRun = (loadoutId: LoadoutId = run.loadoutId, securityLevel: number = run.securityLevel, fastGrowth = run.fastGrowth) => {
+    startBonusClaimed.current = false;
     actionLocked.current = false;
     clearMotion();
     cardPositions.current.clear();
@@ -1026,12 +1028,13 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const onChooseMapNode = (nodeId: string) => {
     playSound('click');
     const nextRun = moveToNode(run, nodeId);
-    setRun(nextRun);
     enterNode(nextRun);
+    setRun(nextRun);
   };
 
   const onChooseStartBonus = (bonusId: StartBonusId) => {
-    playSound('extract');
+    if (phase !== 'start_bonus' || startBonusClaimed.current || !run.startBonusChoices.includes(bonusId)) return;
+    startBonusClaimed.current = true;
     const nextRun = applyStartBonus(run, bonusId, randomSeed());
     const added = nextRun.deck.filter((c) => !run.deck.some((d) => d.uid === c.uid)).map((c) => c.defId);
     if (added.length > 0) updateProfile((p) => recordDiscovery(p, added, []));
@@ -1149,7 +1152,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const onEndTurn = () => {
     if (busy || actionLocked.current || isDrawing()) return;
-    if (turn1CoachActive && getCurrentFloor(run) <= 1 && battle.turn === 1) {
+    if (turn1CoachActive && getCurrentNode(run).kind !== 'boss' && getCurrentFloor(run) <= 2 && battle.turn === 1) {
       dismissTurn1Coach();
     }
     actionLocked.current = true;
@@ -1387,12 +1390,18 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   }, [phase, isBoss, run.currentBattleElite, hpRatio]);
   const playsThisBattle = Object.values(shown.usesThisBattle).reduce((sum, n) => sum + n, 0);
   const turn1Coach =
-    turn1CoachActive && phase === 'battle' && getCurrentFloor(run) <= 1 && shown.turn === 1 && shown.status === 'playing' && !busy
+    turn1CoachActive &&
+    phase === 'battle' &&
+    !isBoss &&
+    getCurrentFloor(run) <= 2 &&
+    shown.turn === 1 &&
+    shown.status === 'playing' &&
+    !busy
       ? computeTurn1Coach(shown, playsThisBattle)
       : null;
 
   return (
-    <div className="db-shell">
+    <div className={`db-shell${phase === 'map' && run.visitedNodeIds.length === 1 ? ' db-shell--oracle-arrival' : ''}`}>
       <header className="db-topbar">
         <div className="db-brand">
           <span className="db-brand__tag">SECTOR 06</span>
@@ -1468,27 +1477,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       ) : phase === 'map' ? (
         <RunMapView run={run} onChoose={onChooseMapNode} />
       ) : phase === 'start_bonus' ? (
-        <RunMapView
-          run={run}
-          side={
-            <section className="rm-panel">
-              <span className="rm-label">BOOT BONUS // 出発前の強化</span>
-              <div className="rm-bonus">
-                {run.startBonusChoices.map((id) => (
-                  <button key={id} type="button" className="rm-bonus__btn" onClick={() => onChooseStartBonus(id)}>
-                    <span className="rm-bonus__icon">
-                      <GameIcon name={START_BONUS_ICON[id]} />
-                    </span>
-                    <span>
-                      <span className="rm-bonus__name">{START_BONUS_DEFINITIONS[id].name}</span>
-                      <span className="rm-bonus__desc">{START_BONUS_DEFINITIONS[id].description}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          }
-        />
+        <OracleEncounter choices={run.startBonusChoices} onComplete={onChooseStartBonus} />
       ) : phase === 'mystery' && mysteryView ? (
         <MysteryScreen
           run={run}
@@ -1751,7 +1740,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                           className={[
                             'db-enemy__model',
                             'db-enemy__model--art',
-                            `db-enemy__model--${enemy.defId}`,
+                            `db-enemy__model--${enemy.defId === 'argus_tutorial' ? 'argus' : enemy.defId}`,
                             enemy.phase === 2 ? 'db-enemy__model--phase2' : '',
                             attacking ? 'db-enemy__model--attack' : '',
                             hpImpact && !attacking ? `db-enemy__model--hit${powerClass(hpImpact, 'db-enemy__model--hit')}` : '',
@@ -2809,15 +2798,6 @@ function CoinShopScreen({
   );
 }
 
-
-/** 起動ノードの強化のアイコン */
-const START_BONUS_ICON: Record<StartBonusId, GameIconName> = {
-  relic: 'scanner',
-  tools: 'tools',
-  max_hp: 'hp',
-  coins: 'coin',
-  rare_card: 'evolve',
-};
 
 /** 初期ビルドごとの枠の色(ミッション選択画面のカードと同じ考え方) */
 const LOADOUT_ACCENT: Record<LoadoutId, 'green' | 'red' | 'cyan' | 'amber'> = {

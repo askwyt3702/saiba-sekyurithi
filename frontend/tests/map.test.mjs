@@ -175,4 +175,7 @@ test('起動ノードの強化:それぞれの効果が入り、候補にない�
   assert.equal(run.applyStartBonus(withChoice('tools'), 'tools', 1).tools.length, 2);
   assert.equal(run.applyStartBonus(withChoice('rare_card'), 'rare_card', 1).deck.length, base.deck.length + 1);
   assert.throws(() => run.applyStartBonus({ ...base, startBonusChoices: ['coins'] }, 'relic', 1), /選べません/);
+  const claimed = run.applyStartBonus(withChoice('coins'), 'coins', 1);
+  assert.equal(claimed.startBonusChoices.length, 0);
+  assert.throws(() => run.applyStartBonus(claimed, 'coins', 1), /選べません/);
 });

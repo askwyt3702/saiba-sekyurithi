@@ -253,7 +253,7 @@ function renderArgus(gradId: string, phase: 1 | 2): ReactNode {
 
 export function EnemyArtwork({ defId, phase = 1, dead = false, compact = false }: EnemyArtworkProps) {
   const gradId = `ea-${defId}-${phase}-${compact ? 'sm' : 'lg'}`;
-  const isBoss = defId === 'argus';
+  const isBoss = defId === 'argus' || defId === 'argus_tutorial';
   const enraged = isBoss && phase === 2 && !dead;
 
   const renderBody = () => {
@@ -267,6 +267,7 @@ export function EnemyArtwork({ defId, phase = 1, dead = false, compact = false }
       case 'zero_trust_gate':
         return renderZeroTrustGate(gradId);
       case 'argus':
+      case 'argus_tutorial':
       default:
         return renderArgus(gradId, phase);
     }
