@@ -712,7 +712,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [fx, setFx] = useState<Fx[]>([]);
   const [banner, setBanner] = useState<ActionBanner | null>(null);
-  const [bossPhaseCutin, setBossPhaseCutin] = useState<{ id: number; name: string } | null>(null);
+  const [bossPhaseCutin, setBossPhaseCutin] = useState<{ id: number; name: string; sub: string } | null>(null);
   const fxId = useRef(1);
   const bannerTimer = useRef<number | null>(null);
   const phaseCutinTimer = useRef<number | null>(null);
@@ -726,7 +726,13 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     playSound('alert');
     if (phaseCutinTimer.current !== null) window.clearTimeout(phaseCutinTimer.current);
     const id = fxId.current++;
-    setBossPhaseCutin({ id, name: awakened.name });
+    const sub =
+      awakened.defId === 'aegis_omega'
+        ? '行動パターン変化：重装甲FW34 ＆ 攻撃強化＋連撃'
+        : awakened.defId === 'hydra_net'
+          ? '行動パターン変化：4連撃バースト ＆ 検知による帯域妨害'
+          : '行動パターン変化：連続攻撃 ＆ 超高出力バースト';
+    setBossPhaseCutin({ id, name: awakened.name, sub });
     phaseCutinTimer.current = window.setTimeout(() => {
       setBossPhaseCutin((prev) => (prev?.id === id ? null : prev));
       phaseCutinTimer.current = null;
@@ -1595,14 +1601,18 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                   </div>
                 </>
               )}
-              {isBoss && <div key={runNumber} className="db-boss-intro" aria-hidden="true">ボス戦 <strong>ARGUS</strong></div>}
+              {isBoss && (
+                <div key={runNumber} className="db-boss-intro" aria-hidden="true">
+                  ボス戦 <strong>{shown.enemies[0]?.name ?? 'ARGUS'}</strong>
+                </div>
+              )}
               {bossPhaseCutin && (
                 <div key={`cutin-${bossPhaseCutin.id}`} className="db-phase2-cutin" role="alert" aria-live="assertive">
                   <div className="db-phase2-cutin__stripe" aria-hidden="true" />
                   <div className="db-phase2-cutin__body">
                     <span className="db-phase2-cutin__tag">WARNING // PHASE 2 OVERDRIVE</span>
                     <strong className="db-phase2-cutin__title">{bossPhaseCutin.name} リミッター解除</strong>
-                    <span className="db-phase2-cutin__sub">行動パターン変化：連続攻撃 ＆ 超高出力バースト</span>
+                    <span className="db-phase2-cutin__sub">{bossPhaseCutin.sub}</span>
                   </div>
                   <div className="db-phase2-cutin__stripe" aria-hidden="true" />
                 </div>
@@ -1740,7 +1750,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                           className={[
                             'db-enemy__model',
                             'db-enemy__model--art',
-                            `db-enemy__model--${enemy.defId === 'argus_tutorial' ? 'argus' : enemy.defId}`,
+                            `db-enemy__model--${def.phase2 ? 'argus' : enemy.defId}`,
                             enemy.phase === 2 ? 'db-enemy__model--phase2' : '',
                             attacking ? 'db-enemy__model--attack' : '',
                             hpImpact && !attacking ? `db-enemy__model--hit${powerClass(hpImpact, 'db-enemy__model--hit')}` : '',

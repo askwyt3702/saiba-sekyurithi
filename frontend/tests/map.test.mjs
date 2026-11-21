@@ -179,3 +179,18 @@ test('起動ノードの強化:それぞれの効果が入り、候補にない�
   assert.equal(claimed.startBonusChoices.length, 0);
   assert.throws(() => run.applyStartBonus(claimed, 'coins', 1), /選べません/);
 });
+
+
+test('ボスは3種のバリエーション(ARGUS / AEGIS-OMEGA / HYDRA-NET)から選出され、全員定義と第2形態を持つ', () => {
+  const seen = new Set();
+  for (const seed of SEEDS.slice(0, 60)) {
+    const map = generateRunMap(seed);
+    const boss = map.nodes[map.bossId];
+    assert.equal(boss.enemyIds.length, 1);
+    const id = boss.enemyIds[0];
+    assert.ok(ENEMY_DEFINITIONS[id], id);
+    assert.ok(ENEMY_DEFINITIONS[id].phase2, `${id} has phase2`);
+    seen.add(id);
+  }
+  assert.equal(seen.size, 3, `expected 3 boss variants, got ${[...seen].join(', ')}`);
+});

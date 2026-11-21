@@ -251,9 +251,157 @@ function renderArgus(gradId: string, phase: 1 | 2): ReactNode {
   );
 }
 
+function renderAegisOmega(gradId: string, phase: 1 | 2): ReactNode {
+  const enraged = phase === 2;
+  const edge = enraged ? '#fbbf24' : '#38bdf8';
+  const core = enraged ? '#f97316' : '#7dd3fc';
+  const accent = enraged ? '#fef08a' : '#e0f2fe';
+  const ringClass = enraged ? 'db-enemy-art__spin-fast' : 'db-enemy-art__spin';
+
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`${gradId}-fort`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={enraged ? '#78350f' : '#1e3a5f'} />
+          <stop offset="50%" stopColor="#0f172a" />
+          <stop offset="100%" stopColor="#020617" />
+        </linearGradient>
+        <radialGradient id={`${gradId}-reactor`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="40%" stopColor={accent} />
+          <stop offset="75%" stopColor={core} />
+          <stop offset="100%" stopColor="#082f49" />
+        </radialGradient>
+      </defs>
+
+      {/* 軌道防御フィールド */}
+      <polygon
+        points="90,6 160,40 160,110 90,144 20,110 20,40"
+        fill="none"
+        stroke={edge}
+        strokeWidth={enraged ? '2.4' : '1.6'}
+        strokeDasharray="12 6"
+        opacity="0.7"
+        className="db-enemy-art__pulse"
+      />
+
+      {/* 4基の独立浮遊シールドユニット（第2形態で外側に展開） */}
+      <polygon
+        points={enraged ? '6,20 34,12 40,56 12,62' : '14,26 40,20 44,58 18,62'}
+        fill="#081626"
+        stroke={edge}
+        strokeWidth="2.4"
+      />
+      <polygon
+        points={enraged ? '174,20 146,12 140,56 168,62' : '166,26 140,20 136,58 162,62'}
+        fill="#081626"
+        stroke={edge}
+        strokeWidth="2.4"
+      />
+      <polygon
+        points={enraged ? '6,130 34,138 40,94 12,88' : '14,124 40,130 44,92 18,88'}
+        fill="#081626"
+        stroke={edge}
+        strokeWidth="2.4"
+      />
+      <polygon
+        points={enraged ? '174,130 146,138 140,94 168,88' : '166,124 140,130 136,92 162,88'}
+        fill="#081626"
+        stroke={edge}
+        strokeWidth="2.4"
+      />
+
+      {/* 要塞本体（重装甲六角モノリス） */}
+      <polygon
+        points="90,18 144,44 144,106 90,132 36,106 36,44"
+        fill={`url(#${gradId}-fort)`}
+        stroke={edge}
+        strokeWidth="3.2"
+      />
+      {/* 内部の重装甲リブ */}
+      <polygon points="90,32 130,52 130,98 90,118 50,98 50,52" fill="#071220" stroke={core} strokeWidth="1.8" />
+      <line x1="36" y1="75" x2="62" y2="75" stroke={edge} strokeWidth="2.5" />
+      <line x1="144" y1="75" x2="118" y2="75" stroke={edge} strokeWidth="2.5" />
+      <line x1="90" y1="18" x2="90" y2="46" stroke={edge} strokeWidth="2.5" />
+      <line x1="90" y1="132" x2="90" y2="104" stroke={edge} strokeWidth="2.5" />
+
+      {/* 中央プラズマ炉心 */}
+      <circle cx="90" cy="75" r="24" fill="none" stroke={accent} strokeWidth="2" strokeDasharray="7 5" className={ringClass} />
+      <polygon points="90,54 108,65 108,85 90,96 72,85 72,65" fill={`url(#${gradId}-reactor)`} stroke={accent} strokeWidth="1.8" />
+      <circle cx="90" cy="75" r="7" fill="#ffffff" opacity="0.95" />
+
+      {/* 第2形態オーバードライブ蒸気・電撃 */}
+      {enraged && (
+        <>
+          <polyline points="20,75 34,68 46,78 58,72" fill="none" stroke="#fef08a" strokeWidth="2.2" className="db-enemy-art__pulse" />
+          <polyline points="160,75 146,68 134,78 122,72" fill="none" stroke="#fef08a" strokeWidth="2.2" className="db-enemy-art__pulse" />
+        </>
+      )}
+    </g>
+  );
+}
+
+function renderHydraNet(gradId: string, phase: 1 | 2): ReactNode {
+  const enraged = phase === 2;
+  const primary = enraged ? '#ff2a85' : '#c084fc';
+  const secondary = enraged ? '#fef08a' : '#34d399';
+  const coreBg = enraged ? '#2a0618' : '#140826';
+  const ringClass = enraged ? 'db-enemy-art__spin-fast' : 'db-enemy-art__spin';
+
+  return (
+    <g>
+      <defs>
+        <radialGradient id={`${gradId}-glow`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={primary} stopOpacity="0.38" />
+          <stop offset="100%" stopColor="#020617" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      <circle cx="90" cy="76" r="68" fill={`url(#${gradId}-glow)`} className="db-enemy-art__pulse" />
+
+      {/* 3つの頭を繋ぐ神経レーザー網 */}
+      <path d="M 90 106 Q 54 88 38 46" fill="none" stroke={secondary} strokeWidth="3.2" strokeLinecap="round" />
+      <path d="M 90 106 Q 126 88 142 46" fill="none" stroke={secondary} strokeWidth="3.2" strokeLinecap="round" />
+      <line x1="90" y1="106" x2="90" y2="38" stroke={primary} strokeWidth="3.6" />
+      <line x1="38" y1="46" x2="90" y2="38" stroke={primary} strokeWidth="1.4" strokeDasharray="5 4" opacity="0.75" />
+      <line x1="142" y1="46" x2="90" y2="38" stroke={primary} strokeWidth="1.4" strokeDasharray="5 4" opacity="0.75" />
+
+      {/* 下部ハブ・マザーノード */}
+      <circle cx="90" cy="112" r="24" fill="none" stroke={secondary} strokeWidth="1.6" strokeDasharray="6 5" className={ringClass} />
+      <polygon points="90,92 112,112 90,134 68,112" fill={coreBg} stroke={primary} strokeWidth="2.6" />
+      <circle cx="90" cy="112" r="7" fill={secondary} className="db-enemy-art__pulse" />
+
+      {/* 左ヘッド（捕食ノードA） */}
+      <polygon points="38,24 58,44 46,66 22,60 18,38" fill={coreBg} stroke={primary} strokeWidth="2.4" />
+      <polygon points="28,44 48,40 44,52" fill={secondary} />
+      <circle cx="38" cy="45" r="3" fill="#ffffff" />
+
+      {/* 右ヘッド（捕食ノードB） */}
+      <polygon points="142,24 162,38 158,60 134,66 122,44" fill={coreBg} stroke={primary} strokeWidth="2.4" />
+      <polygon points="152,44 132,40 136,52" fill={secondary} />
+      <circle cx="142" cy="45" r="3" fill="#ffffff" />
+
+      {/* 中央メインヘッド（統括ノードC） */}
+      <polygon points="90,10 114,34 106,62 74,62 66,34" fill={coreBg} stroke={secondary} strokeWidth="2.8" />
+      <polygon points="76,36 104,36 90,50" fill={primary} className="db-enemy-art__pulse" />
+      <circle cx="83" cy="39" r="3" fill="#ffffff" />
+      <circle cx="97" cy="39" r="3" fill="#ffffff" />
+
+      {/* 第2形態の神経スパーク */}
+      {enraged && (
+        <>
+          <polyline points="12,24 24,30 18,40" fill="none" stroke="#fef08a" strokeWidth="2" className="db-enemy-art__pulse" />
+          <polyline points="168,24 156,30 162,40" fill="none" stroke="#fef08a" strokeWidth="2" className="db-enemy-art__pulse" />
+          <polyline points="72,12 90,4 108,12" fill="none" stroke="#ff2a85" strokeWidth="2.2" className="db-enemy-art__pulse" />
+        </>
+      )}
+    </g>
+  );
+}
+
 export function EnemyArtwork({ defId, phase = 1, dead = false, compact = false }: EnemyArtworkProps) {
   const gradId = `ea-${defId}-${phase}-${compact ? 'sm' : 'lg'}`;
-  const isBoss = defId === 'argus' || defId === 'argus_tutorial';
+  const isBoss = defId === 'argus' || defId === 'argus_tutorial' || defId === 'aegis_omega' || defId === 'hydra_net';
   const enraged = isBoss && phase === 2 && !dead;
 
   const renderBody = () => {
@@ -266,6 +414,10 @@ export function EnemyArtwork({ defId, phase = 1, dead = false, compact = false }
         return renderFirewallAi(gradId);
       case 'zero_trust_gate':
         return renderZeroTrustGate(gradId);
+      case 'aegis_omega':
+        return renderAegisOmega(gradId, phase);
+      case 'hydra_net':
+        return renderHydraNet(gradId, phase);
       case 'argus':
       case 'argus_tutorial':
       default:

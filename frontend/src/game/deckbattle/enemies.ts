@@ -92,6 +92,46 @@ export const ENEMY_DEFINITIONS: Record<string, EnemyDefinition> = {
       ],
     },
   },
+  aegis_omega: {
+    id: 'aegis_omega',
+    name: '自律要塞 AEGIS-OMEGA',
+    icon: 'firewallAi',
+    maxHp: 230,
+    weakness: 'burn',
+    pattern: [
+      { type: 'blockAttack', block: 20, amount: 12 },
+      { type: 'buff', amount: 2 },
+      { type: 'attack', amount: 18 },
+    ],
+    phase2: {
+      hpRatio: 0.5,
+      pattern: [
+        { type: 'blockAttack', block: 24, amount: 14 },
+        { type: 'buff', amount: 2 },
+        { type: 'attack', amount: 12, hits: 2 },
+      ],
+    },
+  },
+  hydra_net: {
+    id: 'hydra_net',
+    name: '分散群知能 HYDRA-NET',
+    icon: 'idsSensor',
+    maxHp: 240,
+    weakness: 'multi',
+    pattern: [
+      { type: 'attack', amount: 7, hits: 3 },
+      { type: 'detect', amount: 1 },
+      { type: 'attack', amount: 9, hits: 2 },
+    ],
+    phase2: {
+      hpRatio: 0.5,
+      pattern: [
+        { type: 'attack', amount: 7, hits: 4 },
+        { type: 'detect', amount: 1 },
+        { type: 'attack', amount: 12, hits: 2 },
+      ],
+    },
+  },
   zero_trust_gate: {
     id: 'zero_trust_gate',
     name: 'ゼロトラストゲート(強敵)',
