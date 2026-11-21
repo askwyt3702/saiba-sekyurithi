@@ -3193,3 +3193,204 @@
   display: block;
   margin-top: 3px;
 }
+
+
+/* ---------- 敵・ボス専用サイバーグラフィック ＆ ボス第2形態カットイン ---------- */
+.db-enemy__model--art::before {
+  content: none;
+}
+
+.db-enemy__model--art {
+  width: 174px;
+  height: 92%;
+}
+
+.db-enemy__model--art.db-enemy__model--argus {
+  width: 224px;
+  height: 100%;
+}
+
+.db-enemy__model--phase2 {
+  filter: drop-shadow(0 0 18px rgba(255, 42, 85, 0.85));
+}
+
+.db-enemy-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.db-enemy-art__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.db-enemy-art--float {
+  animation: db-enemy-float 3.2s ease-in-out infinite;
+}
+
+.db-enemy-art--boss.db-enemy-art--float {
+  animation-duration: 3.8s;
+}
+
+.db-enemy-art--enraged {
+  animation: db-enemy-enraged-float 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(255, 42, 85, 0.75));
+}
+
+.db-enemy-art--dead {
+  animation: none;
+  opacity: 0.75;
+}
+
+.db-enemy-art--compact {
+  width: 100%;
+  height: 68px;
+  margin: 4px 0;
+  border-radius: 6px;
+  background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.9), #020617);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+}
+
+.db-enemy-art__spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: db-art-spin 12s linear infinite;
+}
+
+.db-enemy-art__spin-rev {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: db-art-spin-rev 9s linear infinite;
+}
+
+.db-enemy-art__spin-fast {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: db-art-spin 4.2s linear infinite;
+}
+
+.db-enemy-art__spin-rev-fast {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: db-art-spin-rev 3.1s linear infinite;
+}
+
+.db-enemy-art__pulse {
+  animation: db-art-pulse 2.1s ease-in-out infinite;
+}
+
+/* ボス本気（Phase 2）カットイン */
+.db-phase2-cutin {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 50%, rgba(136, 19, 55, 0.55) 0%, rgba(15, 4, 10, 0.78) 80%);
+  animation: db-phase2-cutin 1.75s ease-out forwards;
+}
+
+.db-phase2-cutin__stripe {
+  height: 10px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #ff2a55 0 14px,
+    #18040c 14px 28px
+  );
+  box-shadow: 0 0 16px rgba(255, 42, 85, 0.75);
+}
+
+.db-phase2-cutin__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 16px 24px;
+  background: linear-gradient(90deg, transparent 0%, rgba(28, 4, 14, 0.96) 18%, rgba(48, 8, 22, 0.96) 50%, rgba(28, 4, 14, 0.96) 82%, transparent 100%);
+  border-top: 1.5px solid rgba(254, 240, 138, 0.65);
+  border-bottom: 1.5px solid rgba(254, 240, 138, 0.65);
+  text-align: center;
+  animation: db-phase2-slide 1.75s ease-out forwards;
+}
+
+.db-phase2-cutin__tag {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: #fde047;
+  text-shadow: 0 0 10px rgba(253, 224, 71, 0.8);
+}
+
+.db-phase2-cutin__title {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: #fff1f2;
+  text-shadow: 0 0 18px #ff2a55, 0 2px 8px #000;
+}
+
+.db-phase2-cutin__sub {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fda4af;
+}
+
+@keyframes db-enemy-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes db-enemy-enraged-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-8px) scale(1.03); }
+}
+
+@keyframes db-art-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes db-art-spin-rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes db-art-pulse {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+
+@keyframes db-phase2-cutin {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes db-phase2-slide {
+  0% { transform: scaleY(0.25) translateX(-40px); }
+  14% { transform: scaleY(1.04) translateX(0); }
+  78% { transform: scaleY(1) translateX(0); }
+  100% { transform: scaleY(0.85) translateX(30px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-enemy-art--float,
+  .db-enemy-art--enraged,
+  .db-enemy-art__spin,
+  .db-enemy-art__spin-rev,
+  .db-enemy-art__spin-fast,
+  .db-enemy-art__spin-rev-fast,
+  .db-enemy-art__pulse,
+  .db-phase2-cutin,
+  .db-phase2-cutin__body {
+    animation: none;
+  }
+}

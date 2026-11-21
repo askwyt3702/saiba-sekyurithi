@@ -86,6 +86,7 @@ import type {
 } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import { EnemyArtwork } from './EnemyArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
 import { EffectText, GlossaryList } from './EffectText';
@@ -576,8 +577,26 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [fx, setFx] = useState<Fx[]>([]);
   const [banner, setBanner] = useState<ActionBanner | null>(null);
+  const [bossPhaseCutin, setBossPhaseCutin] = useState<{ id: number; name: string } | null>(null);
   const fxId = useRef(1);
   const bannerTimer = useRef<number | null>(null);
+  const phaseCutinTimer = useRef<number | null>(null);
+
+  const maybeTriggerBossPhase2 = useCallback((before: BattleState, after: BattleState) => {
+    const awakened = after.enemies.find((enemy) => {
+      const prev = before.enemies.find((p) => p.uid === enemy.uid);
+      return prev && prev.phase === 1 && enemy.phase === 2 && enemy.hp > 0;
+    });
+    if (!awakened) return;
+    playSound('alert');
+    if (phaseCutinTimer.current !== null) window.clearTimeout(phaseCutinTimer.current);
+    const id = fxId.current++;
+    setBossPhaseCutin({ id, name: awakened.name });
+    phaseCutinTimer.current = window.setTimeout(() => {
+      setBossPhaseCutin((prev) => (prev?.id === id ? null : prev));
+      phaseCutinTimer.current = null;
+    }, 1750);
+  }, []);
 
   const showBanner = useCallback((spec: Omit<ActionBanner, 'id'>, duration = BANNER_MS) => {
     if (bannerTimer.current !== null) window.clearTimeout(bannerTimer.current);
@@ -648,6 +667,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           const lastHit = playback.events.at(-1);
           if (lastHit) pushFx(fxForEnemyDamage(lastHit.after.enemies, final.enemies));
         }
+        maybeTriggerBossPhase2(playback.base, final);
         setBattle(final);
         setPlayback(null);
         if (final.status === 'lost') {
@@ -687,7 +707,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       setPlayback({ ...playback, index: next });
     }, next === 0 ? 350 : repeatedHit ? MULTI_HIT_STEP_MS : ENEMY_STEP_MS);
     return () => window.clearTimeout(t);
-  }, [playback, pushFx, showBanner, handleBattleFinished]);
+  }, [playback, pushFx, showBanner, maybeTriggerBossPhase2, handleBattleFinished]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -876,6 +896,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (kind === 'attack' || kind === 'defense') {
       pushFx([{ at: kind === 'attack' ? 'player-launch' : 'player-guard', text: '', tone: 'buff', power }], kind === 'defense' ? PLAYER_POSE_MS : power === 'crit' ? 460 : power === 'heavy' ? 400 : PLAYER_POSE_MS);
     }
+    maybeTriggerBossPhase2(battle, result.state);
     setBattle(result.state);
     if (result.state.status === 'won') {
       window.setTimeout(() => {
@@ -1294,6 +1315,17 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 </>
               )}
               {isBoss && <div key={runNumber} className="db-boss-intro" aria-hidden="true">ボス戦 <strong>ARGUS</strong></div>}
+              {bossPhaseCutin && (
+                <div key={`cutin-${bossPhaseCutin.id}`} className="db-phase2-cutin" role="alert" aria-live="assertive">
+                  <div className="db-phase2-cutin__stripe" aria-hidden="true" />
+                  <div className="db-phase2-cutin__body">
+                    <span className="db-phase2-cutin__tag">WARNING // PHASE 2 OVERDRIVE</span>
+                    <strong className="db-phase2-cutin__title">{bossPhaseCutin.name} リミッター解除</strong>
+                    <span className="db-phase2-cutin__sub">行動パターン変化：連続攻撃 ＆ 超高出力バースト</span>
+                  </div>
+                  <div className="db-phase2-cutin__stripe" aria-hidden="true" />
+                </div>
+              )}
               <div className="db-player-side">
                 <div className="db-fighter" aria-hidden="true">
                   <span
@@ -1402,12 +1434,16 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                           key={attacking ? `attack-${playback?.index}` : impact?.id ?? 'idle'}
                           className={[
                             'db-enemy__model',
+                            'db-enemy__model--art',
                             `db-enemy__model--${enemy.defId}`,
+                            enemy.phase === 2 ? 'db-enemy__model--phase2' : '',
                             attacking ? 'db-enemy__model--attack' : '',
                             impact?.impact === 'strike' && !attacking ? `db-enemy__model--hit${powerClass(impact, 'db-enemy__model--hit')}` : '',
-                          ].join(' ')}
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                         >
-                          <span className="db-enemy__icon"><GameIcon name={dead ? 'boss' : enemy.icon} /></span>
+                          <EnemyArtwork defId={enemy.defId} phase={enemy.phase} dead={dead} />
                         </span>
                         {impact && <span key={`impact-${impact.id}`} className={`db-impact db-impact--${impact.impact}${powerClass(impact, "db-impact--power")}`} />}
                       </span>

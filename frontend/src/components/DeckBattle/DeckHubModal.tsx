@@ -16,6 +16,7 @@ import {
 } from '../../game/deckbattle/profile';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
+import { EnemyArtwork } from './EnemyArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON } from '../../game/deckbattle/icons';
 import { EffectText } from './EffectText';
@@ -187,6 +188,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                     <span>
                       <GameIcon name={seen ? enemy.icon : 'unknown'} /> {seen ? enemy.name : '未遭遇'}
                     </span>
+                    {seen && <EnemyArtwork defId={enemy.id} compact />}
                     <span className="db-muted">{seen ? `最大HP ${enemy.maxHp}` : '戦闘で遭遇すると登録'}</span>
                   </div>
                 );
