@@ -1,0 +1,186 @@
+.db-motion-field {
+  position: relative;
+}
+
+.db-motion-layer {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  pointer-events: none;
+}
+
+.db-motion-layer .db-card-flight {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+  box-shadow: 0 0 14px #68e9f074, 0 10px 24px #000a;
+}
+
+.db-hand [data-growth-card] {
+  z-index: 1;
+}
+
+.db-motion-skip {
+  flex: none;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.db-turn-cue {
+  position: absolute;
+  z-index: 7;
+  top: 8%;
+  left: 50%;
+  width: max-content;
+  padding: 7px 23px;
+  border-block: 1px solid currentColor;
+  background: #06151f;
+  color: #a7ffe2;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  box-shadow: 0 0 18px #51e6be45;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: db-turn-cue 330ms ease-out both;
+}
+
+.db-turn-cue--enemy {
+  color: #ffabaf;
+  box-shadow: 0 0 18px #ff546641;
+}
+
+.db-energy--restored {
+  animation: db-energy-restored 330ms ease-out;
+}
+
+.db-motion-field .db-bar__fill {
+  transition: width 240ms ease-out;
+}
+
+.db-motion-field .db-fx__float {
+  animation-duration: 480ms;
+}
+
+.db-motion-field .db-action-banner {
+  animation-duration: 390ms;
+}
+
+.db-motion-field .db-impact--strike {
+  clip-path: polygon(0 63%, 48% 45%, 88% 6%, 71% 44%, 100% 35%, 53% 64%, 12% 100%, 26% 69%);
+  background: linear-gradient(145deg, #fb3652 26%, #ffe5d9 51%, #fe3d52 61%);
+  animation-delay: 0ms;
+}
+
+.db-player-shield,
+.db-player-repair,
+.db-enemy-defeat {
+  position: absolute;
+  pointer-events: none;
+}
+
+.db-player-shield {
+  z-index: 3;
+  inset: 13% 9%;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  background:
+    repeating-linear-gradient(0deg, #8eeaff25 0 1px, transparent 1px 10px),
+    linear-gradient(120deg, #a1eeffdd, #1f8dec21 40% 60%, #70d8ffac);
+  animation: db-cyber-shield 360ms ease-out both;
+}
+
+.db-player-shield::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  clip-path: inherit;
+  background: radial-gradient(ellipse, transparent 34%, #37bcfd63);
+}
+
+.db-player-repair {
+  z-index: 3;
+  inset: 5%;
+  background: radial-gradient(ellipse, #8affb155, #36f29333 41%, transparent 68%);
+  mix-blend-mode: screen;
+  animation: db-cyber-repair 470ms ease-out both;
+}
+
+.db-motion-field .db-enemy--dead {
+  opacity: 1;
+  filter: none;
+}
+
+.db-motion-field .db-enemy--dead :is(.db-enemy__name, .db-enemy__model) {
+  opacity: .5;
+  filter: grayscale(1);
+}
+
+.db-enemy-defeat {
+  inset: 8% 9%;
+  z-index: 3;
+  background: repeating-linear-gradient(0deg, transparent 0 5px, #ffbacf 5px 7px);
+  clip-path: polygon(6% 16%, 94% 6%, 100% 83%, 20% 92%);
+  animation: db-signal-loss 310ms ease-out both;
+}
+
+.db-fighter--defeated::after {
+  content: '';
+  position: absolute;
+  inset: 6% 10%;
+  background: repeating-linear-gradient(0deg, transparent 0 5px, #ffbacf 5px 7px);
+  pointer-events: none;
+  animation: db-signal-loss 310ms ease-out both;
+}
+
+@keyframes db-turn-cue {
+  from { opacity: 0; translate: 0 -6px; }
+  24%, 85% { opacity: 1; translate: 0 0; }
+  to { opacity: 0; }
+}
+
+@keyframes db-energy-restored {
+  40% { scale: 1.1; box-shadow: 0 0 18px #73eaf1; }
+}
+
+@keyframes db-cyber-shield {
+  from { opacity: 0; scale: .6; }
+  28% { opacity: .9; scale: 1; }
+  to { opacity: 0; scale: 1.1; }
+}
+
+@keyframes db-cyber-repair {
+  from { opacity: 0; scale: .68; }
+  33% { opacity: 1; }
+  to { opacity: 0; scale: 1.23; }
+}
+
+@keyframes db-signal-loss {
+  from { opacity: .75; scale: 1; }
+  45% { opacity: .45; translate: 5px 0; }
+  to { opacity: 0; scale: 1 .15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-motion-field .db-bar__fill {
+    transition: none;
+  }
+
+  .db-turn-cue,
+  .db-energy--restored,
+  .db-player-shield,
+  .db-player-repair,
+  .db-enemy-defeat,
+  .db-fighter--defeated::after {
+    animation: none;
+  }
+
+  .db-player-shield,
+  .db-player-repair {
+    opacity: .42;
+  }
+
+  .db-enemy-defeat,
+  .db-fighter--defeated::after {
+    display: none;
+  }
+}

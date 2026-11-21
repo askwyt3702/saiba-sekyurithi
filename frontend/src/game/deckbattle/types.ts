@@ -237,6 +237,7 @@ export interface BattleSnapshot {
   playerHp: number;
   playerBlock: number;
   enemies: Array<{ uid: string; hp: number; block: number }>;
+  damageKind?: 'burn';
 }
 
 export type EnemyActionEvent = EnemyActionKind & { after: BattleSnapshot };

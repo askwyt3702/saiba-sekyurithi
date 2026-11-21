@@ -193,6 +193,18 @@ test('反撃は攻撃を全部防いでも発動し、1回で消える', () => {
   assert.equal(s.lastEnemyActions.some((a) => a.kind === 'retaliate'), true);
 });
 
+test('過熱の即時発動は通常の命中と別の演出フレームを返す', () => {
+  const state = setup([{ defId: 'burn_detonate' }], ['argus'], ['c1']);
+  const enemy = state.enemies[0];
+  const result = battle.playCard(state, 'c1', enemy.uid);
+  assert.equal(result.accepted, true);
+  const [hit, burn] = result.attackFrames;
+  assert.equal(hit.damageKind, undefined);
+  assert.equal(burn.damageKind, 'burn');
+  assert.ok(enemy.hp > hit.enemies[0].hp && hit.enemies[0].hp > burn.enemies[0].hp);
+  assert.equal(burn.enemies[0].hp, result.state.enemies[0].hp);
+});
+
 test('過熱はFWを無視して3ターン続き、重ねると量が増えてターンが3に戻る', () => {
   let s = setup(
     [{ defId: 'ddos', level: 3, branchId: 'ddos_overload' }, { defId: 'ddos', level: 3, branchId: 'ddos_overload' }],
