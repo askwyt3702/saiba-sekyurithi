@@ -11,11 +11,13 @@ import {
   getCardStats,
   getEnemyIntent,
   getPlayCost,
+  hasReachedCardTurnLimit,
   livingEnemies,
   playCard,
   activateBattleTool,
 } from '../../game/deckbattle/battle';
 import { getCardTelemetry } from '../../game/deckbattle/attackTelemetry';
+import { CARD_AFFILIATION_LABEL } from '../../game/deckbattle/cards';
 import { ENEMY_DEFINITIONS, WEAKNESS_LABEL } from '../../game/deckbattle/enemies';
 import {
   type DeckProfile,
@@ -51,10 +53,13 @@ import {
   createRun,
   createTutorialTrialRun,
   getCurrentFloor,
+  getRunBoss,
+  bossShortName,
   getCurrentNode,
   getFilteredOutQuizChoiceId,
   getQuizXpReward,
   getXpProgress,
+  hasUsedShopCardService,
   grantRelic,
   moveToNode,
   pickAvailableRelic,
@@ -64,11 +69,13 @@ import {
   pickRewardCard,
   pickRewardPool,
   pickShopTools,
+  pickShopCards,
   previewQuizXpReward,
   removeCardFromDeck,
   resolveEventQuiz,
   resolveMysteryChoice,
   spendCoinShop,
+  SHOP_CARD_COST,
   spendReconCoin,
 } from '../../game/deckbattle/run';
 import { MAX_TOOLS, TOOL_DEFINITIONS } from '../../game/deckbattle/tools';
@@ -78,6 +85,7 @@ import type {
   BattleSnapshot,
   CardInstance,
   CardKind,
+  CardStats,
   EnemyActionEvent,
   EnemyMove,
   EnemyState,
@@ -91,11 +99,10 @@ import type {
   XpGainEntry,
 } from '../../game/deckbattle/types';
 import { bgm, isBgmEnabled, setBgmEnabled } from '../../game/sound/bgm';
-import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
+import { isSoundEnabled, playSound, setSoundEnabled, type SoundEffectType } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
 import { RunMapView } from './RunMapView';
 import { OracleEncounter } from './OracleEncounter';
-import { MAP_TOTAL_FLOORS } from '../../game/deckbattle/map';
 import { EnemyArtwork } from './EnemyArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
@@ -181,6 +188,28 @@ interface ActionBanner {
   lore?: string;
   isAoe?: boolean;
   power?: FxPower;
+  sound?: SoundEffectType;
+}
+
+function soundForCard(kind: CardKind, stats: CardStats): SoundEffectType {
+  const effects = stats.effects;
+  const hasBurn = effects.some((e) => e.type === 'burn' || e.type === 'triggerBurn');
+  const hasDebuff = effects.some(
+    (e) => e.type === 'vulnerable' || e.type === 'jam' || e.type === 'clearEnemyBuff',
+  );
+  const hasArmorBreak = effects.some(
+    (e) =>
+      e.type === 'stripBlock' ||
+      e.type === 'shieldBash' ||
+      (e.type === 'damage' && e.pierce && e.amount >= 12),
+  );
+  if (hasBurn) return 'burn';
+  if (hasDebuff) return 'debuff';
+  if (kind === 'attack') {
+    return hasArmorBreak ? 'breach' : 'strike';
+  }
+  if (kind === 'defense') return 'recover';
+  return 'scan';
 }
 
 const HEAVY_DAMAGE_THRESHOLD = 12;
@@ -429,6 +458,10 @@ function fxForPlay(before: BattleState, after: BattleState): FxSpec[] {
         impact: 'burn',
       });
     }
+    const consumedHeat = (prev.burn?.amount ?? 0) - (enemy.burn?.amount ?? 0);
+    if (consumedHeat > 0) {
+      specs.push({ at: enemy.uid, icon: 'burn', text: `ウイルス消費 ${consumedHeat}`, tone: 'burn' });
+    }
     const prevVuln = prev.vulnerable ?? 0;
     const nextVuln = enemy.vulnerable ?? 0;
     if (nextVuln > prevVuln) {
@@ -546,8 +579,8 @@ function buildEventStep(run: RunState, eventId: RunEventId, step: number): Event
     hpLost: 0,
     stepRewardDone: false,
     xpGain: null,
-    rewardCards: pickRewardPool(seed + 3),
-    rareCards: pickRarePool(seed + 7),
+    rewardCards: pickRewardPool(run, seed + 3),
+    rareCards: pickRarePool(run, seed + 7),
     offeredRelic: pickAvailableRelic(run, seed + 11),
     finished: false,
   };
@@ -556,6 +589,12 @@ function buildEventStep(run: RunState, eventId: RunEventId, step: number): Event
 function updateProfile(mutator: (p: DeckProfile) => DeckProfile): void {
   const next = mutator(loadDeckProfile());
   saveDeckProfile(next);
+}
+
+/** ラン中の記録(図鑑・実績・戦績・弱点ノート)を保存する。チュートリアルのランは記録しない */
+function updateProfileForRun(current: RunState, mutator: (p: DeckProfile) => DeckProfile): void {
+  if (current.tutorial) return;
+  updateProfile(mutator);
 }
 
 function createRunWithProfileCoins(
@@ -625,9 +664,9 @@ function computeTurn1Coach(state: BattleState, playsThisTurn: number): Turn1Coac
       const def = getCardDefinition(card.defId);
       const stats = getCardStats(card);
       const cost = getPlayCost(state, uid);
-      return { uid, def, stats, cost };
+      return { uid, def, stats, cost, reachedTurnLimit: hasReachedCardTurnLimit(state, card) };
     })
-    .filter((c) => !c.def.unplayable && c.cost <= state.player.energy);
+    .filter((c) => !c.def.unplayable && !c.reachedTurnLimit && c.cost <= state.player.energy);
 
   if (affordable.length === 0 || playsThisTurn >= 2) {
     return {
@@ -828,7 +867,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     (finishedBattle: BattleState) => {
       const wasElite = run.currentBattleElite;
       const resolved = applyBattleResult(run, finishedBattle, randomSeed());
-      updateProfile((p) => {
+      updateProfileForRun(run, (p) => {
         let next = recordDiscovery(
           p,
           resolved.run.deck.map((c) => c.defId),
@@ -908,7 +947,11 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         if (action.kind === 'attack' && frame.damageKind !== 'burn') {
           pushFx([{ at: 'player-launch', text: '', tone: 'buff', power }], PLAYER_POSE_MS);
         }
-        playSound(action.kind === 'attack' ? 'breach' : action.kind === 'defense' ? 'recover' : 'scan');
+        const hitSound: SoundEffectType =
+          frame.damageKind === 'burn'
+            ? 'burn'
+            : (action.sound ?? (action.kind === 'attack' ? 'strike' : action.kind === 'defense' ? 'recover' : 'scan'));
+        playSound(hitSound);
         const title = frame.damageKind === 'burn' ? 'ウイルスダメージ'
           : events.length > 1 ? `${action.title} · ${next + 1}/${events.length}` : action.title;
         showBanner({ ...action, title, power }, finalFrame && action.command ? 1850 : events.length > 1 ? HIT_STEP_MS : FX_MS);
@@ -921,7 +964,10 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       const previousHp = playback.events[index]?.after.playerHp ?? base.player.hp;
       const ev = event.kind === 'attack' ? { ...event, damage: previousHp - event.after.playerHp } : event;
       if (ev.kind === 'attack') playSound(ev.damage > 0 ? 'alert' : 'recover');
-      else if (ev.kind === 'burn' || ev.kind === 'retaliate') playSound('breach');
+      else if (ev.kind === 'burn') playSound('burn');
+      else if (ev.kind === 'retaliate') playSound('breach');
+      else if (ev.kind === 'detect' || ev.kind === 'noise') playSound('debuff');
+      else if (ev.kind === 'block') playSound('recover');
       else playSound('scan');
       pushFx(fxForEvent(ev));
       showBanner(bannerForEnemyEvent(ev, base), ev.kind === 'attack' && ev.hits > 1 ? HIT_STEP_MS : ENEMY_STEP_MS);
@@ -1081,7 +1127,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     startBonusClaimed.current = true;
     const nextRun = applyStartBonus(run, bonusId, randomSeed());
     const added = nextRun.deck.filter((c) => !run.deck.some((d) => d.uid === c.uid)).map((c) => c.defId);
-    if (added.length > 0) updateProfile((p) => recordDiscovery(p, added, []));
+    if (added.length > 0) updateProfileForRun(run, (p) => recordDiscovery(p, added, []));
     setRun(nextRun);
     setPhase('map');
   };
@@ -1093,7 +1139,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     showLevelUps(res.run);
     if (res.discoveredCardId) {
       const cardId = res.discoveredCardId;
-      updateProfile((p) => recordDiscovery(p, [cardId], []));
+      updateProfileForRun(run, (p) => recordDiscovery(p, [cardId], []));
     }
     setRun(res.run);
     setMysteryView({ ...mysteryView, summary: res.summary });
@@ -1155,6 +1201,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       command: telemetry.command,
       lore: def.lore,
       isAoe,
+      sound: soundForCard(kind, stats),
     };
     const enemy = targetUid ?? livingEnemies(battle)[0]?.uid;
     launchCard(uid, kind === 'attack' && enemy ? enemy : 'player');
@@ -1236,6 +1283,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         icon: toolDef?.icon ?? 'heal',
         title: toolDef?.name ?? 'ツール',
         detail: toolDef?.description,
+        sound: usedToolId === 'jammer_pulse' ? 'debuff' : usedToolId === 'hotfix' ? 'recover' : 'scan',
       },
     });
     setRun((prev) => ({ ...prev, tools: [...res.state.tools] }));
@@ -1244,6 +1292,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const onBuyCoinShop = (action: CoinShopAction) => {
     try {
       const next = spendCoinShop(run, action);
+      const added = next.deck.filter((card) => !run.deck.some((previous) => previous.uid === card.uid));
+      if (added.length > 0) updateProfileForRun(run, (p) => recordDiscovery(p, added.map((card) => card.defId), []));
       playSound('extract');
       setNotice(null);
       setRun(next);
@@ -1275,7 +1325,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const onChooseBranch = (cardUid: string, branchId: string) => {
     playSound('extract');
     const updated = chooseEvolution(run, cardUid, branchId);
-    updateProfile((p) => recordEvolutionUnlocked(p, branchId));
+    updateProfileForRun(run, (p) => recordEvolutionUnlocked(p, branchId));
     setRun(updated);
     if (updated.pendingEvolutions.length > 0) return;
     if (evolveOrigin === 'event') {
@@ -1303,9 +1353,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const onPickReward = (defId: string | null) => {
-    playSound('click');
-    if (defId) updateProfile((p) => recordDiscovery(p, [defId], []));
     const withReward = pickRewardCard(run, defId);
+    playSound('click');
+    if (defId) updateProfileForRun(run, (p) => recordDiscovery(p, [defId], []));
     setPostBattle(null);
     goToMap(withReward);
   };
@@ -1332,7 +1382,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (!choice) return;
     const resolved = resolveEventQuiz(run, eventView.eventId, eventView.question.id, choice.isCorrect);
     playSound(choice.isCorrect ? 'extract' : 'alert');
-    updateProfile((p) => {
+    updateProfileForRun(run, (p) => {
       let next = recordQuizOutcome(p, eventView.question.id, choice.isCorrect, eventView.step);
       if (resolved.run.status === 'lost') next = recordRunResult(next, resolved.run);
       return next;
@@ -1369,11 +1419,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const onEventStep2Reward = (action: { type: 'heal' } | { type: 'card'; defId: string } | { type: 'remove'; cardUid: string }) => {
     if (!eventView || eventView.stepRewardDone) return;
     if (action.type === 'remove' && run.deck.length <= 1) return;
+    if (action.type === 'card' && !eventView.rewardCards.includes(action.defId)) return;
     playSound('recover');
     if (action.type === 'heal') {
       setRun((prev) => applyPatchBonus(prev, { type: 'heal', amount: 10 }));
     } else if (action.type === 'card') {
-      setRun((prev) => pickRewardCard(prev, action.defId));
+      const next = pickRewardCard(run, action.defId);
+      updateProfileForRun(run, (p) => recordDiscovery(p, [action.defId], []));
+      setRun(next);
     } else {
       setRun((prev) => removeCardFromDeck(prev, action.cardUid));
     }
@@ -1382,11 +1435,14 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const onEventStep3Reward = (action: { type: 'relic'; relicId: RelicId } | { type: 'rare'; defId: string }) => {
     if (!eventView || eventView.stepRewardDone) return;
+    if (action.type === 'rare' && !eventView.rareCards.includes(action.defId)) return;
     playSound('extract');
     if (action.type === 'relic') {
       setRun((prev) => grantRelic(prev, action.relicId));
     } else {
-      setRun((prev) => pickRewardCard(prev, action.defId));
+      const next = pickRewardCard(run, action.defId);
+      updateProfileForRun(run, (p) => recordDiscovery(p, [action.defId], []));
+      setRun(next);
     }
     setEventView({ ...eventView, stepRewardDone: true, finished: true });
   };
@@ -1454,8 +1510,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <div className="db-brand">
           <span className="db-brand__tag">SECTOR 06</span>
           <span>DECK BREACH</span>
-          <span className="db-brand__progress" aria-label={`全${MAP_TOTAL_FLOORS}段のうち${getCurrentFloor(run)}段目`}>
-            FLOOR {getCurrentFloor(run)}/{MAP_TOTAL_FLOORS}
+          <span className="db-brand__progress" aria-label={`全${run.map.floorCount}段のうち${getCurrentFloor(run)}段目`}>
+            FLOOR {getCurrentFloor(run)}/{run.map.floorCount}
           </span>
         </div>
 
@@ -1950,7 +2006,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     const stats = getCardStats(card);
                     const cost = getPlayCost(shown, uid);
                     const unplayable = !!def.unplayable;
-                    const affordable = !unplayable && cost <= player.energy;
+                    const turnLimit = hasReachedCardTurnLimit(shown, card);
+                    const affordable = !unplayable && !turnLimit && cost <= player.energy;
                     const xpProg = getXpProgress(card);
                     const isCoachCard = turn1Coach?.highlightCardUid === uid;
                     const lockedByCoach = Boolean(turn1Coach) && !isCoachCard;
@@ -1984,7 +2041,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                             : !affordable
                               ? unplayable
                                 ? '使用不可'
-                                : '帯域不足'
+                                : turnLimit ? 'このターンは使用済み' : '帯域不足'
                               : undefined
                         }
                       >
@@ -2040,6 +2097,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
       {levelUps.length === 0 && phase === 'evolve' && run.pendingEvolutions.length > 0 && (
         <EvolutionOverlay
+          loadoutId={run.loadoutId}
           cards={run.pendingEvolutions
             .map((uid) => run.deck.find((c) => c.uid === uid))
             .filter((c): c is CardInstance => Boolean(c))}
@@ -2164,6 +2222,7 @@ function CardPreviewPanel({
         <span>$</span> {telemetry.command}
       </div>
       <div className="db-card-preview-float__next">
+        <span>{CARD_AFFILIATION_LABEL[def.affiliation]}{def.oncePerTurn && ' · このカードは1ターン1回'}</span>
         {card.level === 1 && (
           <span>
             <strong>Lv.2 強化後:</strong> {def.levels[2].cost}EN / <EffectText text={def.levels[2].text} />
@@ -2174,7 +2233,7 @@ function CardPreviewPanel({
             <strong>Lv.3 進化先:</strong>
             {def.branches.map((b) => (
               <span key={b.id} className="db-preview-branch">
-                {b.name}({b.cost}EN):<EffectText text={b.text} />
+                {b.name}({b.cost}EN){b.affiliation && ` · ${CARD_AFFILIATION_LABEL[b.affiliation]}`}:<EffectText text={b.text} />
               </span>
             ))}
           </span>
@@ -2684,15 +2743,22 @@ function EventScreen({
 
 function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: () => void; onBack: () => void }) {
   const won = run.status === 'won';
+  const boss = getRunBoss(run);
   const { hoverProps, previewNode } = useCardHoverPreview(run.deck.length);
+  const title = won ? `${run.tutorial ? 'TRAINING COMPLETE' : 'RUN COMPLETE'} // ${bossShortName(boss)} 撃破` : 'CONNECTION LOST';
+  const sub = !won
+    ? '回線耐久が尽きた…。'
+    : run.tutorial
+      ? `チュートリアル完了！${boss.name}を倒した。(練習なので、戦績・実績・図鑑には記録されない)`
+      : `全${run.map.floorCount}段を突破し、${boss.name}を攻略した！`;
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className={`db-result db-result--wide ${won ? 'db-result--won' : 'db-result--lost'}`}>
-        <div className="db-result__title">{won ? 'RUN COMPLETE // ARGUS 撃破' : 'CONNECTION LOST'}</div>
-        <p className="db-result__sub">{won ? `全${MAP_TOTAL_FLOORS}段を突破し、監視AI ARGUSを攻略した！` : '回線耐久が尽きた…。'}</p>
+        <div className="db-result__title">{title}</div>
+        <p className="db-result__sub">{sub}</p>
         <div className="db-result__stats">
           <span>
-            到達した段 {getCurrentFloor(run)} / {MAP_TOTAL_FLOORS}
+            到達した段 {getCurrentFloor(run)} / {run.map.floorCount}
           </span>
           <span>
             残りHP {run.hp} / {run.maxHp}
@@ -2805,6 +2871,10 @@ function CoinShopScreen({
 }) {
   const [shopTools] = useState<ToolId[]>(() => pickShopTools(run.visitedNodeIds.length * 31 + run.reconCoins + 7));
   const offeredRelic = pickAvailableRelic(run, run.visitedNodeIds.length * 17 + 5);
+  const shopCards = pickShopCards(run);
+  const cardServiceUsed = hasUsedShopCardService(run);
+  const canUseCardService = !cardServiceUsed && run.reconCoins >= SHOP_CARD_COST;
+  const [transformMode, setTransformMode] = useState(false);
   const { hoverProps, clearPreview, previewNode } = useCardHoverPreview(
     `${run.deck.length}-${run.reconCoins}`,
   );
@@ -2886,26 +2956,54 @@ function CoinShopScreen({
           )}
         </div>
 
-        <h3 className="db-hub__sub"><GameIcon name="coin" /> 2枚で不要カードを1枚削除（現在デッキ {run.deck.length} 枚）</h3>
+        <h3 className="db-hub__sub">カード購入・変換 · どちらか1回 · 解析コイン{SHOP_CARD_COST}枚</h3>
+        {cardServiceUsed ? <p className="db-muted">この闇市ではカード購入・変換を利用済みです。</p> : (
+          <div className="db-deck-grid">
+            {shopCards.map((defId) => {
+              const def = getCardDefinition(defId);
+              return (
+                <button key={defId} type="button" className="db-deck-pill" disabled={!canUseCardService}
+                  onClick={() => onBuy({ type: 'card', defId })}
+                  {...hoverProps({ uid: `shop-${defId}`, defId, level: 1, xp: 0 })}>
+                  <span><GameIcon name={KIND_ICON[def.kind]} /> {def.name} · {CARD_AFFILIATION_LABEL[def.affiliation]}</span>
+                  <span className="db-muted">{def.levels[1].cost}EN · <EffectText text={def.levels[1].text} /></span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="db-hub__head">
+          <h3 className="db-hub__sub">
+            {transformMode && !cardServiceUsed ? '変換するカードを選択 · 同じレアリティの別カードをLv.1で入手'
+              : `解析コイン2枚で不要カードを削除（デッキ ${run.deck.length}枚）`}
+          </h3>
+          {!cardServiceUsed && (
+            <button type="button" className="db-btn db-btn--ghost" aria-pressed={transformMode}
+              onClick={() => setTransformMode(!transformMode)}>
+              {transformMode ? 'カード削除に戻る' : 'カード変換を選ぶ'}
+            </button>
+          )}
+        </div>
         <div className="db-deck-grid">
           {run.deck.map((card) => {
             const stats = getCardStats(card);
+            const transforming = transformMode && !cardServiceUsed;
             return (
               <button
                 key={card.uid}
                 type="button"
-                className="db-deck-pill db-deck-pill--danger"
-                disabled={run.reconCoins < 2 || run.deck.length <= 1}
+                className={transforming ? 'db-deck-pill' : 'db-deck-pill db-deck-pill--danger'}
+                disabled={transforming ? !canUseCardService : run.reconCoins < 2 || run.deck.length <= 1}
                 onClick={() => {
                   clearPreview();
-                  onBuy({ type: 'remove', cardUid: card.uid });
+                  onBuy({ type: transforming ? 'transform' : 'remove', cardUid: card.uid });
                 }}
                 {...hoverProps(card)}
               >
                 <span>
-                  <GameIcon name="trash" /> {stats.name} ({card.uid}) · Lv.{card.level}
+                  <GameIcon name={transforming ? 'evolve' : 'trash'} /> {stats.name} ({card.uid}) · Lv.{card.level}
                 </span>
-                <span className="db-muted"><GameIcon name="coin" /> 2枚で削除 / {stats.cost}EN · <EffectText text={stats.text} /></span>
+                <span className="db-muted"><GameIcon name="coin" /> {transforming ? `${SHOP_CARD_COST}枚で変換` : '2枚で削除'} / {stats.cost}EN · <EffectText text={stats.text} /></span>
               </button>
             );
           })}

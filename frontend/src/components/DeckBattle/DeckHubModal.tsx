@@ -2,7 +2,7 @@
 // 1. カード図鑑・進化ツリー / 2. 弱点ノート(復習クイズ) / 3. 戦績 / 4. 実績 をまとめて閲覧・操作できる。
 import { useState } from 'react';
 import type { DeckQuizQuestion } from '../../game/data/securityLearningData';
-import { CARD_DEFINITIONS, REWARD_CARD_IDS } from '../../game/deckbattle/cards';
+import { CARD_AFFILIATION_LABEL, CARD_DEFINITIONS, REWARD_CARD_IDS } from '../../game/deckbattle/cards';
 import { ENEMY_DEFINITIONS } from '../../game/deckbattle/enemies';
 import {
   ACHIEVEMENTS,
@@ -143,7 +143,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                       <span>
                         <GameIcon name={seen ? KIND_ICON[def.kind] : 'unknown'} /> <strong>{seen ? def.name : '未発見のカード'}</strong>
                       </span>
-                      <span className="db-muted">{def.rarity.toUpperCase()}</span>
+                      <span className="db-muted">{CARD_AFFILIATION_LABEL[def.affiliation]} · {def.rarity.toUpperCase()}</span>
                     </div>
                     {seen ? (
                       <>
@@ -155,6 +155,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                           Lv.2: {def.levels[2].cost}EN / <EffectText text={def.levels[2].text} />
                         </div>
                         <div className="db-codex-card__lore">{def.lore}</div>
+                        {def.oncePerTurn && <div className="db-muted">このカードは1ターン1回</div>}
                         <div className="db-codex-branches">
                           {def.branches.map((b) => {
                             const unlocked = codexProfile.unlockedBranches.includes(b.id);
@@ -162,6 +163,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                               <div key={b.id} className={`db-codex-branch ${unlocked ? 'db-codex-branch--open' : ''}`}>
                                 <span>
                                   <GameIcon name={unlocked ? 'evolve' : 'lock'} /> {unlocked ? b.name : '未進化ルート'}
+                                  {b.affiliation && ` · ${CARD_AFFILIATION_LABEL[b.affiliation]}`}
                                 </span>
                                 <span className="db-muted">{unlocked ? <>{b.cost}EN / <EffectText text={b.text} /></> : 'Lv.3進化で解放'}</span>
                               </div>
@@ -337,7 +339,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                 <strong>{profile.stats.runsPlayed} 回</strong>
               </div>
               <div className="db-stat-box">
-                <span className="db-muted">クリア回数 (ARGUS撃破)</span>
+                <span className="db-muted">クリア回数 (ボス撃破)</span>
                 <strong>
                   {profile.stats.runsWon} 回 ({winRate}%)
                 </strong>

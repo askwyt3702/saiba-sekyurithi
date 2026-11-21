@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CARD_DEFINITIONS } from '../../game/deckbattle/cards';
+import { REWARD_CARD_IDS } from '../../game/deckbattle/cards';
 import { MAP_TOTAL_FLOORS } from '../../game/deckbattle/map';
 import { ACHIEVEMENTS, loadDeckProfile } from '../../game/deckbattle/profile';
 import { STARTING_RECON_COINS } from '../../game/deckbattle/run';
@@ -16,7 +16,8 @@ interface MissionScreenProps {
   onBack: () => void;
 }
 
-const TOTAL_CARDS = Object.keys(CARD_DEFINITIONS).length;
+// 図鑑に載るカードの数(ノイズのような状態異常カードは数えない。カード基地の図鑑と同じ数)
+const TOTAL_CARDS = REWARD_CARD_IDS.length;
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
   const [hubOpen, setHubOpen] = useState(false);
@@ -144,7 +145,7 @@ export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {
                 DECK BREACH <span className="ms-op-title-jp">— 監視網突破作戦</span>
               </h2>
               <p className="ms-op-desc">
-                全{TOTAL_CARDS}種類の攻撃・防御・解析カードを育て、Lv.3で分岐進化させながら最奥の監視AI撃破を目指す。初期解析コイン{STARTING_RECON_COINS}枚（＋ボーナス{profile.bonusStartCoins}枚）を携え、分岐ルートを攻略せよ。
+                全{TOTAL_CARDS}種類のカードでオペレーターごとのデッキを組み、Lv.3で分岐進化させながら最奥の監視AI撃破を目指す。初期解析コイン{STARTING_RECON_COINS}枚（＋ボーナス{profile.bonusStartCoins}枚）を携え、分岐ルートを攻略せよ。
               </p>
 
               {/* ボス候補ロスター */}

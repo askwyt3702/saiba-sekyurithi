@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { getCardDefinition, getCardStats } from '../../game/deckbattle/battle';
-import type { CardInstance } from '../../game/deckbattle/types';
+import { getEvolutionBranches } from '../../game/deckbattle/cards';
+import type { CardInstance, LoadoutId } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
 import { EffectText } from './EffectText';
@@ -224,8 +225,9 @@ function EvolutionComplete({ choice, onComplete }: { choice: EvolutionChoice; on
   );
 }
 
-export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
+export function EvolutionOverlay({ cards, loadoutId, onChoose, onOpenDeck, children }: {
   cards: CardInstance[];
+  loadoutId: LoadoutId;
   onChoose: (uid: string, branchId: string) => void;
   onOpenDeck: () => void;
   children?: ReactNode;
@@ -244,7 +246,7 @@ export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
   }, [children, choice]);
   const group = groups.find((item) => item.defId === selectedDefId) ?? groups[0];
   const card = group.cards[0];
-  const def = getCardDefinition(card.defId);
+  const branches = getEvolutionBranches(card.defId, loadoutId);
   const before = { ...card, level: 2 as const };
 
   return (
@@ -268,34 +270,39 @@ export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
             ))}
             <button ref={deckButton} type="button" className="db-btn db-btn--ghost" onClick={onOpenDeck}>デッキを見る</button>
           </div>
-          <div className="db-growth-branches" key={card.uid}>
+          <div className={`db-growth-branches db-growth-branches--${branches.length}`} key={card.uid}>
             <div className="db-growth-original">
               <span className="db-growth-original__tag">進化前 (Lv.2)</span>
               <GrowthCard card={before} />
             </div>
-            <div className="db-growth-branch-arrow db-growth-branch-arrow--left" aria-hidden="true">
-              <span className="db-growth-branch-arrow__label">ROUTE A</span>
-              <svg viewBox="0 0 46 28" className="db-growth-branch-arrow__svg">
-                <path d="M42 14 H10 M19 5 L8 14 L19 23" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
+            {branches.length >= 2 && (
+              <div className="db-growth-branch-arrow db-growth-branch-arrow--left" aria-hidden="true">
+                <span className="db-growth-branch-arrow__label">ROUTE A</span>
+                <svg viewBox="0 0 46 28" className="db-growth-branch-arrow__svg">
+                  <path d="M42 14 H10 M19 5 L8 14 L19 23" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
             <div className="db-growth-branch-arrow db-growth-branch-arrow--right" aria-hidden="true">
-              <span className="db-growth-branch-arrow__label">ROUTE B</span>
+              <span className="db-growth-branch-arrow__label">
+                {branches.length === 1 ? 'EVOLVE' : branches.length >= 3 ? 'ROUTE B / C' : 'ROUTE B'}
+              </span>
               <svg viewBox="0 0 46 28" className="db-growth-branch-arrow__svg">
                 <path d="M4 14 H36 M27 5 L38 14 L27 23" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            {def.branches.map((branch, idx) => {
+            {branches.map((branch, idx) => {
               const after = { ...card, branchId: branch.id };
+              const routeLabel = ['A', 'B', 'C'][idx] ?? String(idx + 1);
               return (
-                <button key={branch.id} type="button" className="db-growth-candidate" onClick={(event) => {
+                <button key={branch.id} type="button" className={`db-growth-candidate db-growth-candidate--slot-${idx + 1}`} onClick={(event) => {
                   if (selectionLocked.current) return;
                   selectionLocked.current = true;
                   const source = event.currentTarget.querySelector('.db-growth-card')?.getBoundingClientRect();
                   playSound('click');
                   setChoice({ before, after, source, branchId: branch.id });
                 }}>
-                  <span className="db-growth-candidate__tag">進化候補 {idx === 0 ? 'A' : 'B'} (Lv.3)</span>
+                  <span className="db-growth-candidate__tag">進化候補 {routeLabel} (Lv.3)</span>
                   <GrowthCard card={after} />
                   <span className="db-growth-candidate__cta">▶ この進化にする</span>
                 </button>

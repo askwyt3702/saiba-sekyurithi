@@ -76,6 +76,40 @@ type Motif =
 
 function resolveMotif(defId: string): Motif {
   switch (defId) {
+    case 'expose_route':
+    case 'chain_finisher':
+    case 'breach_window':
+    case 'shield_lance':
+      return 'keyblade';
+    case 'mirror_wall':
+    case 'isolation_field':
+    case 'recovery_wall':
+    case 'siege_plate':
+      return 'hexshield';
+    case 'adaptive_packet':
+    case 'crossfire':
+    case 'thermal_front':
+      return 'tidalwave';
+    case 'route_switch':
+    case 'checkpoint_buffer':
+    case 'heat_exchange':
+      return 'gears';
+    case 'buffer_restore':
+      return 'token';
+    case 'target_queue':
+      return 'radar';
+    case 'burst_budget':
+    case 'rapid_entry':
+      return 'lightning';
+    case 'fallback_protocol':
+      return 'portal';
+    case 'counter_signal':
+    case 'heat_sink':
+      return 'honeycomb';
+    case 'ember_tag':
+    case 'thermal_siphon':
+    case 'clock_haze':
+      return 'flame';
     case 'ssh_brute':
     case 'ransom_lock':
     case 'privilege_reset':

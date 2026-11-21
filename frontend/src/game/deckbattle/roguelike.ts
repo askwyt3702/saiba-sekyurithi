@@ -35,11 +35,11 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
     description: '手数と貫通力で押し切る攻撃特化構成。毎ターン「次の攻撃+3」付き。',
     maxHp: 60,
     deckIds: [
-      'ssh_brute', 'ssh_brute', 'ssh_brute',
+      'ssh_brute', 'ssh_brute', 'target_queue',
       'fuzz_probe', 'fuzz_probe',
       'sql_injection',
       'firewall', 'firewall',
-      'port_scan', 'script_auto',
+      'port_scan', 'rapid_entry',
     ],
     relics: ['auto_scraper'],
     tools: ['overclock'],
@@ -52,7 +52,7 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
     description: '高い耐久とFW・反撃で敵の攻撃を跳ね返す要塞構成。毎ターン開始時に反撃4がそろう。',
     maxHp: 75,
     deckIds: [
-      'firewall', 'firewall', 'firewall',
+      'firewall', 'firewall', 'mirror_wall',
       'tls_shield', 'honeypot', 'shield_slam',
       'waf_rule', 'port_scan',
       'ssh_brute', 'ssh_brute',
@@ -71,7 +71,7 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
       'thermal_spike', 'thermal_spike',
       'burn_detonate', 'dns_spoof', 'cmd_inject',
       'firewall', 'firewall', 'firewall',
-      'packet_sniff', 'ssh_brute',
+      'heat_sink', 'ssh_brute',
     ],
     relics: ['thermal_core'],
     tools: ['jammer_pulse'],
@@ -88,13 +88,18 @@ export interface SecurityLevelInfo {
   summary: string;
 }
 
+/** 高難度 Lv.2 以上で、敵の1回の攻撃に足す攻撃力。連撃では1発あたりに分ける(切り上げ) */
+export const SECURITY_ATTACK_BONUS = 2;
+/** 高難度 Lv.5 で、ボス(第2形態がある敵)にさらに足す攻撃力 */
+export const SECURITY_BOSS_ATTACK_BONUS = 2;
+
 export const SECURITY_LEVELS: SecurityLevelInfo[] = [
   { level: 0, label: 'Lv.0 標準', summary: '通常の難易度。まずはここから。' },
   { level: 1, label: 'Lv.1 警戒', summary: '全敵の最大HP +15%。' },
-  { level: 2, label: 'Lv.2 厳戒', summary: 'Lv.1に加え、全敵の初期攻撃力 +2。' },
+  { level: 2, label: 'Lv.2 厳戒', summary: `Lv.1に加え、全敵の攻撃力 +${SECURITY_ATTACK_BONUS}(連撃は1発あたりに分ける)。` },
   { level: 3, label: 'Lv.3 遮断', summary: 'Lv.2に加え、開始時の最大HP −10。' },
   { level: 4, label: 'Lv.4 攪乱', summary: 'Lv.3に加え、戦闘開始時に「ノイズ」1枚が捨て札に混入。' },
-  { level: 5, label: 'Lv.5 極限', summary: 'Lv.4に加え、ボス ARGUS のHPさらに+20%＆攻撃力+2。' },
+  { level: 5, label: 'Lv.5 極限', summary: `Lv.4に加え、ボスのHPさらに+20%＆攻撃力+${SECURITY_BOSS_ATTACK_BONUS}。` },
 ];
 
 export interface MysteryChoiceDef {

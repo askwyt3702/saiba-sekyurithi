@@ -31,6 +31,7 @@ function load(url) {
 const battle = load(new URL('../src/game/deckbattle/battle.ts', import.meta.url));
 const run = load(new URL('../src/game/deckbattle/run.ts', import.meta.url));
 const { ENEMY_DEFINITIONS } = load(new URL('../src/game/deckbattle/enemies.ts', import.meta.url));
+const rogue = load(new URL('../src/game/deckbattle/roguelike.ts', import.meta.url));
 
 // 敵の数値は調整で変わるので、テストでは定義から読む
 const hp = (id) => ENEMY_DEFINITIONS[id].maxHp;
@@ -716,18 +717,15 @@ test('対象のないカードのジャミングは敵全体に付く', () => {
 });
 
 
-test('40種類のカード(コモン20・アンコモン12・レア8)と差別化された9種の新効果が正しく動く', () => {
+test('64種類のカードと既存の複合効果が正しく動く', () => {
   const cardsMod = load(new URL('../src/game/deckbattle/cards.ts', import.meta.url));
-  assert.equal(cardsMod.REWARD_CARD_IDS.length, 40);
+  assert.equal(cardsMod.REWARD_CARD_IDS.length, 64);
   const commons = cardsMod.REWARD_CARD_IDS.filter((id) => cardsMod.CARD_DEFINITIONS[id].rarity === 'common');
   const uncommons = cardsMod.REWARD_CARD_IDS.filter((id) => cardsMod.CARD_DEFINITIONS[id].rarity === 'uncommon');
   const rares = cardsMod.REWARD_CARD_IDS.filter((id) => cardsMod.CARD_DEFINITIONS[id].rarity === 'rare');
-  assert.equal(commons.length, 20);
-  assert.equal(uncommons.length, 12);
-  assert.equal(rares.length, 8);
-  for (const id of rares) {
-    assert.equal(cardsMod.CARD_DEFINITIONS[id].branches.length, 3, `${id} should have 3 branches`);
-  }
+  assert.equal(commons.length, 32);
+  assert.equal(uncommons.length, 20);
+  assert.equal(rares.length, 12);
 
   // 1. doubleBlock + shieldBash (fortress_double + shield_slam)
   let s = setup([{ defId: 'fortress_double' }, { defId: 'shield_slam' }], ['scanner_bot'], ['c1', 'c2']);
@@ -788,7 +786,8 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
   assert.ok(r.relics.includes('auto_scraper'));
   const b = run.createBattleForCurrentNode(atNode(r, isScannerBattle), 1);
   assert.ok(b.enemies[0].maxHp > hp('scanner_bot'), 'Lv.1以上で敵HP増加');
-  assert.equal(b.enemies[0].attackBonus, 2, 'Lv.2以上で敵攻撃力+2');
+  assert.equal(b.enemies[0].securityBonus, rogue.SECURITY_ATTACK_BONUS, 'Lv.2以上で敵攻撃力が上がる');
+  assert.equal(b.enemies[0].attackBonus, 0, '戦闘中の強化(buff)の分とは別に持つ');
   assert.equal(b.discard.length, 1, 'Lv.4以上でノイズ1枚が捨て札に混入');
 
   // 2. 新規常駐装備(thermal_core / thorn_daemon / overclock_bus / weak_scanner)
@@ -823,6 +822,53 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
   const m2 = run.resolveMysteryChoice(run.createRun(), 'overclock_terminal', 'extract_relic', 7);
   assert.equal(m2.run.hp, 57);
   assert.equal(m2.run.relics.length, 1);
+});
+
+test('高難度の攻撃力の上乗せは1回の攻撃ぶんで、連撃では1発あたりに分けられ、強化解除では消えない', () => {
+  const create = (enemyIds, securityLevel) =>
+    battle.createBattle({ deck: [{ uid: 'c1', defId: 'privilege_reset', level: 1, xp: 0 }], playerHp: 65, playerMaxHp: 65, enemyIds, seed: 1, securityLevel });
+  const bonus = rogue.SECURITY_ATTACK_BONUS;
+
+  // 1発の攻撃:上乗せがそのまま乗る
+  const single = move('scanner_bot', 0);
+  assert.equal((single.hits ?? 1), 1);
+  assert.equal(battle.getEnemyIntent(create(['scanner_bot'], 2).enemies[0]).amount, single.amount + bonus);
+
+  // 連撃:1発あたりは 上乗せ÷発数(切り上げ)
+  const multi = move('hydra_net', 0);
+  assert.ok(multi.hits >= 2);
+  const hydra = create(['hydra_net'], 2).enemies[0];
+  assert.equal(battle.getEnemyIntent(hydra).amount, multi.amount + Math.ceil(bonus / multi.hits));
+  assert.equal(battle.getEnemyIntent(create(['hydra_net'], 0).enemies[0]).amount, multi.amount, 'Lv.0 では上乗せなし');
+
+  // Lv.5 のボスはさらに上乗せ(連撃なら1発あたりに分ける)
+  const boss5 = create(['hydra_net'], 5).enemies[0];
+  const bossBonus = bonus + rogue.SECURITY_BOSS_ATTACK_BONUS;
+  assert.equal(boss5.securityBonus, bossBonus);
+  assert.equal(battle.getEnemyIntent(boss5).amount, multi.amount + Math.ceil(bossBonus / multi.hits));
+
+  // 強化解除(privilege_reset)は戦闘中の強化だけを消し、高難度の上乗せは残る
+  let s = JSON.parse(JSON.stringify(create(['scanner_bot'], 2)));
+  s.hand = ['c1'];
+  s.drawPile = [];
+  s.enemies[0].attackBonus = 3;
+  s = play(s, 'c1', s.enemies[0].uid);
+  assert.equal(s.enemies[0].attackBonus, 0);
+  assert.equal(s.enemies[0].securityBonus, bonus);
+});
+
+test('チュートリアルのランは、戦績・実績に記録されない', () => {
+  const profileMod = load(new URL('../src/game/deckbattle/profile.ts', import.meta.url));
+  const tutorial = run.createTutorialTrialRun();
+  assert.equal(tutorial.tutorial, true);
+  assert.notEqual(run.createRun().tutorial, true);
+  const empty = profileMod.loadDeckProfile({ getItem: () => null, setItem: () => {} });
+  const afterTutorial = profileMod.recordRunResult(empty, { ...tutorial, status: 'won' });
+  assert.equal(afterTutorial.stats.runsPlayed, 0);
+  assert.equal(afterTutorial.stats.runsWon, 0);
+  assert.equal(afterTutorial.achievements.includes('first_clear'), false);
+  const afterRun = profileMod.recordRunResult(empty, { ...run.createRun(), status: 'won' });
+  assert.equal(afterRun.stats.runsWon, 1);
 });
 
 test('戦闘ログはHPダメージとFW減少を区別し、実際の回復量を表示する', () => {
@@ -903,4 +949,155 @@ test('ボスに勝ったときは、Lv.3 に届いたカードがあっても進
   const afterNormal = finish(isScannerBattle);
   assert.equal(afterNormal.status, 'playing');
   assert.deepEqual([...afterNormal.pendingEvolutions], [afterNormal.deck[0].uid]);
+});
+
+test('全オペレーターの初期デッキ・戦闘・クイズ・ランダム入手は所属に従う', () => {
+  const { CARD_DEFINITIONS, canAcquireCard } = load(new URL('../src/game/deckbattle/cards.ts', import.meta.url));
+  const { ALL_LOADOUT_IDS } = load(new URL('../src/game/deckbattle/roguelike.ts', import.meta.url));
+  const starterSignatures = new Set();
+  for (const loadoutId of ALL_LOADOUT_IDS) {
+    const initial = run.createRun({ loadoutId });
+    assert.equal(initial.deck.length, 10);
+    assert.ok(initial.deck.every((card) => canAcquireCard(card.defId, loadoutId)));
+    starterSignatures.add(initial.deck.map((card) => card.defId).join(','));
+    for (const id of ['ssh_brute', 'sandbox_guard']) {
+      assert.equal(run.pickRewardCard(initial, id).deck.at(-1).defId, id);
+    }
+    const fight = atNode(initial, (node) => node.kind === 'battle');
+    const won = { ...run.createBattleForCurrentNode(fight, 1), status: 'won' };
+    const seen = new Set();
+    for (let seed = 0; seed < 32; seed++) {
+      const normal = run.applyBattleResult(fight, won, seed).rewardChoices;
+      const elite = run.applyBattleResult({ ...fight, currentBattleElite: true }, won, seed).rewardChoices;
+      assert.equal(normal.length, 3);
+      assert.equal(new Set(elite).size, 3);
+      assert.equal(CARD_DEFINITIONS[elite[0]].rarity, 'rare');
+      normal.forEach((id) => seen.add(id));
+      const bounty = run.resolveMysteryChoice(initial, 'dark_zero_day', 'buy_rare', seed);
+      const boot = run.applyStartBonus({ ...initial, startBonusChoices: ['rare_card'] }, 'rare_card', seed);
+      const ids = [...normal, ...elite, ...run.pickRewardPool(initial, seed), ...run.pickRarePool(initial, seed),
+        bounty.discoveredCardId, boot.deck.at(-1).defId];
+      assert.ok(ids.every((id) => canAcquireCard(id, loadoutId)));
+    }
+    for (const [id, def] of Object.entries(CARD_DEFINITIONS)) {
+      if (!canAcquireCard(id, loadoutId)) assert.throws(() => run.pickRewardCard(initial, id), /入手できません/);
+      if (def.affiliation === 'thermal' && loadoutId !== 'thermal_ops') assert.ok(!seen.has(id));
+    }
+    if (loadoutId === 'thermal_ops') {
+      assert.ok([...seen].some((id) => CARD_DEFINITIONS[id].affiliation === 'thermal'));
+    }
+  }
+  assert.equal(starterSignatures.size, ALL_LOADOUT_IDS.length);
+  const tutorial = run.createTutorialTrialRun();
+  assert.ok(tutorial.deck.every((card) => canAcquireCard(card.defId, tutorial.loadoutId)));
+});
+
+test('闇市では所属外の購入・変換を防ぎ、追加のカードサービスを1回だけ利用できる', () => {
+  const { CARD_DEFINITIONS, canAcquireCard } = load(new URL('../src/game/deckbattle/cards.ts', import.meta.url));
+  const { ALL_LOADOUT_IDS } = load(new URL('../src/game/deckbattle/roguelike.ts', import.meta.url));
+  for (const loadoutId of ALL_LOADOUT_IDS) {
+    const shop = { ...atNode(run.createRun({ loadoutId }), (node) => node.kind === 'shop'), reconCoins: 9 };
+    const stock = run.pickShopCards(shop);
+    assert.equal(stock.length, 3);
+    assert.ok(stock.every((id) => canAcquireCard(id, loadoutId)));
+    const foreign = Object.keys(CARD_DEFINITIONS).find((id) => !canAcquireCard(id, loadoutId));
+    assert.throws(() => run.spendCoinShop(shop, { type: 'card', defId: foreign }), /販売対象外/);
+    const bought = run.spendCoinShop(shop, { type: 'card', defId: stock[0] });
+    assert.equal(bought.deck.at(-1).defId, stock[0]);
+    assert.equal(bought.reconCoins, shop.reconCoins - run.SHOP_CARD_COST);
+    assert.throws(() => run.spendCoinShop(bought, { type: 'transform', cardUid: shop.deck[0].uid }), /利用済み/);
+    const target = shop.deck[0];
+    const transformed = run.spendCoinShop(shop, { type: 'transform', cardUid: target.uid });
+    const replacement = transformed.deck.at(-1);
+    assert.equal(transformed.deck.length, shop.deck.length);
+    assert.ok(!transformed.deck.some((card) => card.uid === target.uid));
+    assert.ok(canAcquireCard(replacement.defId, loadoutId));
+    assert.notEqual(replacement.defId, target.defId);
+    assert.equal(replacement.level, 1);
+    assert.equal(CARD_DEFINITIONS[replacement.defId].rarity, CARD_DEFINITIONS[target.defId].rarity);
+  }
+});
+
+test('新カードは各所属6種で、全Lvと両方の進化形態を戦闘で使用できる', () => {
+  const { OPERATOR_CARDS } = load(new URL('../src/game/deckbattle/operatorCards.ts', import.meta.url));
+  const owner = { balanced: 'balanced', red: 'red_team', blue: 'blue_team', thermal: 'thermal_ops' };
+  for (const [affiliation, loadoutId] of Object.entries(owner)) {
+    const defs = Object.values(OPERATOR_CARDS).filter((card) => card.affiliation === affiliation);
+    assert.equal(defs.length, 6);
+    for (const def of defs) {
+      assert.equal(def.branches.length, 2);
+      const initial = run.createRun({ loadoutId });
+      const withCard = run.pickRewardCard(initial, def.id);
+      const uid = withCard.deck.at(-1).uid;
+      const upgraded = run.applyRestAction(withCard, { type: 'upgrade', cardUid: uid }).run;
+      assert.equal(upgraded.deck.at(-1).level, 2);
+      const ready = run.applyRestAction(upgraded, { type: 'upgrade', cardUid: uid }).run;
+      assert.ok(ready.pendingEvolutions.includes(uid));
+      for (const card of [{ level: 1 }, { level: 2 }, ...def.branches.map((b) => ({ level: 3, branchId: b.id }))]) {
+        let state = setup([{ defId: def.id, ...card }], ['argus']);
+        state.player.block = 5;
+        state.attacksThisTurn = 2;
+        state.enemies[0].burn = { amount: 5, turns: 2 };
+        assert.equal(battle.playCard(state, 'c1').accepted, true, def.id);
+        if (card.branchId) {
+          const next = run.chooseEvolution(ready, uid, card.branchId);
+          assert.equal(next.deck.at(-1).branchId, card.branchId);
+          assert.ok(!next.pendingEvolutions.includes(uid));
+        }
+      }
+    }
+  }
+});
+
+test('旧デッキは保持し、過熱専用の進化のみ新規選択を制限する', () => {
+  const initial = run.createRun();
+  const card = { uid: 'legacy', defId: 'ddos', level: 3, xp: 5, branchId: 'ddos_overload' };
+  const legacy = { ...atNode(initial, (node) => node.kind === 'battle'), deck: [card] };
+  assert.equal(run.createBattleForCurrentNode(legacy, 7).cards.legacy.branchId, card.branchId);
+  assert.throws(() => run.chooseEvolution(legacy, card.uid, card.branchId), /invalid branch/);
+  assert.equal(run.chooseEvolution({ ...legacy, loadoutId: 'thermal_ops' }, card.uid, card.branchId).deck[0].branchId, card.branchId);
+});
+
+test('過熱消費は残量まで、防御とダメージを変換し、帯域カードは同一ターンに再使用できない', () => {
+  const vent = setup([{ defId: 'heat_sink' }], ['argus']);
+  const effects = battle.getCardStats(vent.cards.c1).effects;
+  const cap = effects.find((effect) => effect.type === 'consumeHeat').amount;
+  vent.enemies[0].burn = { amount: cap + 1, turns: 2 };
+  const vented = play(vent, 'c1');
+  assert.equal(vented.player.block, effects.find((effect) => effect.type === 'block').amount + cap);
+  assert.equal(vented.enemies[0].burn.amount, 1);
+  assert.equal(vented.enemies[0].burn.turns, 2);
+  const heat = setup([{ defId: 'thermal_siphon' }], ['argus']);
+  heat.enemies[0].burn = { amount: 1, turns: 2 };
+  const result = battle.playCard(heat, 'c1');
+  assert.equal(result.attackFrames[0].damageKind, 'burn');
+  assert.equal(result.state.enemies[0].burn, undefined);
+
+  const loop = setup([{ defId: 'burst_budget' }, { defId: 'port_scan' }], ['argus']);
+  const first = play(loop, 'c1');
+  const redrawn = play(first, 'c2');
+  assert.ok(redrawn.hand.includes('c1'));
+  assert.match(battle.playCard(redrawn, 'c1').reason, /1回まで/);
+});
+
+test('連撃の追撃条件は累計ヒット数でなく、そのターンに先に使った攻撃カード枚数を使う', () => {
+  const state = setup([{ defId: 'rapid_entry' }, { defId: 'ssh_brute' }, { defId: 'chain_finisher' }], ['argus']);
+  const earlier = play(state, 'c1');
+  assert.equal(earlier.attacksThisTurn, 1);
+  assert.equal(battle.playCard(earlier, 'c3').attackFrames.length, 1);
+  const eligible = play(earlier, 'c2');
+  const result = battle.playCard(eligible, 'c3');
+  const followUp = battle.getCardStats(state.cards.c3).effects.find((effect) => effect.type === 'bonusAfterAttacks');
+  assert.equal(result.attackFrames.length, 2);
+  assert.equal(result.attackFrames[0].enemies[0].hp - result.attackFrames[1].enemies[0].hp, followUp.amount);
+  assert.equal(battle.endTurn(result.state).attacksThisTurn, 0);
+});
+
+test('バッファ復元は捨て札のノイズを残し、最後の使用可能カードを回収する', () => {
+  const state = setup([{ defId: 'buffer_restore' }, { defId: 'ssh_brute' }, { defId: 'noise' }], ['argus'], ['c1']);
+  state.drawPile = [];
+  state.discard = ['c2', 'c3'];
+  const next = play(state, 'c1');
+  assert.equal(next.hand.join(','), 'c2');
+  assert.equal(next.discard.join(','), 'c3,c1');
 });

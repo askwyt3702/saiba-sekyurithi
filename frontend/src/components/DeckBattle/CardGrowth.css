@@ -446,6 +446,34 @@
   transition: background 180ms ease, color 180ms ease;
 }
 
+.db-growth-branches--3 {
+  grid-template-columns: 204px 46px 218px 46px 204px 204px;
+  gap: 8px;
+}
+
+.db-growth-branches--1 {
+  grid-template-columns: 236px 60px 224px;
+}
+
+.db-growth-branches--1 .db-growth-original { grid-column: 1; }
+.db-growth-branches--1 .db-growth-branch-arrow--right { grid-column: 2; }
+.db-growth-branches--1 .db-growth-candidate--slot-1 { grid-column: 3; }
+
+.db-growth-branches--3 .db-growth-candidate--slot-1 {
+  grid-column: 1;
+  --branch-from: 180px;
+}
+
+.db-growth-branches--3 .db-growth-candidate--slot-2 {
+  grid-column: 5;
+  --branch-from: -150px;
+}
+
+.db-growth-branches--3 .db-growth-candidate--slot-3 {
+  grid-column: 6;
+  --branch-from: -230px;
+}
+
 .db-growth-candidate:hover,
 .db-growth-candidate:focus-visible {
   translate: 0 -8px;
