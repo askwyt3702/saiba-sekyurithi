@@ -55,11 +55,17 @@ export function cardNeedsTarget(stats: Pick<CardStats, 'effects'>): boolean {
         e.type === 'stripBlock' ||
         e.type === 'bonusIfDebuffed' ||
         e.type === 'triggerBurn' ||
+        e.type === 'consumeHeat' ||
+        e.type === 'bonusAfterAttacks' ||
         e.type === 'handScaleDamage' ||
         e.type === 'clearEnemyBuff') &&
         e.target === 'single') ||
-      e.type === 'burn',
+      e.type === 'burn' || e.type === 'targetJam' || e.type === 'targetVulnerable',
   );
+}
+
+export function hasReachedCardTurnLimit(state: BattleState, card: CardInstance): boolean {
+  return Boolean(getCardDefinition(card.defId).oncePerTurn && state.playedThisTurn?.includes(card.uid));
 }
 
 /** 「次のカード−1EN」を考えた、今このカードを使うのに必要な帯域 */
@@ -243,6 +249,8 @@ function drawCards(state: BattleState, count: number): void {
 
 function startPlayerTurn(state: BattleState): void {
   state.turn += 1;
+  state.playedThisTurn = [];
+  state.attacksThisTurn = 0;
   state.player.block = state.player.turnBlockBonus;
   const firstTurnBonusEnergy = state.turn === 1 && state.relics.includes('overclock_bus') ? 2 : 0;
   const firstTurnBonusDraw = state.turn === 1 && state.relics.includes('overclock_bus') ? 1 : 0;
@@ -312,6 +320,46 @@ function applyEffect(
   attackFrames: BattleSnapshot[],
 ): void {
   switch (effect.type) {
+    case 'recoverDiscard': {
+      let remaining = Math.min(effect.amount, MAX_HAND_SIZE - state.hand.length);
+      for (let index = state.discard.length - 1; index >= 0 && remaining > 0; index--) {
+        const uid = state.discard[index];
+        const card = state.cards[uid];
+        if (!card || getCardDefinition(card.defId).unplayable || hasReachedCardTurnLimit(state, card)) continue;
+        state.discard.splice(index, 1);
+        state.hand.push(uid);
+        remaining--;
+      }
+      break;
+    }
+    case 'bonusAfterAttacks': {
+      if ((state.attacksThisTurn ?? 0) < effect.attacks) break;
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      for (const enemy of targets) damageEnemy(enemy, effect.amount + attackBonus);
+      if (targets.length > 0) attackFrames.push(battleSnapshot(state));
+      break;
+    }
+    case 'consumeHeat': {
+      const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      let dealt = 0;
+      for (const enemy of targets) {
+        if (!enemy.burn) continue;
+        const consumed = Math.min(enemy.burn.amount, effect.amount);
+        enemy.burn.amount -= consumed;
+        if (enemy.burn.amount === 0) delete enemy.burn;
+        const converted = consumed * effect.multiplier;
+        if (effect.result === 'block') state.player.block += converted;
+        else dealt += damageEnemy(enemy, converted, true);
+      }
+      if (dealt > 0) attackFrames.push({ ...battleSnapshot(state), damageKind: 'burn' });
+      break;
+    }
+    case 'targetJam':
+      if (target && target.hp > 0) target.jammed = (target.jammed ?? 0) + effect.amount;
+      break;
+    case 'targetVulnerable':
+      if (target && target.hp > 0) target.vulnerable = (target.vulnerable ?? 0) + effect.amount;
+      break;
     case 'damage': {
       const hits = effect.hits ?? 1;
       for (let i = 0; i < hits; i++) {
@@ -379,7 +427,7 @@ function applyEffect(
       break;
     case 'shieldBash': {
       const mult = effect.multiplier ?? 1;
-      const dmg = Math.floor(state.player.block * mult) + attackBonus;
+      const dmg = Math.min(Math.floor(state.player.block * mult), effect.cap ?? Infinity) + attackBonus;
       const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
       if (dmg > 0 && targets.length > 0) {
         for (const enemy of targets) damageEnemy(enemy, dmg);
@@ -482,6 +530,7 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
   const card = prev.cards[uid];
   const def = getCardDefinition(card.defId);
   if (def.unplayable) return { state: prev, accepted: false, reason: `${def.name} は使えません。` };
+  if (hasReachedCardTurnLimit(prev, card)) return { state: prev, accepted: false, reason: 'このカードは同じターンに1回までです。' };
   const stats = getCardStats(card);
   const cost = getPlayCost(prev, uid);
   if (cost > prev.player.energy) return { state: prev, accepted: false, reason: `帯域が足りません(必要 ${cost} / 残り ${prev.player.energy})。` };
@@ -501,6 +550,7 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
   state.modifiers.nextCardDiscount = 0;
   state.hand = state.hand.filter((h) => h !== uid);
   state.usesThisBattle[uid] = (state.usesThisBattle[uid] ?? 0) + 1;
+  state.playedThisTurn = [...(state.playedThisTurn ?? []), uid];
 
   const isAttack = def.kind === 'attack';
   const bonus = isAttack ? state.modifiers.nextAttackBonus : 0;
@@ -515,6 +565,7 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
   for (let t = 0; t < times; t++) {
     for (const effect of stats.effects) applyEffect(state, effect, target, bonus, stats.effects, attackFrames);
   }
+  if (isAttack) state.attacksThisTurn = (state.attacksThisTurn ?? 0) + 1;
   state.discard.push(uid);
 
   // 解析コンボ(補助 → 攻撃で1ターンに1回 帯域+1)
@@ -543,7 +594,8 @@ export function playCard(prev: BattleState, uid: string, targetUid?: string): Pl
   // HP を払う攻撃カード(例:HP−3／貫通22ダメージ)は、敵へのダメージだけでなく自分の HP 減少も残す
   if (recovered < 0 && hits.length > 0) hits.push(`あなた：HPを${-recovered}失った`);
   if (gainedFw > 0) hits.push(`あなた：FWを${gainedFw}獲得`);
-  const statusEffect = stats.effects.some((effect) => ['burn', 'vulnerable', 'jam'].includes(effect.type));
+  const statusEffect = stats.effects.some((effect) =>
+    ['burn', 'vulnerable', 'jam', 'consumeHeat', 'targetJam', 'targetVulnerable'].includes(effect.type));
   const detail = hits.length ? hits.join(' ／ ') : `あなた：${stats.text}`;
   addLog(state, `${detail}［${stats.name}${times === 2 ? '×2' : ''}］`, 'info', 'player', recovered > 0 ? 'heal' : statusEffect ? 'status' : undefined);
   updatePhases(state);

@@ -2,7 +2,7 @@
 // 画面に依存しない純粋な関数で実装し、node --test と画面の両方から使う。
 import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityLearningData';
 import { createBattle, getCardDefinition } from './battle';
-import { RARE_CARD_IDS, REWARD_CARD_IDS } from './cards';
+import { canAcquireCard, getEvolutionBranches, RARE_CARD_IDS, REWARD_CARD_IDS } from './cards';
 import { ALL_RELIC_IDS, FORENSICS_LAB_XP, RELIC_DEFINITIONS, SIPHON_MODULE_HEAL } from './relics';
 import { generateRunMap } from './map';
 import { nextRandom, shuffled } from './rng';
@@ -68,7 +68,7 @@ export function createTutorialTrialRun(): RunState {
     'ssh_brute', 'ssh_brute',
     'sql_injection',
   ];
-  const deck = trialDeckIds.map((defId, i) => createCardInstance(defId, `c${i + 1}`));
+  const deck = createStarterDeck(trialDeckIds, 'thermal_ops');
   const t1: RunNode = { id: 't1', floor: 0, col: 3, kind: 'battle', next: ['t2'], enemyIds: ['scanner_bot'] };
   const t2: RunNode = { id: 't2', floor: 1, col: 3, kind: 'boss', next: [], enemyIds: ['argus_tutorial'] };
   return {
@@ -99,14 +99,21 @@ export function createTutorialTrialRun(): RunState {
   };
 }
 
+function createStarterDeck(ids: string[], loadoutId: LoadoutId): CardInstance[] {
+  return ids.map((defId, i) => {
+    if (!canAcquireCard(defId, loadoutId)) throw new Error(`初期デッキの所属が一致しません: ${defId}`);
+    return createCardInstance(defId, `c${i + 1}`);
+  });
+}
+
 export function createRun(
   options: { fastGrowth?: boolean; loadoutId?: LoadoutId; securityLevel?: number; mapSeed?: number } = {},
 ): RunState {
-  const loadoutId: LoadoutId = options.loadoutId ?? 'balanced';
-  const loadout = LOADOUT_DEFINITIONS[loadoutId] ?? LOADOUT_DEFINITIONS.balanced;
+  const loadout = LOADOUT_DEFINITIONS[options.loadoutId ?? 'balanced'] ?? LOADOUT_DEFINITIONS.balanced;
+  const loadoutId = loadout.id;
   const securityLevel = Math.max(0, Math.min(MAX_SECURITY_LEVEL, Math.floor(options.securityLevel ?? 0)));
   const maxHp = Math.max(25, loadout.maxHp - (securityLevel >= 3 ? 10 : 0));
-  const deck = loadout.deckIds.map((defId, i) => createCardInstance(defId, `c${i + 1}`));
+  const deck = createStarterDeck(loadout.deckIds, loadoutId);
   const mapSeed = options.mapSeed ?? DEFAULT_MAP_SEED;
   const map = generateRunMap(mapSeed);
   return {
@@ -115,6 +122,7 @@ export function createRun(
     hp: maxHp,
     maxHp,
     map,
+    mapSeed,
     currentNodeId: map.startId,
     visitedNodeIds: [map.startId],
     startBonusChoices: shuffled(ALL_START_BONUS_IDS, mapSeed + 7).items.slice(0, START_BONUS_CHOICES),
@@ -213,7 +221,7 @@ export function applyStartBonus(run: RunState, bonusId: StartBonusId, seed: numb
     case 'coins':
       return { ...next, reconCoins: next.reconCoins + 3 };
     case 'rare_card':
-      return pickRewardCard(next, shuffled(RARE_CARD_IDS, seed).items[0]);
+      return pickRewardCard(next, pickRarePool(next, seed)[0]);
   }
 }
 
@@ -321,11 +329,11 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
   let rewardChoices: string[] = [];
   if (!isBoss) {
     if (run.currentBattleElite) {
-      const rare = shuffled(RARE_CARD_IDS, rewardSeed).items[0];
-      const others = shuffled(REWARD_CARD_IDS.filter((id) => id !== rare), rewardSeed + 1).items.slice(0, 2);
+      const rare = pickRarePool(run, rewardSeed)[0];
+      const others = pickRewardPool(run, rewardSeed + 1, REWARD_CARD_IDS.length).filter((id) => id !== rare).slice(0, 2);
       rewardChoices = [rare, ...others];
     } else {
-      rewardChoices = shuffled(REWARD_CARD_IDS, rewardSeed).items.slice(0, 3);
+      rewardChoices = pickRewardPool(run, rewardSeed);
     }
   }
 
@@ -384,7 +392,19 @@ export type CoinShopAction =
   | { type: 'heal' }
   | { type: 'tool'; toolId: ToolId }
   | { type: 'remove'; cardUid: string }
+  | { type: 'card'; defId: string }
+  | { type: 'transform'; cardUid: string }
   | { type: 'relic'; relicId: RelicId };
+
+export const SHOP_CARD_COST = 2;
+
+export function hasUsedShopCardService(run: RunState): boolean {
+  return run.shopCardActionNodeIds?.includes(run.currentNodeId) ?? false;
+}
+
+export function pickShopCards(run: RunState): string[] {
+  return pickRewardPool(run, (run.mapSeed ?? DEFAULT_MAP_SEED) + getCurrentNode(run).floor * 37);
+}
 
 /** 解析コインの闇市ショップで交換する */
 export function spendCoinShop(run: RunState, action: CoinShopAction): RunState {
@@ -392,6 +412,30 @@ export function spendCoinShop(run: RunState, action: CoinShopAction): RunState {
     throw new Error('闇市マスでのみ交換できます');
   }
   switch (action.type) {
+    case 'card':
+    case 'transform': {
+      if (hasUsedShopCardService(run)) throw new Error('この闇市のカード購入・変換は利用済みです');
+      if (run.reconCoins < SHOP_CARD_COST) throw new Error('解析コインが足りません');
+      let next: RunState;
+      if (action.type === 'card') {
+        if (!pickShopCards(run).includes(action.defId)) throw new Error('このカードは販売対象外です');
+        next = pickRewardCard(run, action.defId);
+      } else {
+        const target = run.deck.find((card) => card.uid === action.cardUid);
+        if (!target) throw new Error('変換するカードが見つかりません');
+        const rarity = getCardDefinition(target.defId).rarity;
+        const pool = REWARD_CARD_IDS.filter((id) => id !== target.defId && canAcquireCard(id, run.loadoutId) &&
+          getCardDefinition(id).rarity === rarity);
+        const [replacement] = shuffled(pool, (run.mapSeed ?? DEFAULT_MAP_SEED) + run.nextUid * 53).items;
+        if (!replacement) throw new Error('変換できるカードがありません');
+        next = removeCardFromDeck(pickRewardCard(run, replacement), target.uid);
+      }
+      return {
+        ...next,
+        reconCoins: run.reconCoins - SHOP_CARD_COST,
+        shopCardActionNodeIds: [...(run.shopCardActionNodeIds ?? []), run.currentNodeId],
+      };
+    }
     case 'heal':
       if (run.reconCoins < 1) throw new Error('解析コインが足りません');
       return {
@@ -433,8 +477,7 @@ export function chooseEvolution(run: RunState, cardUid: string, branchId: string
   const target = run.deck.find((c) => c.uid === cardUid);
   if (!target) throw new Error(`card not found: ${cardUid}`);
   if (target.level < 3) throw new Error(`card is not Lv.3: ${cardUid}`);
-  const def = getCardDefinition(target.defId);
-  const valid = def.branches.some((b) => b.id === branchId);
+  const valid = getEvolutionBranches(target.defId, run.loadoutId).some((b) => b.id === branchId);
   if (!valid) throw new Error(`invalid branch ${branchId} for ${target.defId}`);
 
   return {
@@ -447,7 +490,7 @@ export function chooseEvolution(run: RunState, cardUid: string, branchId: string
 /** 戦闘報酬のカードを受け取る(null ならスキップ) */
 export function pickRewardCard(run: RunState, defId: string | null): RunState {
   if (defId === null) return run;
-  getCardDefinition(defId);
+  if (!canAcquireCard(defId, run.loadoutId)) throw new Error('このオペレーターはそのカードを入手できません');
   const newCard = createCardInstance(defId, `c${run.nextUid}`);
   return {
     ...run,
@@ -603,13 +646,13 @@ export function grantRelic(run: RunState, relicId: RelicId): RunState {
 }
 
 /** イベント報酬用:3枚のカード候補を返す */
-export function pickRewardPool(seed: number, count = 3): string[] {
-  return shuffled(REWARD_CARD_IDS, seed).items.slice(0, count);
+export function pickRewardPool(run: Pick<RunState, 'loadoutId'>, seed: number, count = 3): string[] {
+  return shuffled(REWARD_CARD_IDS.filter((id) => canAcquireCard(id, run.loadoutId)), seed).items.slice(0, count);
 }
 
 /** イベント3問目報酬用:レアカード候補を返す */
-export function pickRarePool(seed: number): string[] {
-  return shuffled(RARE_CARD_IDS, seed).items;
+export function pickRarePool(run: Pick<RunState, 'loadoutId'>, seed: number): string[] {
+  return shuffled(RARE_CARD_IDS.filter((id) => canAcquireCard(id, run.loadoutId)), seed).items;
 }
 
 export type RestAction =
@@ -675,7 +718,7 @@ export function resolveMysteryChoice(
   if (eventId === 'dark_zero_day') {
     if (choiceId === 'buy_rare') {
       const nextHp = Math.max(1, baseRun.hp - 12);
-      const rareId = shuffled(RARE_CARD_IDS, seed).items[0];
+      const rareId = pickRarePool(baseRun, seed)[0];
       const def = getCardDefinition(rareId);
       const withCard = pickRewardCard({ ...baseRun, hp: nextHp, reconCoins: baseRun.reconCoins + 1 }, rareId);
       return {
