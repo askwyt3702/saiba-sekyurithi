@@ -51,7 +51,7 @@ export const MAP_PATHS = 5;
 const CENTER = Math.floor(MAP_COLUMNS / 2);
 /** この段より上では、道が中央に寄りやすくなる(最後にボスへ集まるように) */
 const FUNNEL_FROM_FLOOR = 7;
-export const BOSS_ENEMY_IDS = ['argus'];
+export const BOSS_ENEMY_IDS = ['argus', 'aegis_omega', 'hydra_net'];
 
 const nodeId = (floor: number, col: number) => `${floor}-${col}`;
 
@@ -114,8 +114,9 @@ export function generateRunMap(seed: number): RunMap {
     }
   }
 
-  // 最後の段から、1体のボスへ全部つなぐ
-  const boss: RunNode & { prev: string[] } = { id: 'boss', floor: MAP_FLOORS, col: CENTER, kind: 'boss', next: [], prev: [], enemyIds: [...BOSS_ENEMY_IDS] };
+  // 最後の段から、ランダム選出された1体のボスへ全部つなぐ
+  const pickedBossId = pick(BOSS_ENEMY_IDS);
+  const boss: RunNode & { prev: string[] } = { id: 'boss', floor: MAP_FLOORS, col: CENTER, kind: 'boss', next: [], prev: [], enemyIds: [pickedBossId] };
   nodes[boss.id] = boss;
   for (const n of Object.values(nodes)) {
     if (n.floor === MAP_FLOORS - 1) {
