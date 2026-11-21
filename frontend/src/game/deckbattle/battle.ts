@@ -381,8 +381,9 @@ function applyEffect(
       const mult = effect.multiplier ?? 1;
       const dmg = Math.floor(state.player.block * mult) + attackBonus;
       const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
-      for (const enemy of targets) {
-        if (dmg > 0) damageEnemy(enemy, dmg);
+      if (dmg > 0 && targets.length > 0) {
+        for (const enemy of targets) damageEnemy(enemy, dmg);
+        attackFrames.push(battleSnapshot(state));
       }
       break;
     }
@@ -399,22 +400,22 @@ function applyEffect(
     }
     case 'bonusIfDebuffed': {
       const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
-      for (const enemy of targets) {
-        const isDebuffed = Boolean(enemy.burn || (enemy.vulnerable && enemy.vulnerable > 0) || (enemy.jammed && enemy.jammed > 0));
-        if (isDebuffed) {
-          damageEnemy(enemy, effect.amount + attackBonus);
-        }
-      }
+      const debuffed = targets.filter((enemy) => enemy.burn || (enemy.vulnerable && enemy.vulnerable > 0) || (enemy.jammed && enemy.jammed > 0));
+      for (const enemy of debuffed) damageEnemy(enemy, effect.amount + attackBonus);
+      if (debuffed.length > 0) attackFrames.push(battleSnapshot(state));
       break;
     }
     case 'triggerBurn': {
       const mult = effect.multiplier ?? 1;
       const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
+      let damaged = false;
       for (const enemy of targets) {
         if (enemy.burn && enemy.burn.amount > 0) {
-          damageEnemy(enemy, Math.floor(enemy.burn.amount * mult), true);
+          const dealt = damageEnemy(enemy, Math.floor(enemy.burn.amount * mult), true);
+          damaged = damaged || dealt > 0;
         }
       }
+      if (damaged) attackFrames.push({ ...battleSnapshot(state), damageKind: 'burn' });
       break;
     }
     case 'selfDamage':
@@ -423,8 +424,9 @@ function applyEffect(
     case 'handScaleDamage': {
       const dmg = state.hand.length * effect.perCard + attackBonus;
       const targets = effect.target === 'all' ? livingEnemies(state) : target && target.hp > 0 ? [target] : [];
-      for (const enemy of targets) {
-        if (dmg > 0) damageEnemy(enemy, dmg);
+      if (dmg > 0 && targets.length > 0) {
+        for (const enemy of targets) damageEnemy(enemy, dmg);
+        attackFrames.push(battleSnapshot(state));
       }
       break;
     }
@@ -443,9 +445,9 @@ function applyEffect(
       if (totalPurged > 0) {
         if (effect.blockPerNoise) state.player.block += totalPurged * effect.blockPerNoise;
         if (effect.damagePerNoise) {
-          for (const enemy of livingEnemies(state)) {
-            damageEnemy(enemy, totalPurged * effect.damagePerNoise, true);
-          }
+          const targets = livingEnemies(state);
+          for (const enemy of targets) damageEnemy(enemy, totalPurged * effect.damagePerNoise, true);
+          if (targets.length > 0) attackFrames.push(battleSnapshot(state));
         }
         if (effect.drawPerNoise) drawCards(state, totalPurged * effect.drawPerNoise);
       }

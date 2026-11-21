@@ -1,0 +1,256 @@
+/* 分岐マップの画面(RunMapView.tsx)。ミッション選択画面と同じ緑のターミナル風。
+   マスの種類ごとの色は --k に入れ、枠とアイコンに使う。 */
+
+.rm-wrap {
+  --rm-green: #00ff64;
+  --rm-green-rgb: 0, 255, 100;
+  --rm-mono: ui-monospace, 'Courier New', Consolas, 'Zen Kaku Gothic New', monospace;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  padding: 12px 20px 14px;
+  overflow: hidden;
+  background-color: #010603;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 0, 0, 0.22) 3px 4px),
+    linear-gradient(rgba(var(--rm-green-rgb), 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--rm-green-rgb), 0.03) 1px, transparent 1px),
+    radial-gradient(circle at 50% 45%, rgba(1, 10, 5, 0.45) 25%, rgba(0, 5, 3, 0.8) 82%, rgba(2, 8, 5, 0.92) 100%),
+    url('/mission-bg.jpg');
+  background-size: 100% 4px, 32px 32px, 32px 32px, cover, cover;
+  background-position: center;
+  color: #e6f5ec;
+}
+
+/* 戦闘画面の上に重ねて開くとき(上のバーの「マップ」ボタン) */
+.rm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+}
+
+.rm-panel {
+  position: relative;
+  min-width: 0;
+  padding: 10px 12px;
+  background: rgba(2, 10, 6, 0.9);
+  border: 1px solid rgba(var(--rm-green-rgb), 0.3);
+  border-top: 2px solid var(--rm-green);
+}
+
+.rm-map-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.rm-label {
+  display: block;
+  font-family: var(--rm-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--rm-green);
+}
+
+.rm-floor {
+  margin-left: auto;
+  font-family: var(--rm-mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--rm-green);
+}
+
+.rm-box {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid rgba(var(--rm-green-rgb), 0.12);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.rm-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rm-band { fill: rgba(var(--rm-green-rgb), 0.035); }
+.rm-band--alt { fill: transparent; }
+
+.rm-band-label {
+  font-family: var(--rm-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  fill: rgba(147, 181, 160, 0.75);
+}
+
+.rm-edge { stroke: rgba(var(--rm-green-rgb), 0.22); stroke-width: 2; stroke-dasharray: 4 5; }
+.rm-edge--taken { stroke: var(--rm-green); stroke-dasharray: none; stroke-width: 3; }
+.rm-edge--next { stroke: rgba(var(--rm-green-rgb), 0.65); }
+
+/* マスの種類ごとの色 */
+.rm-node--start { --k: #5ef2d6; }
+.rm-node--battle { --k: #e6f5ec; }
+.rm-node--elite { --k: #ff9924; }
+.rm-node--event { --k: #19f0c8; }
+.rm-node--mystery { --k: #b98cff; }
+.rm-node--shop { --k: #ffd84d; }
+.rm-node--rest { --k: #00ff64; }
+.rm-node--boss { --k: #ff4d6a; }
+
+.rm-ring {
+  fill: #04110a;
+  stroke: var(--k);
+  stroke-width: 2;
+  opacity: 0.55;
+}
+
+.rm-icon { color: var(--k); opacity: 0.6; pointer-events: none; }
+.rm-icon .game-icon { width: 100%; height: 100%; vertical-align: top; }
+
+.rm-node--visited .rm-ring { fill: rgba(var(--rm-green-rgb), 0.12); opacity: 1; }
+.rm-node--visited .rm-icon { opacity: 1; }
+.rm-node--current .rm-ring { stroke: #fff; stroke-width: 3; opacity: 1; fill: rgba(var(--rm-green-rgb), 0.22); }
+.rm-node--current .rm-icon { opacity: 1; }
+.rm-node--reach { cursor: pointer; }
+.rm-node--reach .rm-ring { opacity: 1; stroke-width: 3; animation: rm-pulse 1.4s ease-in-out infinite; }
+.rm-node--reach .rm-icon { opacity: 1; }
+.rm-node--reach:hover .rm-ring,
+.rm-node--reach:focus-visible .rm-ring { fill: rgba(var(--rm-green-rgb), 0.22); }
+.rm-node:focus-visible { outline: none; }
+.rm-node:focus-visible .rm-ring { stroke: #fff; }
+.rm-node--dead .rm-ring,
+.rm-node--dead .rm-icon { opacity: 0.18; }
+
+@keyframes rm-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 7px var(--k)); }
+}
+
+.rm-hint {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--rm-green);
+  background: rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  color: #cfe9d9;
+}
+
+.rm-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.rm-focus__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.rm-focus__desc {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #93b5a0;
+}
+
+.rm-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.rm-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rm-legend__icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--k);
+  color: var(--k);
+  font-size: 13px;
+}
+
+/* 起動ノードの強化 */
+.rm-bonus {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rm-bonus__btn {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  text-align: left;
+  background: rgba(6, 22, 13, 0.92);
+  border: 1px solid rgba(var(--rm-green-rgb), 0.35);
+  border-top: 2px solid #5ef2d6;
+  color: #e6f5ec;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rm-bonus__btn:hover,
+.rm-bonus__btn:focus-visible {
+  border-color: #5ef2d6;
+  box-shadow: 0 0 14px rgba(94, 242, 214, 0.25);
+  outline: none;
+}
+
+.rm-bonus__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid #5ef2d6;
+  color: #5ef2d6;
+  font-size: 16px;
+}
+
+.rm-bonus__name {
+  display: block;
+  font-weight: 700;
+  color: #fff;
+}
+
+.rm-bonus__desc {
+  display: block;
+  font-size: 12px;
+  color: #93b5a0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rm-node--reach .rm-ring { animation: none; filter: drop-shadow(0 0 5px var(--k)); }
+}

@@ -237,6 +237,7 @@ export interface BattleSnapshot {
   playerHp: number;
   playerBlock: number;
   enemies: Array<{ uid: string; hp: number; block: number }>;
+  damageKind?: 'burn';
 }
 
 export type EnemyActionEvent = EnemyActionKind & { after: BattleSnapshot };
@@ -265,16 +266,38 @@ export interface BattleState {
   rngState: number;
 }
 
-/** ランのマス(分岐マップを足すときは next を複数にする) */
+/** クイズのマスの種類 */
 export type RunEventId = 'vuln_check' | 'patch';
 
-export type RunNode =
-  | { kind: 'battle'; enemyIds: string[]; eliteEnemyIds?: string[] }
-  | { kind: 'event'; eventId: RunEventId }
-  | { kind: 'mystery' }
-  | { kind: 'rest' }
-  | { kind: 'shop' }
-  | { kind: 'boss'; enemyIds: string[] };
+/** マップのマスの種類(start は1段目の起動ノード、elite は強敵) */
+export type RunNodeKind = 'start' | 'battle' | 'elite' | 'event' | 'mystery' | 'rest' | 'shop' | 'boss';
+
+/** 分岐マップのマス(map.ts が作る) */
+export interface RunNode {
+  id: string;
+  /** 下から数えた段(0 が起動ノード) */
+  floor: number;
+  /** 横の位置(0〜6) */
+  col: number;
+  kind: RunNodeKind;
+  /** 次に進めるマス */
+  next: string[];
+  /** 戦闘・強敵・ボスの敵 */
+  enemyIds?: string[];
+  /** クイズの種類 */
+  eventId?: RunEventId;
+}
+
+export interface RunMap {
+  nodes: Record<string, RunNode>;
+  startId: string;
+  bossId: string;
+  /** ボスを入れた段の数 */
+  floorCount: number;
+}
+
+/** 起動ノードで選べる強化 */
+export type StartBonusId = 'relic' | 'tools' | 'max_hp' | 'coins' | 'rare_card';
 
 /** 戦闘後やイベントでカードが得た経験値の記録(画面の演出用) */
 export interface XpGainEntry {
@@ -292,15 +315,21 @@ export interface RunState {
   deck: CardInstance[];
   hp: number;
   maxHp: number;
-  nodes: RunNode[];
-  nodeIndex: number;
+  /** 分岐マップ */
+  map: RunMap;
+  /** 今いるマス */
+  currentNodeId: string;
+  /** 通ったマス(起動ノードから順に) */
+  visitedNodeIds: string[];
+  /** 起動ノードで選べる強化(選び終わったら空) */
+  startBonusChoices: StartBonusId[];
   /** 装備中のパッシブ装備(常駐ツール) */
   relics: RelicId[];
   /** 使い捨て緊急ツール(最大2個) */
   tools: ToolId[];
   /** イベントの事前調査に使う解析コイン(敵撃破で確率ドロップ) */
   reconCoins: number;
-  /** 現在の戦闘でエリートルートを選んだか(報酬レア確定＆EXP2倍) */
+  /** 今の戦闘が強敵マスか(報酬レア確定＆EXP2倍) */
   currentBattleElite: boolean;
   /** Lv.3 の進化先を選ぶ必要があるカード(M2) */
   pendingEvolutions: string[];
