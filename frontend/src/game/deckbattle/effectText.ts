@@ -31,7 +31,7 @@ const RULES: Array<[Exclude<EffectTextKind, 'plain'>, string]> = [
   ['heal', '(?:HP)?\\+?\\d+回復'],
   ['damage', '(?:FW)?貫通\\d+(?:ダメージ)?(?:[×x]\\d+)?'],
   ['block', 'FWで\\d+防いだ|FW[+＋]?\\d+(?:を得て)?'],
-  ['burn', '過熱\\d+'],
+  ['burn', 'ウイルス\\d+'],
   ['debuff', '脆弱\\d+T'],
   ['jam', '(?:ジャミング|ジャム)\\d+T'],
   ['retaliate', '反撃\\d+|\\d+反撃'],

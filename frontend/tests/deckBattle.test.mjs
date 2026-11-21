@@ -204,7 +204,7 @@ test('反撃は攻撃を全部防いでも発動し、1回で消える', () => {
   assert.equal(s.lastEnemyActions.some((a) => a.kind === 'retaliate'), true);
 });
 
-test('過熱の即時発動は通常の命中と別の演出フレームを返す', () => {
+test('ウイルスの即時発動は通常の命中と別の演出フレームを返す', () => {
   const state = setup([{ defId: 'burn_detonate' }], ['argus'], ['c1']);
   const enemy = state.enemies[0];
   const result = battle.playCard(state, 'c1', enemy.uid);
@@ -216,7 +216,7 @@ test('過熱の即時発動は通常の命中と別の演出フレームを返�
   assert.equal(burn.enemies[0].hp, result.state.enemies[0].hp);
 });
 
-test('過熱はFWを無視して3ターン続き、重ねると量が増えてターンが3に戻る', () => {
+test('ウイルスはFWを無視して3ターン続き、重ねると量が増えてターンが3に戻る', () => {
   let s = setup(
     [{ defId: 'ddos', level: 3, branchId: 'ddos_overload' }, { defId: 'ddos', level: 3, branchId: 'ddos_overload' }],
     ['argus'],
@@ -225,10 +225,10 @@ test('過熱はFWを無視して3ターン続き、重ねると量が増えて�
   s = play(s, 'c1');
   assert.equal(s.enemies[0].hp, hp('argus') - 8);
   assert.equal(s.enemies[0].burn.amount, 4);
-  s = battle.endTurn(s); // ARGUS の攻撃 → 過熱4
+  s = battle.endTurn(s); // ARGUS の攻撃 → ウイルス4
   assert.equal(s.enemies[0].hp, hp('argus') - 12);
   assert.equal(s.enemies[0].burn.turns, 2);
-  s = battle.endTurn(s); // FW を張るが、過熱は FW を無視
+  s = battle.endTurn(s); // FW を張るが、ウイルスは FW を無視
   assert.equal(s.enemies[0].block, move('argus', 1).amount);
   assert.equal(s.enemies[0].hp, hp('argus') - 16);
   s.hand = ['c2'];
@@ -853,7 +853,7 @@ test('反撃デーモンは攻撃されないターンが続いても反撃を�
   assert.equal(max, 4);
 });
 
-test('過熱コアの過熱は残りターンが延びず、増え続けない', () => {
+test('ウイルスコアのウイルスは残りターンが延びず、増え続けない', () => {
   let s = battle.createBattle({ deck: [{ uid: 'c1', defId: 'firewall', level: 1, xp: 0 }], playerHp: 500, playerMaxHp: 500, enemyIds: ['argus'], seed: 1, relics: ['thermal_core'] });
   let max = 0;
   for (let t = 0; t < 10 && s.status === 'playing'; t++) {

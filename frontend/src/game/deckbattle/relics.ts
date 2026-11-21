@@ -46,9 +46,9 @@ export const RELIC_DEFINITIONS: Record<RelicId, RelicDefinition> = {
   },
   thermal_core: {
     id: 'thermal_core',
-    name: '過熱コア',
+    name: 'ウイルスコア',
     icon: 'thermal',
-    description: `毎ターン開始時、敵全体に過熱+${THERMAL_CORE_BURN}を付与する(残りターンは延びない)。`,
+    description: `毎ターン開始時、敵全体にウイルス+${THERMAL_CORE_BURN}を付与する(残りターンは延びない)。`,
   },
   thorn_daemon: {
     id: 'thorn_daemon',

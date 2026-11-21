@@ -37,7 +37,7 @@ export const CARD_TELEMETRY: Record<string, CardTelemetry> = {
   dns_spoof: { tag: '名前解決改ざん', command: 'dnsspoof -i eth0 target.internal -> 10.6.6.6' },
   sandbox_guard: { tag: '検体隔離', command: 'sandboxctl --quarantine-noise --purge' },
   shield_slam: { tag: '防壁反撃', command: 'fw-counter --discharge-shield-energy' },
-  burn_detonate: { tag: '過熱起爆', command: 'thermal-ctl --trigger-overload --now' },
+  burn_detonate: { tag: 'ウイルス起爆', command: 'virus-ctl --trigger-payload --now' },
   packet_burst: { tag: '一斉送信', command: 'netburst --flush-hand-packets --parallel' },
   overvolt: { tag: '限界突破', command: 'busctl --overvolt --disable-limiter' },
   ransom_lock: { tag: '暗号化拘束', command: 'ransom-enc --aes256 --lock /srv/core' },
