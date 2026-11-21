@@ -1133,7 +1133,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
 
   const onEndTurn = () => {
     if (busy || actionLocked.current || isDrawing()) return;
-    if (turn1CoachActive && getCurrentFloor(run) <= 1 && battle.turn === 1) {
+    if (turn1CoachActive && getCurrentNode(run).kind !== 'boss' && getCurrentFloor(run) <= 2 && battle.turn === 1) {
       dismissTurn1Coach();
     }
     actionLocked.current = true;
@@ -1352,7 +1352,13 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const isBoss = getCurrentNode(run).kind === 'boss';
   const playsThisBattle = Object.values(shown.usesThisBattle).reduce((sum, n) => sum + n, 0);
   const turn1Coach =
-    turn1CoachActive && phase === 'battle' && getCurrentFloor(run) <= 1 && shown.turn === 1 && shown.status === 'playing' && !busy
+    turn1CoachActive &&
+    phase === 'battle' &&
+    !isBoss &&
+    getCurrentFloor(run) <= 2 &&
+    shown.turn === 1 &&
+    shown.status === 'playing' &&
+    !busy
       ? computeTurn1Coach(shown, playsThisBattle)
       : null;
 

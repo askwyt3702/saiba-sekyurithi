@@ -69,8 +69,8 @@ export function createTutorialTrialRun(): RunState {
     'sql_injection',
   ];
   const deck = trialDeckIds.map((defId, i) => createCardInstance(defId, `c${i + 1}`));
-  const t1: RunNode = { id: 't1', floor: 1, col: 3, kind: 'battle', next: ['t2'], enemyIds: ['scanner_bot'] };
-  const t2: RunNode = { id: 't2', floor: 2, col: 3, kind: 'boss', next: [], enemyIds: ['argus'] };
+  const t1: RunNode = { id: 't1', floor: 0, col: 3, kind: 'battle', next: ['t2'], enemyIds: ['scanner_bot'] };
+  const t2: RunNode = { id: 't2', floor: 1, col: 3, kind: 'boss', next: [], enemyIds: ['argus'] };
   return {
     status: 'playing',
     deck,
