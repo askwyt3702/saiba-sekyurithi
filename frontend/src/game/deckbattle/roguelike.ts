@@ -62,10 +62,10 @@ export const LOADOUT_DEFINITIONS: Record<LoadoutId, LoadoutDefinition> = {
   },
   thermal_ops: {
     id: 'thermal_ops',
-    name: 'サーマル工作員（過熱＆妨害）',
-    tag: 'THERMAL OPS',
+    name: 'ウイルス工作員（ウイルス＆妨害）',
+    tag: 'VIRUS OPS',
     icon: 'thermalOps',
-    description: '過熱と状態異常を積み上げて起爆するテクニカル構成。毎ターン敵全体に過熱+2。',
+    description: 'ウイルスと状態異常を積み上げて起爆するテクニカル構成。毎ターン敵全体にウイルス+2。',
     maxHp: 62,
     deckIds: [
       'thermal_spike', 'thermal_spike',

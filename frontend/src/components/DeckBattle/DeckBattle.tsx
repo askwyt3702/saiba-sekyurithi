@@ -103,10 +103,26 @@ import { EffectText, GlossaryList } from './EffectText';
 import { HowToPlayModal } from './HowToPlayModal';
 import { EvolutionOverlay, LevelUpOverlay, type LevelUpPresentation } from './CardGrowth';
 import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
-import idlePose from '../../assets/player-idle.webp';
-import attackPose from '../../assets/player-attack.webp';
-import guardPose from '../../assets/player-guard.webp';
-import hurtPose from '../../assets/player-hurt.webp';
+import operatorBalancedImg from '../../assets/operator-balanced.jpg';
+import operatorRedImg from '../../assets/operator-red.jpg';
+import operatorBlueImg from '../../assets/operator-blue.jpg';
+import operatorVirusImg from '../../assets/operator-virus.jpg';
+import operatorBalancedSprite from '../../assets/operator-balanced-sprite.jpg';
+import operatorVirusSprite from '../../assets/operator-virus-sprite.jpg';
+
+const LOADOUT_PORTRAIT: Record<LoadoutId, string> = {
+  balanced: operatorBalancedImg,
+  red_team: operatorRedImg,
+  blue_team: operatorBlueImg,
+  thermal_ops: operatorVirusImg,
+};
+
+const LOADOUT_BATTLE_SPRITE: Record<LoadoutId, { src: string; mode: 'lighten' | 'mask-red' | 'mask-blue' }> = {
+  balanced: { src: operatorBalancedSprite, mode: 'lighten' },
+  red_team: { src: operatorRedImg, mode: 'mask-red' },
+  blue_team: { src: operatorBlueImg, mode: 'mask-blue' },
+  thermal_ops: { src: operatorVirusSprite, mode: 'lighten' },
+};
 import './DeckBattle.css';
 import './RunSetup.css';
 import './TerminalTheme.css';
@@ -291,7 +307,7 @@ function fxForEvent(ev: EnemyActionEvent): FxSpec[] {
         {
           at: ev.enemyUid,
           icon: 'burn',
-          text: formatDamageText(ev.damage, '過熱'),
+          text: formatDamageText(ev.damage, 'ウイルス'),
           tone: 'burn',
           impact: 'burn',
           damaging: true,
@@ -337,7 +353,7 @@ function bannerForEnemyEvent(ev: EnemyActionEvent, base: BattleState): Omit<Acti
         actor: 'player',
         kind: 'attack',
         icon: 'burn',
-        title: '過熱ダメージ発動！',
+        title: 'ウイルスダメージ発動！',
         detail: `${name} に ${ev.damage} ダメージ`,
         power: damagePower(ev.damage),
       };
@@ -359,7 +375,7 @@ function fxForEnemyDamage(before: BattleSnapshot['enemies'], after: BattleSnapsh
     if (hpLost > 0) {
       specs.push({
         at: enemy.uid,
-        text: formatDamageText(hpLost, burn ? '過熱 ' : ''),
+        text: formatDamageText(hpLost, burn ? 'ウイルス ' : ''),
         icon: burn ? 'burn' : undefined,
         tone: burn ? 'burn' : 'hit',
         impact: burn ? 'burn' : 'strike',
@@ -385,12 +401,12 @@ function fxForPlay(before: BattleState, after: BattleState): FxSpec[] {
     const prev = before.enemies.find((e) => e.uid === enemy.uid);
     if (!prev) continue;
     if (enemy.burn && !prev.burn) {
-      specs.push({ at: enemy.uid, icon: 'burn', text: `過熱${enemy.burn.amount}`, tone: 'burn', impact: 'burn' });
+      specs.push({ at: enemy.uid, icon: 'burn', text: `ウイルス${enemy.burn.amount}`, tone: 'burn', impact: 'burn' });
     } else if (enemy.burn && prev.burn && enemy.burn.amount > prev.burn.amount) {
       specs.push({
         at: enemy.uid,
         icon: 'burn',
-        text: `過熱+${enemy.burn.amount - prev.burn.amount}`,
+        text: `ウイルス+${enemy.burn.amount - prev.burn.amount}`,
         tone: 'burn',
         impact: 'burn',
       });
@@ -875,7 +891,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           pushFx([{ at: 'player-launch', text: '', tone: 'buff', power }], PLAYER_POSE_MS);
         }
         playSound(action.kind === 'attack' ? 'breach' : action.kind === 'defense' ? 'recover' : 'scan');
-        const title = frame.damageKind === 'burn' ? '過熱ダメージ'
+        const title = frame.damageKind === 'burn' ? 'ウイルスダメージ'
           : events.length > 1 ? `${action.title} · ${next + 1}/${events.length}` : action.title;
         showBanner({ ...action, title, power }, finalFrame && action.command ? 1850 : events.length > 1 ? HIT_STEP_MS : FX_MS);
         setPlayback({ ...playback, index: next });
@@ -1641,6 +1657,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 <div
                   className={[
                     'db-fighter',
+                    `db-fighter--loadout-${run.loadoutId}`,
                     player.hp === 0 ? 'db-fighter--defeated' : '',
                     player.block > 0 ? 'db-fighter--shielded' : '',
                     modifiers.nextAttackBonus > 0 || modifiers.repeatNextAttack || modifiers.reconCombo === 'ready'
@@ -1652,10 +1669,37 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                   data-battle-anchor="player"
                   aria-hidden="true"
                 >
+                  {/* 人型シルエット切り抜き用SVGマスク（赤・青オペレーター用） */}
+                  <svg width="0" height="0" className="db-fighter-mask-defs" aria-hidden="true">
+                    <defs>
+                      <filter id="db-soft-cut">
+                        <feGaussianBlur stdDeviation="0.012" />
+                      </filter>
+                      <mask id="db-mask-red" maskContentUnits="objectBoundingBox">
+                        <rect width="1" height="1" fill="black" />
+                        <path
+                          d="M0.45 0.03 C0.51 0.01 0.60 0.02 0.63 0.09 C0.65 0.14 0.62 0.18 0.63 0.21 L0.70 0.28 L0.74 0.42 L0.81 0.43 L0.82 0.48 L0.76 0.56 L0.93 0.64 L0.85 0.72 L0.87 0.89 L0.94 0.96 L0.76 0.97 L0.73 0.82 L0.58 0.78 L0.34 0.99 L0.15 0.99 L0.10 0.94 L0.15 0.82 L0.21 0.66 L0.01 0.54 L0.05 0.36 L0.28 0.27 L0.36 0.17 L0.42 0.12 Z"
+                          fill="white"
+                          filter="url(#db-soft-cut)"
+                        />
+                      </mask>
+                      <mask id="db-mask-blue" maskContentUnits="objectBoundingBox">
+                        <rect width="1" height="1" fill="black" />
+                        <path
+                          d="M0.39 0.12 C0.44 0.10 0.53 0.11 0.56 0.17 L0.62 0.15 L0.74 0.13 L0.99 0.26 L0.99 0.88 L0.88 0.94 L0.75 0.86 L0.59 0.84 L0.52 0.77 L0.38 0.78 L0.24 0.88 L0.21 0.96 L0.05 0.96 L0.07 0.80 L0.01 0.62 L0.14 0.44 L0.06 0.35 L0.09 0.25 L0.24 0.26 L0.33 0.20 Z"
+                          fill="white"
+                          filter="url(#db-soft-cut)"
+                        />
+                      </mask>
+                    </defs>
+                  </svg>
                   <span
                     key={playerMotion?.id ?? 'idle'}
                     className={[
                       'db-fighter__avatar',
+                      LOADOUT_BATTLE_SPRITE[run.loadoutId].mode === 'lighten'
+                        ? 'db-fighter__avatar--cutout-lighten'
+                        : 'db-fighter__avatar--cutout-mask',
                       playerAttacking ? 'db-fighter__avatar--launch' : '',
                       playerGuarding ? 'db-fighter__avatar--guard' : '',
                       playerHurt ? 'db-fighter__avatar--hit' : '',
@@ -1663,11 +1707,13 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       playerAttacking ? powerClass(playerMotion, 'db-fighter__avatar--launch') : '',
                     ].join(' ')}
                   >
-                    <span className="db-fighter__poses">
-                      <img src={idlePose} alt="" draggable={false} hidden={playerAttacking || playerGuarding || playerHurt} />
-                      <img src={attackPose} alt="" draggable={false} hidden={!playerAttacking} />
-                      <img src={guardPose} alt="" draggable={false} hidden={!playerGuarding} />
-                      <img src={hurtPose} alt="" draggable={false} hidden={!playerHurt} />
+                    <span className="db-fighter__poses db-fighter__poses--human">
+                      <img
+                        src={LOADOUT_BATTLE_SPRITE[run.loadoutId].src}
+                        alt={LOADOUT_DEFINITIONS[run.loadoutId].name}
+                        className={`db-fighter__human-img db-fighter__human-img--${LOADOUT_BATTLE_SPRITE[run.loadoutId].mode}`}
+                        draggable={false}
+                      />
                     </span>
                   </span>
                   {playerImpact && <span key={`impact-${playerImpact.id}`} className={`db-impact db-impact--${playerImpact.impact}${powerClass(playerImpact, "db-impact--power")}`} />}
@@ -1676,7 +1722,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 </div>
                 <div className="db-player">
                   <div className={`db-player__stats ${fxAt('player').some((f) => f.tone === 'hit') ? 'db-player--hit' : ''}`}>
-                    <span className="db-player__label">あなた(侵入者)</span>
+                    <span className="db-player__label">あなた({LOADOUT_DEFINITIONS[run.loadoutId].name})</span>
                     <span className="db-bar db-bar--player">
                       <span className="db-bar__fill db-bar__fill--player" style={{ width: `${hpRatio * 100}%` }} />
                       <span className="db-bar__text">
@@ -2901,6 +2947,9 @@ function RunSetupScreen({
                 <span className="db-setup-op__head">
                   <span className="db-setup-op__code">OP-0{index + 1} // {def.tag}</span>
                   {selected && <span className="db-setup-op__badge">SELECTED</span>}
+                </span>
+                <span className="db-setup-op__portrait">
+                  <img src={LOADOUT_PORTRAIT[id]} alt={def.name} draggable={false} />
                 </span>
                 <span className="db-setup-op__body">
                   <span className="db-setup-op__name">

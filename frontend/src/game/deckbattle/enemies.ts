@@ -5,7 +5,7 @@ import type { EnemyDefinition, EnemyWeakness } from './types';
 export const WEAKNESS_LABEL: Record<EnemyWeakness, string> = {
   multi: '連撃',
   pierce: '貫通',
-  burn: '過熱',
+  burn: 'ウイルス',
   all: '全体',
 };
 

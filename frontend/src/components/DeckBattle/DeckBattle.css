@@ -259,6 +259,117 @@
   object-position: center bottom;
 }
 
+/* ---- 選択オペレーターごとの人型バトルスプライト表示 ---- */
+.db-fighter-mask-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.db-fighter--loadout-balanced {
+  --fighter-aura: #38d2ff;
+  --fighter-rim: rgba(56, 210, 255, 0.72);
+}
+
+.db-fighter--loadout-red_team {
+  --fighter-aura: #ff4d6a;
+  --fighter-rim: rgba(255, 77, 106, 0.78);
+}
+
+.db-fighter--loadout-blue_team {
+  --fighter-aura: #3b82f6;
+  --fighter-rim: rgba(59, 130, 246, 0.8);
+}
+
+.db-fighter--loadout-thermal_ops {
+  --fighter-aura: #76ff03;
+  --fighter-rim: rgba(118, 255, 3, 0.76);
+}
+
+.db-fighter__avatar--cutout-lighten {
+  mix-blend-mode: lighten;
+}
+
+.db-fighter__avatar--cutout-mask {
+  mix-blend-mode: normal;
+  filter:
+    drop-shadow(0 0 10px var(--fighter-rim))
+    drop-shadow(0 4px 16px rgba(0, 0, 0, 0.72));
+}
+
+.db-fighter__poses--human {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 248px;
+  height: clamp(190px, calc(var(--app-h) * 0.34), 252px);
+  transform-origin: center bottom;
+  transform: translateY(0);
+  animation: db-fighter-breathe-human 3.2s cubic-bezier(0.42, 0, 0.28, 1) infinite;
+}
+
+@keyframes db-fighter-breathe-human {
+  0%, 100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  46% {
+    transform: translateY(-6px) scale(0.992, 1.022);
+  }
+  56% {
+    transform: translateY(-5px) scale(0.995, 1.018);
+  }
+}
+
+.db-fighter__human-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+.db-fighter__human-img--mask-red {
+  mask: url(#db-mask-red);
+  -webkit-mask: url(#db-mask-red);
+}
+
+.db-fighter__human-img--mask-blue {
+  mask: url(#db-mask-blue);
+  -webkit-mask: url(#db-mask-blue);
+}
+
+/* 攻撃時の斬撃・エネルギー波エフェクト（キャラのオーラ色に連動） */
+.db-fighter__avatar--launch::after {
+  content: '';
+  position: absolute;
+  right: -34px;
+  top: 12%;
+  bottom: 10%;
+  width: 82px;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 25% 50%, #ffffff 0%, var(--fighter-aura) 38%, transparent 74%);
+  clip-path: polygon(0% 10%, 62% 0%, 100% 48%, 60% 100%, 0% 90%, 36% 50%);
+  filter: drop-shadow(0 0 16px var(--fighter-aura));
+  animation: db-attack-slash 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes db-attack-slash {
+  0% {
+    opacity: 0;
+    transform: translateX(-28px) scale(0.45, 0.65) rotate(-8deg);
+  }
+  24% {
+    opacity: 1;
+    transform: translateX(18px) scale(1.18, 1.08) rotate(3deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(48px) scale(1.35, 0.85) rotate(8deg);
+  }
+}
+
 .db-fighter__avatar--launch {
   --jab-x: 34px;
   transform-origin: center bottom;
@@ -869,7 +980,10 @@
 
 /* ---------- プレイヤー ---------- */
 .db-player {
+  position: relative;
+  z-index: 3;
   width: 100%;
+  margin-top: 6px;
 }
 
 .db-player__stats {

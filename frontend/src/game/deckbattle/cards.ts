@@ -45,7 +45,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     },
     branches: [
       { id: 'ddos_botnet', name: 'ボットネット', cost: 2, effects: [{ type: 'damage', amount: 12, target: 'all' }], text: '敵全体に12ダメージ。' },
-      { id: 'ddos_overload', name: '過負荷', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'burn', amount: 4 }], text: '8ダメージ＋過熱4。' },
+      { id: 'ddos_overload', name: '過負荷', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'burn', amount: 4 }], text: '8ダメージ＋ウイルス4。' },
     ],
   },
   port_scan: {
@@ -105,7 +105,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     },
     branches: [
       { id: 'sqli_union', name: 'UNION抽出', cost: 1, effects: [{ type: 'damage', amount: 6, hits: 2, target: 'single', pierce: true }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通6×2＋脆弱2T。' },
-      { id: 'sqli_blind', name: 'ブラインドSQLi', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋過熱3＋脆弱2T。' },
+      { id: 'sqli_blind', name: 'ブラインドSQLi', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋ウイルス3＋脆弱2T。' },
     ],
   },
   waf_rule: {
@@ -150,7 +150,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     },
     branches: [
       { id: 'honey_mirror', name: 'ミラー罠', cost: 1, effects: [{ type: 'block', amount: 9 }, { type: 'retaliate', amount: 9 }], text: 'FW9＋反撃9。' },
-      { id: 'honey_tar', name: 'タールピット', cost: 1, effects: [{ type: 'block', amount: 8 }, { type: 'retaliate', amount: 5 }, { type: 'burn', amount: 4 }], text: 'FW8＋反撃5＋敵1体に過熱4。' },
+      { id: 'honey_tar', name: 'タールピット', cost: 1, effects: [{ type: 'block', amount: 8 }, { type: 'retaliate', amount: 5 }, { type: 'burn', amount: 4 }], text: 'FW8＋反撃5＋敵1体にウイルス4。' },
     ],
   },
   zero_day: {
@@ -327,14 +327,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'CPU熱暴走',
     kind: 'attack',
     rarity: 'common',
-    lore: '無限ループ処理を送り込んでCPU温度を急上昇させ、過熱ダメージを蓄積させる。',
+    lore: '無限ループ処理を送り込んでCPU温度を急上昇させ、ウイルスダメージを蓄積させる。',
     levels: {
-      1: { cost: 1, effects: [{ type: 'damage', amount: 3, target: 'single' }, { type: 'burn', amount: 3 }], text: '3ダメージ＋過熱3。' },
-      2: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single' }, { type: 'burn', amount: 5 }], text: '5ダメージ＋過熱5。' },
+      1: { cost: 1, effects: [{ type: 'damage', amount: 3, target: 'single' }, { type: 'burn', amount: 3 }], text: '3ダメージ＋ウイルス3。' },
+      2: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single' }, { type: 'burn', amount: 5 }], text: '5ダメージ＋ウイルス5。' },
     },
     branches: [
-      { id: 'thermal_melt', name: 'シリコン融解', cost: 1, effects: [{ type: 'damage', amount: 6, target: 'single' }, { type: 'burn', amount: 8 }], text: '6ダメージ＋過熱8。' },
-      { id: 'thermal_burst', name: 'クロック爆縮', cost: 1, effects: [{ type: 'burn', amount: 4 }, { type: 'triggerBurn', multiplier: 1, target: 'single' }], text: '過熱4を付与し、すぐ過熱ダメージを発動。' },
+      { id: 'thermal_melt', name: 'シリコン融解', cost: 1, effects: [{ type: 'damage', amount: 6, target: 'single' }, { type: 'burn', amount: 8 }], text: '6ダメージ＋ウイルス8。' },
+      { id: 'thermal_burst', name: 'クロック爆縮', cost: 1, effects: [{ type: 'burn', amount: 4 }, { type: 'triggerBurn', multiplier: 1, target: 'single' }], text: 'ウイルス4を付与し、すぐウイルスダメージを発動。' },
     ],
   },
   rate_limit: {
@@ -419,14 +419,14 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'サーマル起爆剤',
     kind: 'attack',
     rarity: 'uncommon',
-    lore: '蓄積した過熱状態を強制的にトリガーさせ、ターン終了を待たずに即時爆発させる。',
+    lore: '蓄積したウイルス状態を強制的にトリガーさせ、ターン終了を待たずに即時爆発させる。',
     levels: {
-      1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'single' }, { type: 'burn', amount: 2 }, { type: 'triggerBurn', target: 'single' }], text: '4ダメージ＋過熱2＋過熱を即時発動。' },
-      2: { cost: 1, effects: [{ type: 'damage', amount: 6, target: 'single' }, { type: 'burn', amount: 3 }, { type: 'triggerBurn', target: 'single' }], text: '6ダメージ＋過熱3＋過熱を即時発動。' },
+      1: { cost: 1, effects: [{ type: 'damage', amount: 4, target: 'single' }, { type: 'burn', amount: 2 }, { type: 'triggerBurn', target: 'single' }], text: '4ダメージ＋ウイルス2＋ウイルスを即時発動。' },
+      2: { cost: 1, effects: [{ type: 'damage', amount: 6, target: 'single' }, { type: 'burn', amount: 3 }, { type: 'triggerBurn', target: 'single' }], text: '6ダメージ＋ウイルス3＋ウイルスを即時発動。' },
     },
     branches: [
-      { id: 'det_double', name: '連鎖メルトダウン', cost: 1, effects: [{ type: 'burn', amount: 4 }, { type: 'triggerBurn', multiplier: 2, target: 'single' }], text: '過熱4を足し、過熱の2倍ダメージを即時発動。' },
-      { id: 'det_all', name: '全域フラッシュオーバー', cost: 1, effects: [{ type: 'damage', amount: 6, target: 'all' }, { type: 'triggerBurn', multiplier: 1.5, target: 'all' }], text: '敵全体6＋全体の過熱×1.5倍を即時発動。' },
+      { id: 'det_double', name: '連鎖メルトダウン', cost: 1, effects: [{ type: 'burn', amount: 4 }, { type: 'triggerBurn', multiplier: 2, target: 'single' }], text: 'ウイルス4を足し、ウイルスの2倍ダメージを即時発動。' },
+      { id: 'det_all', name: '全域フラッシュオーバー', cost: 1, effects: [{ type: 'damage', amount: 6, target: 'all' }, { type: 'triggerBurn', multiplier: 1.5, target: 'all' }], text: '敵全体6＋全体のウイルス×1.5倍を即時発動。' },
     ],
   },
   packet_burst: {
@@ -550,7 +550,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     branches: [
       { id: 'swarm_mirai', name: 'メガストーム斉射', cost: 2, effects: [{ type: 'damage', amount: 6, hits: 4, target: 'all' }], text: '敵全体に6ダメージ×4回。' },
       { id: 'swarm_jam', name: '通信網飽和ジャミング', cost: 2, effects: [{ type: 'damage', amount: 5, hits: 3, target: 'all' }, { type: 'jam', amount: 2 }, { type: 'vulnerable', amount: 2 }], text: '敵全体5×3回＋全体脆弱2T＆ジャム2T。' },
-      { id: 'swarm_overheat', name: '焼夷ボットクラスター', cost: 1, effects: [{ type: 'damage', amount: 4, hits: 3, target: 'all' }, { type: 'triggerBurn', target: 'all' }], text: '1EN・敵全体4×3回＋全体の過熱を即時発動。' },
+      { id: 'swarm_overheat', name: '焼夷ボットクラスター', cost: 1, effects: [{ type: 'damage', amount: 4, hits: 3, target: 'all' }, { type: 'triggerBurn', target: 'all' }], text: '1EN・敵全体4×3回＋全体のウイルスを即時発動。' },
     ],
   },
   quantum_decrypt: {
@@ -574,15 +574,15 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     name: 'サプライチェーン汚染',
     kind: 'attack',
     rarity: 'rare',
-    lore: '正規の更新プログラムに過熱ペイロードを混入させ、付与と同時に内部から連続発火させる。',
+    lore: '正規の更新プログラムにウイルスペイロードを混入させ、付与と同時に内部から連続発火させる。',
     levels: {
-      1: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single' }, { type: 'burn', amount: 5 }, { type: 'triggerBurn', target: 'single' }], text: '5ダメージ＋過熱5＋過熱を即時発動。' },
-      2: { cost: 1, effects: [{ type: 'damage', amount: 7, target: 'single' }, { type: 'burn', amount: 7 }, { type: 'triggerBurn', target: 'single' }], text: '7ダメージ＋過熱7＋過熱を即時発動。' },
+      1: { cost: 1, effects: [{ type: 'damage', amount: 5, target: 'single' }, { type: 'burn', amount: 5 }, { type: 'triggerBurn', target: 'single' }], text: '5ダメージ＋ウイルス5＋ウイルスを即時発動。' },
+      2: { cost: 1, effects: [{ type: 'damage', amount: 7, target: 'single' }, { type: 'burn', amount: 7 }, { type: 'triggerBurn', target: 'single' }], text: '7ダメージ＋ウイルス7＋ウイルスを即時発動。' },
     },
     branches: [
-      { id: 'sc_ignite', name: '深層モジュール爆燃', cost: 1, effects: [{ type: 'burn', amount: 8 }, { type: 'triggerBurn', multiplier: 2, target: 'single' }], text: '過熱8を付与し、過熱の2倍ダメージを即時発動。' },
-      { id: 'sc_pandemic', name: '全依存ライブラリ感染', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'all' }, { type: 'burn', amount: 6 }, { type: 'triggerBurn', multiplier: 1.5, target: 'all' }], text: '全体8＋過熱6＋全体の過熱×1.5倍を即時発動。' },
-      { id: 'sc_stealth', name: '署名偽装アップデート', cost: 0, effects: [{ type: 'burn', amount: 7 }, { type: 'triggerBurn', target: 'single' }, { type: 'draw', amount: 2 }], text: '0EN・過熱7＋過熱を即時発動＋2枚引く。' },
+      { id: 'sc_ignite', name: '深層モジュール爆燃', cost: 1, effects: [{ type: 'burn', amount: 8 }, { type: 'triggerBurn', multiplier: 2, target: 'single' }], text: 'ウイルス8を付与し、ウイルスの2倍ダメージを即時発動。' },
+      { id: 'sc_pandemic', name: '全依存ライブラリ感染', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'all' }, { type: 'burn', amount: 6 }, { type: 'triggerBurn', multiplier: 1.5, target: 'all' }], text: '全体8＋ウイルス6＋全体のウイルス×1.5倍を即時発動。' },
+      { id: 'sc_stealth', name: '署名偽装アップデート', cost: 0, effects: [{ type: 'burn', amount: 7 }, { type: 'triggerBurn', target: 'single' }, { type: 'draw', amount: 2 }], text: '0EN・ウイルス7＋ウイルスを即時発動＋2枚引く。' },
     ],
   },
   aegis_core: {

@@ -69,7 +69,7 @@ test('マップの説明に、段の役割(起動ノード・闇市・休憩・�
 
 test('説明に必要な用語がそろっている', () => {
   const terms = htp.buildHowToPlayPages().flatMap((p) => p.items.map((i) => i.term)).join(' ');
-  for (const word of ['帯域', 'FW', '弱点', '脆弱', 'ジャミング', '過熱', '反撃', '貫通', '解析コンボ', 'ノイズ', '解析コイン', '闇市', 'カード基地']) {
+  for (const word of ['帯域', 'FW', '弱点', '脆弱', 'ジャミング', 'ウイルス', '反撃', '貫通', '解析コンボ', 'ノイズ', '解析コイン', '闇市', 'カード基地']) {
     assert.ok(terms.includes(word), word);
   }
 });

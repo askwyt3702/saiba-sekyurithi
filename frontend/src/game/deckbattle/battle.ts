@@ -580,7 +580,7 @@ export function endTurn(prev: BattleState): BattleState {
       if (enemy.burn) {
         const dealt = damageEnemy(enemy, enemy.burn.amount, true);
         recordAction(state, { kind: 'burn', enemyUid: enemy.uid, damage: dealt });
-        addLog(state, `あなた → ${enemy.name}：過熱で${dealt}ダメージ`, 'good', 'player', 'status');
+        addLog(state, `あなた → ${enemy.name}：ウイルスで${dealt}ダメージ`, 'good', 'player', 'status');
         enemy.burn.turns -= 1;
         if (enemy.burn.turns <= 0) delete enemy.burn;
       }
