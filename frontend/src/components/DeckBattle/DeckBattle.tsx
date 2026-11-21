@@ -1719,7 +1719,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                           className={[
                             'db-enemy__model',
                             'db-enemy__model--art',
-                            `db-enemy__model--${enemy.defId}`,
+                            `db-enemy__model--${enemy.defId === 'argus_tutorial' ? 'argus' : enemy.defId}`,
                             enemy.phase === 2 ? 'db-enemy__model--phase2' : '',
                             attacking ? 'db-enemy__model--attack' : '',
                             hpImpact && !attacking ? `db-enemy__model--hit${powerClass(hpImpact, 'db-enemy__model--hit')}` : '',

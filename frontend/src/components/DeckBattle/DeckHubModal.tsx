@@ -181,7 +181,9 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
 
             <h3 className="db-hub__sub">遭遇した防御システム（敵図鑑）</h3>
             <div className="db-deck-grid">
-              {Object.values(ENEMY_DEFINITIONS).map((enemy) => {
+              {Object.values(ENEMY_DEFINITIONS)
+                .filter((enemy) => enemy.id !== 'argus_tutorial')
+                .map((enemy) => {
                 const seen = codexProfile.seenEnemyIds.includes(enemy.id);
                 return (
                   <div key={enemy.id} className="db-deck-pill">
