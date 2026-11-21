@@ -1,25 +1,26 @@
 /* =============================================
-   CYBER LABYRINTH — ミッション選択画面（ダーク潜入・1画面コンパクト・軽量版）
+   CYBER LABYRINTH — ホーム画面（作戦司令ハブ）
+   ※ AGENTS.md 制約: vh / vw は使用せず var(--app-h) / var(--app-w) / % / px を使用
    ============================================= */
 
 .ms-root {
   position: relative;
   height: var(--app-h);
   width: 100%;
-  background-color: #010603;
+  background-color: #020806;
   background-image:
-    radial-gradient(circle at 50% 45%, rgba(1, 10, 5, 0.42) 25%, rgba(0, 5, 3, 0.74) 82%, rgba(2, 8, 5, 0.9) 100%),
+    radial-gradient(circle at 28% 35%, rgba(0, 48, 34, 0.32) 0%, rgba(1, 10, 7, 0.78) 62%, rgba(1, 6, 4, 0.94) 100%),
     url('/mission-bg.jpg');
   background-size: cover;
   background-position: center;
-  color: #e6f5ec;
-  font-family: ui-monospace, 'Courier New', Consolas, 'Zen Kaku Gothic New', monospace;
-  overflow-x: hidden;
+  color: #e6f7ef;
+  font-family: 'Chakra Petch', 'Zen Kaku Gothic New', sans-serif;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-/* グリッド＋CRT走査線を1枚の静的レイヤーに統合（再描画コスト0） */
+/* グリッド＋CRT走査線 */
 .ms-bg-overlay {
   position: fixed;
   inset: 0;
@@ -32,13 +33,13 @@
       rgba(0, 0, 0, 0.22) 3px,
       rgba(0, 0, 0, 0.22) 4px
     ),
-    linear-gradient(rgba(0, 255, 100, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 100, 0.03) 1px, transparent 1px);
-  background-size: 100% 4px, 32px 32px, 32px 32px;
+    linear-gradient(rgba(0, 255, 136, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 136, 0.035) 1px, transparent 1px);
+  background-size: 100% 4px, 36px 36px, 36px 36px;
   pointer-events: none;
 }
 
-/* 画面全体を上から下へ撫でるダークグリーンの監視スキャンレーザー（GPU transformのみ） */
+/* 監視スキャンレーザー */
 .ms-scan-beam {
   position: fixed;
   left: 0;
@@ -49,13 +50,13 @@
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(0, 255, 100, 0.03) 75%,
-    rgba(0, 255, 100, 0.12) 98%,
-    rgba(0, 255, 120, 0.28) 100%
+    rgba(0, 255, 136, 0.03) 74%,
+    rgba(0, 229, 255, 0.12) 97%,
+    rgba(0, 255, 136, 0.3) 100%
   );
   pointer-events: none;
   will-change: transform;
-  animation: ms-global-scan 9s linear infinite;
+  animation: ms-global-scan 9.5s linear infinite;
 }
 
 @keyframes ms-global-scan {
@@ -63,25 +64,25 @@
     transform: translate3d(0, -110px, 0);
   }
   100% {
-    transform: translate3d(0, calc(var(--app-h) * 1.15), 0);
+    transform: translate3d(0, calc(var(--app-h) * 1.16), 0);
   }
 }
 
-/* ---- コンテナ（ノートPCでもスクロールせず1画面に収まる余白） ---- */
+/* ---- コンテナ（1280×720 1画面最適化） ---- */
 
 .ms-container {
   position: relative;
   z-index: 5;
-  /* 左右の余白を幅に含める(含めないと画面より広くなり、右のカードが切れる) */
   box-sizing: border-box;
   width: 100%;
-  max-width: 1340px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 18px 4% 20px;
+  padding: 16px 28px 16px;
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 12px;
 }
 
 /* ---- ヘッダー ---- */
@@ -90,38 +91,40 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 255, 100, 0.2);
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.24);
 }
 
 .ms-brand {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-  font-size: 15px;
-  letter-spacing: 4px;
+  font-family: 'Orbitron', 'Chakra Petch', sans-serif;
+  font-size: 16px;
+  letter-spacing: 3.5px;
 }
 
 .ms-brand-cyber {
-  color: #f2f7f4;
-  font-weight: 600;
+  color: #f4fff9;
+  font-weight: 800;
 }
 
 .ms-brand-labyrinth {
-  color: #00ff64;
-  font-weight: 600;
-  text-shadow: 0 0 10px rgba(0, 255, 100, 0.55);
+  color: #00ff88;
+  font-weight: 800;
+  text-shadow: 0 0 12px rgba(0, 255, 136, 0.55);
 }
 
 .ms-brand-divider {
-  color: rgba(0, 255, 100, 0.4);
-  margin: 0 4px;
+  color: rgba(0, 229, 255, 0.5);
+  margin: 0 2px;
 }
 
 .ms-brand-sub {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 11px;
-  letter-spacing: 3px;
-  color: #7ab893;
+  letter-spacing: 2.5px;
+  color: #7ee8ff;
 }
 
 .ms-status {
@@ -129,26 +132,47 @@
   white-space: nowrap;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: #7ef0a8;
-  background: rgba(4, 26, 14, 0.7);
-  border: 1px solid rgba(0, 255, 100, 0.32);
-  padding: 5px 13px;
-  border-radius: 3px;
+}
+
+.ms-link-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #7ef0b8;
+  background: rgba(2, 24, 15, 0.78);
+  border: 1px solid rgba(0, 255, 136, 0.32);
+  padding: 6px 11px;
+  border-radius: 4px;
 }
 
 .ms-status-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #00ff64;
+  background: #00ff88;
+  box-shadow: 0 0 8px #00ff88;
+  animation: ms-dot-pulse 1.8s ease-in-out infinite;
 }
 
-/* ---- ヒーロータイトル領域 ---- */
+@keyframes ms-dot-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---- ヒーロー見出し ---- */
 
 .ms-hero {
-  margin: 12px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .ms-hero-top {
@@ -157,37 +181,48 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 4px;
 }
 
 .ms-section-code {
+  margin: 0;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 11px;
-  letter-spacing: 3px;
-  color: rgba(0, 255, 100, 0.7);
+  letter-spacing: 2.5px;
+  color: rgba(0, 255, 136, 0.8);
 }
 
 .ms-recommend-tag {
+  margin: 0;
+  font-family: 'JetBrains Mono', 'Zen Kaku Gothic New', monospace;
   font-size: 11px;
-  letter-spacing: 1px;
-  color: #5ef2d6;
-  background: rgba(0, 40, 34, 0.65);
-  border: 1px solid rgba(0, 220, 180, 0.38);
+  letter-spacing: 0.8px;
+  color: #6ef7e8;
+  background: rgba(0, 38, 36, 0.7);
+  border: 1px solid rgba(0, 229, 255, 0.34);
   padding: 3px 11px;
   border-radius: 3px;
 }
 
+.ms-hero-headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
 .ms-title {
-  display: inline-block;
-  margin: 2px 0 4px;
-  font-size: clamp(22px, calc(var(--app-w) * 0.026), 32px);
-  font-weight: 600;
-  letter-spacing: 6px;
-  color: #f4fff8;
+  margin: 0;
+  font-family: 'Orbitron', 'Chakra Petch', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  color: #f4fff9;
   text-shadow:
-    -1.5px 0 rgba(255, 45, 65, 0.45),
-    1.5px 0 rgba(0, 255, 100, 0.55);
+    -1.5px 0 rgba(0, 229, 255, 0.55),
+    1.5px 0 rgba(0, 255, 136, 0.55);
   will-change: transform;
-  animation: ms-title-glitch 6s infinite;
+  animation: ms-title-glitch 6.5s infinite;
 }
 
 @keyframes ms-title-glitch {
@@ -206,101 +241,75 @@
 }
 
 .ms-subtitle {
-  font-size: 12px;
-  color: #88ab95;
-  letter-spacing: 1px;
+  margin: 0;
+  font-size: 12.5px;
+  color: #9ec8b2;
+  letter-spacing: 0.5px;
 }
 
-/* ---- ホログラム・カードグリッド（4列） ---- */
+/* ---- メイン2カラムコマンドハブ ---- */
 
-.ms-grid {
+.ms-hub-grid {
+  flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 4px 0 14px;
+  grid-template-columns: 1.42fr 1fr;
+  gap: 18px;
+  min-height: 0;
+  align-items: stretch;
 }
 
-/* カード本体（背後の3Dサイバー空間が透けて見えるグラスホログラム仕様） */
-.ms-card {
-  --card-accent: #00ff64;
-  --card-accent-rgb: 0, 255, 100;
+/* ---- 左：メイン作戦ヒーローカード ---- */
+
+.ms-op-card {
   position: relative;
-  background: rgba(2, 10, 6, 0.78);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
-  border: 1px solid rgba(var(--card-accent-rgb), 0.38);
-  border-top: 2px solid var(--card-accent);
-  border-radius: 4px;
-  padding: 16px 16px 14px;
+  background: linear-gradient(155deg, rgba(4, 22, 15, 0.9) 0%, rgba(2, 11, 8, 0.94) 100%);
+  border: 1px solid rgba(0, 255, 136, 0.42);
+  border-top: 2px solid #00ff88;
+  border-radius: 7px;
+  padding: 20px 22px 18px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 295px;
   cursor: pointer;
   overflow: hidden;
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.72),
+    inset 0 0 32px rgba(0, 255, 136, 0.05);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   animation: ms-card-enter 0.45s ease-out both;
 }
 
-/* テーマカラー定義 */
-.ms-card--cyan {
-  --card-accent: #19f0c8;
-  --card-accent-rgb: 25, 240, 200;
-}
-
-.ms-card--green {
-  --card-accent: #00ff64;
-  --card-accent-rgb: 0, 255, 100;
-}
-
-.ms-card--amber {
-  --card-accent: #ff9924;
-  --card-accent-rgb: 255, 153, 36;
-}
-
-.ms-card--locked {
-  --card-accent: #d93848;
-  --card-accent-rgb: 217, 56, 72;
-  background: repeating-linear-gradient(
-    -45deg,
-    #0e0406,
-    #0e0406 10px,
-    #070203 10px,
-    #070203 20px
-  );
-  opacity: 0.72;
-  cursor: not-allowed;
-}
-
-/* ホバー時の浮き上がり＆発光 */
-.ms-card:not(.is-locked):hover,
-.ms-card:not(.is-locked):focus-visible {
-  transform: translate3d(0, -5px, 0);
-  border-color: var(--card-accent);
-  box-shadow: 0 8px 20px rgba(var(--card-accent-rgb), 0.22);
+.ms-op-card:hover,
+.ms-op-card:focus-visible {
+  transform: translate3d(0, -4px, 0);
+  border-color: #4effad;
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.8),
+    0 0 28px rgba(0, 255, 136, 0.25);
   outline: none;
 }
 
-/* ホバー時にカード内部を走るスキャンレーザー */
+/* ホバー時のスキャンレーザー */
 .ms-card-scanner {
   position: absolute;
   left: 0;
   right: 0;
   top: -100%;
-  height: 70%;
+  height: 60%;
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(var(--card-accent-rgb), 0.14) 96%,
-    var(--card-accent) 100%
+    rgba(0, 255, 136, 0.12) 95%,
+    rgba(0, 229, 255, 0.7) 100%
   );
   opacity: 0;
   pointer-events: none;
   z-index: 1;
 }
 
-.ms-card:not(.is-locked):hover .ms-card-scanner {
+.ms-op-card:hover .ms-card-scanner {
   opacity: 1;
-  animation: ms-card-scan 1.3s linear infinite;
+  animation: ms-card-scan 1.6s linear infinite;
 }
 
 @keyframes ms-card-scan {
@@ -308,255 +317,602 @@
     transform: translate3d(0, -10%, 0);
   }
   100% {
-    transform: translate3d(0, 250%, 0);
+    transform: translate3d(0, 280%, 0);
+  }
+}
+
+/* 背景レーダーSVG */
+.ms-op-radar {
+  position: absolute;
+  top: -22px;
+  right: -22px;
+  width: 210px;
+  height: 210px;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ms-radar-ring {
+  fill: none;
+  stroke: #00ff88;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.ms-radar-axis {
+  stroke: rgba(0, 229, 255, 0.55);
+  stroke-width: 0.8;
+}
+
+.ms-radar-sweep {
+  fill: rgba(0, 255, 136, 0.28);
+  transform-origin: 90px 90px;
+  animation: ms-radar-spin 6.5s linear infinite;
+}
+
+@keyframes ms-radar-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
 /* 四隅のL字ブラケット装飾 */
 .ms-corner {
   position: absolute;
-  width: 8px;
-  height: 8px;
-  border-color: var(--card-accent);
-  opacity: 0.5;
+  width: 11px;
+  height: 11px;
   pointer-events: none;
   z-index: 2;
 }
 
 .ms-corner--tl {
-  top: 5px;
-  left: 5px;
-  border-top: 2px solid var(--card-accent);
-  border-left: 2px solid var(--card-accent);
+  top: 6px;
+  left: 6px;
+  border-top: 2px solid #00ff88;
+  border-left: 2px solid #00ff88;
 }
 
 .ms-corner--tr {
-  top: 5px;
-  right: 5px;
-  border-top: 2px solid var(--card-accent);
-  border-right: 2px solid var(--card-accent);
+  top: 6px;
+  right: 6px;
+  border-top: 2px solid #00e5ff;
+  border-right: 2px solid #00e5ff;
 }
 
 .ms-corner--bl {
-  bottom: 5px;
-  left: 5px;
-  border-bottom: 2px solid var(--card-accent);
-  border-left: 2px solid var(--card-accent);
+  bottom: 6px;
+  left: 6px;
+  border-bottom: 2px solid #00e5ff;
+  border-left: 2px solid #00e5ff;
 }
 
 .ms-corner--br {
-  bottom: 5px;
-  right: 5px;
-  border-bottom: 2px solid var(--card-accent);
-  border-right: 2px solid var(--card-accent);
+  bottom: 6px;
+  right: 6px;
+  border-bottom: 2px solid #00ff88;
+  border-right: 2px solid #00ff88;
 }
 
-/* ---- カード内部要素 ---- */
-
-.ms-card-head {
+.ms-op-head {
   position: relative;
   z-index: 2;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(var(--card-accent-rgb), 0.2);
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.2);
 }
 
-.ms-card-code {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: var(--card-accent);
-}
-
-.ms-card-badges {
+.ms-op-code {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-}
-
-.ms-clear-badge {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  padding: 2px 6px;
-  border-radius: 2px;
-  color: #020a05;
-  background: #00ff64;
-  box-shadow: 0 0 8px rgba(0, 255, 100, 0.45);
-}
-
-.ms-card-badge {
-  font-size: 9.5px;
+  gap: 8px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 1px;
-  padding: 2px 6px;
-  border-radius: 2px;
-  color: var(--card-accent);
-  background: rgba(var(--card-accent-rgb), 0.14);
-  border: 1px solid rgba(var(--card-accent-rgb), 0.4);
+  letter-spacing: 2px;
+  color: #00ff88;
 }
 
-/* 監視・トラップ警告ストリップ（各カードのテーマ色に合わせ、赤すぎないように調整） */
-.ms-hazard-strip {
-  position: relative;
-  z-index: 2;
-  margin-top: 8px;
-  padding: 3px 8px;
-  background: rgba(var(--card-accent-rgb), 0.09);
-  border-left: 2px solid var(--card-accent);
-  color: var(--card-accent);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 1.2px;
+.ms-op-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00ff88;
+  box-shadow: 0 0 8px #00ff88;
+}
+
+.ms-op-badges {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.ms-hazard-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.ms-card-body {
-  position: relative;
-  z-index: 2;
-  margin: 10px 0;
-  flex: 1;
-}
-
-.ms-card-title {
-  font-size: 17.5px;
-  font-weight: 600;
-  letter-spacing: 1.2px;
-  color: #ffffff;
-  margin: 0 0 8px;
-}
-
-.ms-card-desc {
-  font-size: 11.5px;
-  line-height: 1.62;
-  color: #93b5a0;
-}
-
-.ms-card.is-locked .ms-card-desc {
-  color: #967377;
-}
-
-/* ---- カードメタ情報（TARGET / IDS_SYS / DANGER ゲージ） ---- */
-
-.ms-card-meta {
-  position: relative;
-  z-index: 2;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(var(--card-accent-rgb), 0.18);
+.ms-op-badge {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 3px 8px;
   border-radius: 3px;
-  padding: 8px 10px;
-  margin-bottom: 10px;
+  color: #9beed0;
+  background: rgba(0, 255, 136, 0.12);
+  border: 1px solid rgba(0, 255, 136, 0.32);
+}
+
+.ms-op-badge--accent {
+  color: #ffd166;
+  background: rgba(255, 153, 36, 0.14);
+  border-color: rgba(255, 153, 36, 0.45);
+}
+
+.ms-op-body {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 11px;
+  margin: 12px 0;
 }
 
-.ms-meta-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 10px;
+.ms-op-kicker {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: #5ef2d6;
 }
 
-.ms-meta-label {
-  color: #638c72;
-  letter-spacing: 1.5px;
+.ms-op-title {
+  margin: 0;
+  font-family: 'Orbitron', 'Chakra Petch', sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  color: #ffffff;
+  text-shadow: 0 0 16px rgba(0, 255, 136, 0.35);
 }
 
-.ms-card.is-locked .ms-meta-label {
-  color: #8f5c62;
-}
-
-.ms-meta-val {
-  color: #e6f5ec;
-  font-weight: 600;
+.ms-op-title-jp {
+  font-family: 'Zen Kaku Gothic New', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
   letter-spacing: 1px;
+  color: #9beed0;
 }
 
-.ms-meta-ids {
-  color: #a6d4b6;
-  font-size: 9.5px;
-  letter-spacing: 0.5px;
+.ms-op-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.62;
+  color: #b5dac5;
 }
 
-.ms-card--amber .ms-meta-ids {
-  color: #ffbe6b;
-}
-
-.ms-card--locked .ms-meta-ids {
-  color: #e07b85;
-}
-
-.ms-diff-wrap {
+/* ボス候補ロスター */
+.ms-boss-roster {
+  background: rgba(1, 10, 7, 0.72);
+  border: 1px solid rgba(0, 255, 136, 0.22);
+  border-radius: 5px;
+  padding: 10px 12px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
 }
 
-.ms-diff-text {
-  color: var(--card-accent);
-  font-size: 9.5px;
-  letter-spacing: 0.5px;
+.ms-boss-roster-label {
+  font-family: 'JetBrains Mono', 'Zen Kaku Gothic New', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #7bb89b;
 }
 
-.ms-diff-bars {
+.ms-boss-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ms-boss-chip {
   display: flex;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.ms-diff-bar {
-  width: 9px;
-  height: 5px;
-  border-radius: 1px;
-  background: rgba(255, 255, 255, 0.12);
+.ms-boss-chip--red {
+  border-color: rgba(255, 82, 102, 0.42);
+  background: rgba(255, 60, 85, 0.08);
 }
 
-.ms-diff-bar.is-active {
-  background: var(--card-accent);
+.ms-boss-chip--cyan {
+  border-color: rgba(56, 210, 255, 0.42);
+  background: rgba(30, 180, 255, 0.08);
 }
 
-/* ---- カード下部アクションバー ---- */
+.ms-boss-chip--purple {
+  border-color: rgba(192, 132, 252, 0.42);
+  background: rgba(168, 85, 247, 0.09);
+}
 
-.ms-card-foot {
+.ms-boss-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ms-boss-chip--red .ms-boss-dot {
+  background: #ff5266;
+  box-shadow: 0 0 8px #ff5266;
+}
+
+.ms-boss-chip--cyan .ms-boss-dot {
+  background: #38d2ff;
+  box-shadow: 0 0 8px #38d2ff;
+}
+
+.ms-boss-chip--purple .ms-boss-dot {
+  background: #c084fc;
+  box-shadow: 0 0 8px #c084fc;
+}
+
+.ms-boss-name {
+  font-family: 'Orbitron', 'Chakra Petch', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: #f4fff9;
+  letter-spacing: 0.8px;
+}
+
+.ms-boss-role {
+  font-size: 10px;
+  color: #9dc2ae;
+}
+
+/* スペックチップ */
+.ms-spec-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.ms-spec-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #c8f5df;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* 下部CTAバー */
+.ms-op-foot {
   position: relative;
+  overflow: hidden;
   z-index: 2;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 11px;
-  background: rgba(var(--card-accent-rgb), 0.12);
-  border: 1px solid rgba(var(--card-accent-rgb), 0.35);
-  border-radius: 2px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: var(--card-accent);
-  transition: background 0.2s, color 0.2s;
+  padding: 13px 18px;
+  background: linear-gradient(95deg, rgba(0, 145, 75, 0.85) 0%, rgba(0, 175, 130, 0.82) 55%, rgba(235, 145, 25, 0.82) 100%);
+  border: 1.5px solid #4effad;
+  border-radius: 5px;
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 255, 136, 0.28);
+  transition: box-shadow 0.2s ease, filter 0.2s ease;
 }
 
-.ms-card:not(.is-locked):hover .ms-card-foot {
-  background: var(--card-accent);
-  color: #020804;
+.ms-op-foot::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -130%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  transform: skewX(-20deg);
+  animation: ms-cta-sheen 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ms-cta-sheen {
+  0%, 62% {
+    left: -130%;
+  }
+  100% {
+    left: 165%;
+  }
+}
+
+.ms-op-card:hover .ms-op-foot {
+  box-shadow: 0 6px 28px rgba(0, 255, 136, 0.5);
+  filter: brightness(1.08);
+}
+
+.ms-op-cta-text {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.ms-op-cta-main {
+  font-family: 'Orbitron', 'Chakra Petch', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+.ms-op-cta-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e6fff5;
+  opacity: 0.92;
 }
 
 .ms-action-arrow {
+  font-size: 18px;
+  font-weight: 800;
   transition: transform 0.2s ease;
 }
 
-.ms-card:not(.is-locked):hover .ms-action-arrow {
-  transform: translate3d(5px, 0, 0);
+.ms-op-card:hover .ms-action-arrow {
+  transform: translate3d(6px, 0, 0);
+}
+
+/* ---- 右：オペレーター・テレメトリ＆クイックコマンド ---- */
+
+.ms-side-stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 0;
+}
+
+.ms-telemetry-panel {
+  background: rgba(2, 14, 10, 0.88);
+  border: 1px solid rgba(0, 255, 136, 0.28);
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  animation: ms-card-enter 0.5s ease-out 0.06s both;
+}
+
+.ms-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.16);
+}
+
+.ms-panel-code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: #00ff88;
+}
+
+.ms-panel-sub {
+  font-size: 11px;
+  color: #7eb89a;
+}
+
+.ms-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.ms-stat-tile {
+  background: rgba(1, 9, 6, 0.78);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-left: 2px solid #00ff88;
+  border-radius: 4px;
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ms-stat-tile--amber {
+  border-left-color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.26);
+}
+
+.ms-stat-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #79b395;
+}
+
+.ms-stat-val {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 21px;
+  font-weight: 800;
+  color: #f4fff9;
+  line-height: 1.15;
+}
+
+.ms-stat-tile--amber .ms-stat-val {
+  color: #ffd166;
+}
+
+.ms-stat-unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8bc9ab;
+  margin-left: 3px;
+}
+
+.ms-stat-sub {
+  font-size: 10.5px;
+  color: #84ae97;
+}
+
+.ms-codex-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin-top: 3px;
+}
+
+.ms-codex-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00ff88, #00e5ff);
+  border-radius: 999px;
+}
+
+/* クイックコマンドボタン（2列） */
+.ms-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  animation: ms-card-enter 0.55s ease-out 0.12s both;
+}
+
+.ms-quick-btn {
+  text-align: left;
+  padding: 13px 14px;
+  border-radius: 6px;
+  background: rgba(3, 18, 13, 0.88);
+  border: 1px solid rgba(0, 255, 136, 0.34);
+  color: #e8fff3;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.ms-quick-btn--cyan {
+  border-color: rgba(0, 229, 255, 0.34);
+  background: rgba(3, 16, 22, 0.88);
+}
+
+.ms-quick-btn:hover,
+.ms-quick-btn:focus-visible {
+  transform: translate3d(0, -3px, 0);
+  outline: none;
+}
+
+.ms-quick-btn--emerald:hover,
+.ms-quick-btn--emerald:focus-visible {
+  border-color: #00ff88;
+  background: rgba(4, 34, 22, 0.94);
+  box-shadow: 0 8px 22px rgba(0, 255, 136, 0.22);
+}
+
+.ms-quick-btn--cyan:hover,
+.ms-quick-btn--cyan:focus-visible {
+  border-color: #00e5ff;
+  background: rgba(4, 28, 38, 0.94);
+  box-shadow: 0 8px 22px rgba(0, 229, 255, 0.22);
+}
+
+.ms-quick-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ms-quick-icon {
+  font-size: 16px;
+  color: #00ff88;
+}
+
+.ms-quick-btn--cyan .ms-quick-icon {
+  color: #38e8ff;
+}
+
+.ms-quick-alert {
+  font-family: 'JetBrains Mono', 'Zen Kaku Gothic New', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: #140800;
+  background: #fbbf24;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.ms-quick-tag {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #7ee8ff;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.ms-quick-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.ms-quick-desc {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #93bda6;
+}
+
+/* ライブ脅威モニター */
+.ms-threat-bar {
+  background: rgba(1, 10, 7, 0.88);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  border-left: 3px solid #00e5ff;
+  border-radius: 5px;
+  padding: 10px 13px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: ms-card-enter 0.6s ease-out 0.16s both;
+}
+
+.ms-threat-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: #5ef2d6;
+}
+
+.ms-threat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fbbf24;
+  box-shadow: 0 0 7px #fbbf24;
+  animation: ms-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.ms-threat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10.5px;
+  color: #90baa5;
+  line-height: 1.45;
 }
 
 /* ---- フッター ---- */
@@ -565,29 +921,29 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid rgba(0, 255, 100, 0.18);
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 255, 136, 0.18);
 }
 
 .ms-back-btn {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 18px;
-  background: rgba(6, 22, 13, 0.85);
-  border: 1px solid rgba(0, 255, 100, 0.38);
-  border-radius: 3px;
+  padding: 7px 16px;
+  background: rgba(6, 22, 14, 0.86);
+  border: 1px solid rgba(0, 255, 136, 0.36);
+  border-radius: 4px;
   color: #b7e4c7;
-  font-family: ui-monospace, 'Courier New', Consolas, 'Zen Kaku Gothic New', monospace;
+  font-family: 'JetBrains Mono', 'Zen Kaku Gothic New', monospace;
   font-size: 11.5px;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   cursor: pointer;
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .ms-back-btn:hover {
-  background: rgba(0, 255, 100, 0.18);
-  border-color: #00ff64;
+  background: rgba(0, 255, 136, 0.16);
+  border-color: #00ff88;
   color: #ffffff;
 }
 
@@ -600,9 +956,10 @@
 }
 
 .ms-footer-info {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10px;
   letter-spacing: 2px;
-  color: rgba(0, 255, 100, 0.35);
+  color: rgba(126, 232, 200, 0.45);
 }
 
 /* ---- 登場アニメーション ---- */
@@ -610,7 +967,7 @@
 @keyframes ms-card-enter {
   from {
     opacity: 0;
-    transform: translate3d(0, 16px, 0);
+    transform: translate3d(0, 14px, 0);
   }
   to {
     opacity: 1;
@@ -618,47 +975,40 @@
   }
 }
 
-/* ---- レスポンシブ ---- */
+/* ---- ヘッダー右ボタン＆プレイヤーパネル（PlayerPanel.tsx 互換） ---- */
 
-@media (max-width: 1120px) {
-  .ms-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .ms-grid {
-    grid-template-columns: 1fr;
-  }
-  .ms-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  .ms-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-}
-
-/* ---- カード基地ボタン・プレイヤー名(右上) ---- */
 .ms-hub-btn {
-  padding: 7px 12px;
+  padding: 6px 12px;
   white-space: nowrap;
-  border: 1.5px solid #00ff64;
+  border: 1.5px solid #00ff88;
   border-radius: 4px;
   background: linear-gradient(180deg, #065f46 0%, #064e3b 100%);
   color: #ecfdf5;
   font-family: inherit;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
 .ms-hub-btn:hover {
-  box-shadow: 0 0 12px rgba(0, 255, 100, 0.4);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.42);
+}
+
+.ms-hub-btn--ghost {
+  background: rgba(6, 22, 16, 0.82);
+  border-color: rgba(126, 240, 184, 0.45);
+  color: #c8f7df;
+}
+
+.ms-hub-btn--ghost:hover {
+  border-color: #00e5ff;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
 }
 
 .ms-player {
@@ -667,13 +1017,13 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border: 1px solid rgba(126, 240, 168, 0.45);
+  border: 1px solid rgba(126, 240, 184, 0.42);
   border-radius: 4px;
-  background: rgba(2, 16, 9, 0.8);
+  background: rgba(2, 16, 10, 0.82);
   color: #c8f7da;
   font-family: inherit;
   font-size: 12px;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
 }
 
 .ms-player__name {
@@ -699,39 +1049,41 @@
 }
 
 .ms-player--register:hover {
-  border-color: #00ff64;
-  color: #00ff64;
+  border-color: #00ff88;
+  color: #00ff88;
 }
 
-/* ---- プレイヤー登録の画面 ---- */
+/* ---- プレイヤー登録モーダル ---- */
+
 .ms-modal {
   position: fixed;
   inset: 0;
-  /* 上部の状態表示(.ms-status、折り返さない設定)の中に置かれるので、説明文が折り返すように戻す */
   white-space: normal;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(1, 6, 3, 0.78);
+  background: rgba(1, 6, 4, 0.82);
   z-index: 50;
 }
 
 .ms-modal__box {
   width: 460px;
   padding: 24px 28px;
-  border: 1.5px solid #00ff64;
+  border: 1.5px solid #00ff88;
   border-radius: 8px;
-  background: linear-gradient(180deg, #04170d, #020a06);
+  background: linear-gradient(180deg, #04170e, #020a07);
   color: #d8efe2;
-  font-family: ui-monospace, 'Courier New', Consolas, 'Zen Kaku Gothic New', monospace;
+  font-family: 'Chakra Petch', 'Zen Kaku Gothic New', sans-serif;
   letter-spacing: normal;
   text-align: left;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
 }
 
 .ms-modal__title {
   margin: 0 0 10px;
-  color: #00ff64;
+  color: #00ff88;
   font-size: 18px;
+  font-weight: 700;
   letter-spacing: 2px;
 }
 
@@ -776,7 +1128,7 @@
 
 .ms-modal__btn {
   padding: 8px 16px;
-  border: 1.5px solid #00ff64;
+  border: 1.5px solid #00ff88;
   border-radius: 4px;
   background: #065f46;
   color: #ecfdf5;
@@ -797,8 +1149,31 @@
   cursor: not-allowed;
 }
 
-.ms-hub-btn--ghost {
-  border-color: rgba(126, 240, 168, 0.45);
-  background: rgba(2, 16, 9, 0.8);
-  color: #c8f7da;
+/* ---- OS省モーション設定対応 ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-scan-beam,
+  .ms-title,
+  .ms-radar-sweep,
+  .ms-op-foot::after,
+  .ms-status-dot,
+  .ms-threat-dot,
+  .ms-op-card,
+  .ms-telemetry-panel,
+  .ms-quick-grid,
+  .ms-threat-bar,
+  .ms-op-card:hover .ms-card-scanner {
+    animation: none;
+  }
+}
+
+/* ---- レスポンシブ ---- */
+
+@media (max-width: 980px) {
+  .ms-hub-grid {
+    grid-template-columns: 1fr;
+  }
+  .ms-root {
+    overflow-y: auto;
+  }
 }
