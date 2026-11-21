@@ -108,6 +108,7 @@ import operatorRedImg from '../../assets/operator-red.jpg';
 import operatorBlueImg from '../../assets/operator-blue.jpg';
 import operatorVirusImg from '../../assets/operator-virus.jpg';
 import operatorBalancedSprite from '../../assets/operator-balanced-sprite.jpg';
+import operatorBalancedAttack from '../../assets/operator-balanced-attack.jpg';
 import operatorVirusSprite from '../../assets/operator-virus-sprite.jpg';
 
 const LOADOUT_PORTRAIT: Record<LoadoutId, string> = {
@@ -117,11 +118,28 @@ const LOADOUT_PORTRAIT: Record<LoadoutId, string> = {
   thermal_ops: operatorVirusImg,
 };
 
-const LOADOUT_BATTLE_SPRITE: Record<LoadoutId, { src: string; mode: 'lighten' | 'mask-red' | 'mask-blue' }> = {
-  balanced: { src: operatorBalancedSprite, mode: 'lighten' },
-  red_team: { src: operatorRedImg, mode: 'mask-red' },
-  blue_team: { src: operatorBlueImg, mode: 'mask-blue' },
-  thermal_ops: { src: operatorVirusSprite, mode: 'lighten' },
+type BattleSpriteMode = 'lighten' | 'mask-red' | 'mask-blue' | 'mask-balanced-attack';
+interface LoadoutBattleSprites {
+  idle: { src: string; mode: BattleSpriteMode };
+  attack?: { src: string; mode: BattleSpriteMode };
+  guard?: { src: string; mode: BattleSpriteMode };
+  hurt?: { src: string; mode: BattleSpriteMode };
+}
+
+const LOADOUT_BATTLE_SPRITE: Record<LoadoutId, LoadoutBattleSprites> = {
+  balanced: {
+    idle: { src: operatorBalancedSprite, mode: 'lighten' },
+    attack: { src: operatorBalancedAttack, mode: 'mask-balanced-attack' },
+  },
+  red_team: {
+    idle: { src: operatorRedImg, mode: 'mask-red' },
+  },
+  blue_team: {
+    idle: { src: operatorBlueImg, mode: 'mask-blue' },
+  },
+  thermal_ops: {
+    idle: { src: operatorVirusSprite, mode: 'lighten' },
+  },
 };
 import './DeckBattle.css';
 import './RunSetup.css';
@@ -133,7 +151,7 @@ const TURN_CUE_MS = 330;
 const ENEMY_STEP_MS = 420;
 const HIT_STEP_MS = 270;
 const FX_MS = 500;
-const PLAYER_POSE_MS = 280;
+const PLAYER_POSE_MS = 460;
 const KIND_LABEL: Record<CardKind, string> = { attack: '攻撃', defense: '防御', utility: '補助' };
 
 type FxTone = 'hit' | 'shield' | 'heal' | 'buff' | 'bad' | 'burn';
@@ -1691,31 +1709,49 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                           filter="url(#db-soft-cut)"
                         />
                       </mask>
+                      <mask id="db-mask-balanced-attack" maskContentUnits="objectBoundingBox">
+                        <rect width="1" height="1" fill="black" />
+                        <path
+                          d="M0.22 0.08 C0.26 0.06 0.30 0.09 0.30 0.16 L0.29 0.23 L0.38 0.21 L0.65 0.20 L0.67 0.54 L0.44 0.51 L0.36 0.46 L0.33 0.55 L0.37 0.73 L0.37 0.86 L0.31 0.86 L0.29 0.73 L0.24 0.62 L0.18 0.76 L0.15 0.94 L0.10 0.94 L0.11 0.80 L0.16 0.58 L0.14 0.46 L0.17 0.27 L0.20 0.18 Z"
+                          fill="white"
+                          filter="url(#db-soft-cut)"
+                        />
+                      </mask>
                     </defs>
                   </svg>
-                  <span
-                    key={playerMotion?.id ?? 'idle'}
-                    className={[
-                      'db-fighter__avatar',
-                      LOADOUT_BATTLE_SPRITE[run.loadoutId].mode === 'lighten'
-                        ? 'db-fighter__avatar--cutout-lighten'
-                        : 'db-fighter__avatar--cutout-mask',
-                      playerAttacking ? 'db-fighter__avatar--launch' : '',
-                      playerGuarding ? 'db-fighter__avatar--guard' : '',
-                      playerHurt ? 'db-fighter__avatar--hit' : '',
-                      playerHurt ? powerClass(playerHit, 'db-fighter__avatar--hit') : '',
-                      playerAttacking ? powerClass(playerMotion, 'db-fighter__avatar--launch') : '',
-                    ].join(' ')}
-                  >
-                    <span className="db-fighter__poses db-fighter__poses--human">
-                      <img
-                        src={LOADOUT_BATTLE_SPRITE[run.loadoutId].src}
-                        alt={LOADOUT_DEFINITIONS[run.loadoutId].name}
-                        className={`db-fighter__human-img db-fighter__human-img--${LOADOUT_BATTLE_SPRITE[run.loadoutId].mode}`}
-                        draggable={false}
-                      />
-                    </span>
-                  </span>
+                  {(() => {
+                    const set = LOADOUT_BATTLE_SPRITE[run.loadoutId];
+                    const activeSprite =
+                      (playerAttacking && set.attack) ||
+                      (playerGuarding && set.guard) ||
+                      (playerHurt && set.hurt) ||
+                      set.idle;
+                    return (
+                      <span
+                        key={playerMotion?.id ?? 'idle'}
+                        className={[
+                          'db-fighter__avatar',
+                          activeSprite.mode === 'lighten'
+                            ? 'db-fighter__avatar--cutout-lighten'
+                            : 'db-fighter__avatar--cutout-mask',
+                          playerAttacking ? 'db-fighter__avatar--launch' : '',
+                          playerGuarding ? 'db-fighter__avatar--guard' : '',
+                          playerHurt ? 'db-fighter__avatar--hit' : '',
+                          playerHurt ? powerClass(playerHit, 'db-fighter__avatar--hit') : '',
+                          playerAttacking ? powerClass(playerMotion, 'db-fighter__avatar--launch') : '',
+                        ].join(' ')}
+                      >
+                        <span className="db-fighter__poses db-fighter__poses--human">
+                          <img
+                            src={activeSprite.src}
+                            alt={LOADOUT_DEFINITIONS[run.loadoutId].name}
+                            className={`db-fighter__human-img db-fighter__human-img--${activeSprite.mode}`}
+                            draggable={false}
+                          />
+                        </span>
+                      </span>
+                    );
+                  })()}
                   {playerImpact && <span key={`impact-${playerImpact.id}`} className={`db-impact db-impact--${playerImpact.impact}${powerClass(playerImpact, "db-impact--power")}`} />}
                   {shield && <span key={`shield-${shield.id}`} className="db-player-shield" />}
                   {heal && <span key={`heal-${heal.id}`} className="db-player-repair" />}

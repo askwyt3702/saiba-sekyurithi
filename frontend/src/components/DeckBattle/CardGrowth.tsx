@@ -100,14 +100,51 @@ function GrowthFlight({
   );
 }
 
-function StatsComparison({ before, after }: Pick<LevelUpPresentation, 'before' | 'after'>) {
+function StatsComparison({
+  before,
+  after,
+  evolution = false,
+}: Pick<LevelUpPresentation, 'before' | 'after'> & { evolution?: boolean }) {
   const previous = getCardStats(before);
   const next = getCardStats(after);
+  const nameChanged = previous.name !== next.name;
+  const costDown = next.cost < previous.cost;
   return (
-    <dl className="db-growth-compare">
-      <div><dt>Lv.{before.level} · {previous.cost} EN</dt><dd><EffectText text={previous.text} /></dd></div>
-      <div><dt>Lv.{after.level} · {next.cost} EN</dt><dd><EffectText text={next.text} /></dd></div>
-    </dl>
+    <div className={`db-growth-compare${evolution ? ' db-growth-compare--evo' : ''}`}>
+      <div className="db-growth-compare__box db-growth-compare__box--before">
+        <div className="db-growth-compare__head">
+          <span className="db-growth-compare__pill db-growth-compare__pill--before">
+            {evolution ? '進化前' : '強化前'}
+          </span>
+          <span className="db-growth-compare__lv">
+            Lv.{before.level} · {previous.cost} EN
+          </span>
+        </div>
+        {nameChanged && <div className="db-growth-compare__name">{previous.name}</div>}
+        <div className="db-growth-compare__text"><EffectText text={previous.text} /></div>
+      </div>
+
+      <div className="db-growth-compare__arrow" aria-hidden="true">
+        <span className="db-growth-compare__arrow-label">{evolution ? 'EVOLVE' : 'UP'}</span>
+        <svg viewBox="0 0 48 28" className="db-growth-compare__arrow-svg">
+          <path d="M4 14 H36 M27 5 L38 14 L27 23" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+
+      <div className="db-growth-compare__box db-growth-compare__box--after">
+        <div className="db-growth-compare__head">
+          <span className="db-growth-compare__pill db-growth-compare__pill--after">
+            {evolution ? 'EVOLVED!' : 'POWER UP!'}
+          </span>
+          <span className="db-growth-compare__lv">
+            Lv.{after.level} · {next.cost} EN
+            {costDown && <span className="db-growth-compare__cost-down">COST DOWN</span>}
+          </span>
+        </div>
+        {nameChanged && <div className="db-growth-compare__name db-growth-compare__name--after">{next.name}</div>}
+        <div className="db-growth-compare__text"><EffectText text={next.text} /></div>
+      </div>
+    </div>
   );
 }
 
@@ -172,8 +209,10 @@ function EvolutionComplete({ choice, onComplete }: { choice: EvolutionChoice; on
     <section className="db-growth-content db-growth-content--complete">
       <h2 className="db-growth-title">EVOLUTION COMPLETE</h2>
       <GrowthFlight {...choice} evolution />
-      <p className="db-growth-sub">{getCardStats(choice.after).name}</p>
-      <StatsComparison {...choice} />
+      <p className="db-growth-sub">
+        {getCardStats(choice.before).name} <strong className="db-growth-sub__arrow">➜</strong> <strong>{getCardStats(choice.after).name}</strong>
+      </p>
+      <StatsComparison {...choice} evolution />
       <div className="db-growth-actions">
         <button ref={skipButton} type="button" className="db-btn db-btn--ghost" onClick={() => {
           if (completed.current) return;
@@ -231,10 +270,22 @@ export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
           </div>
           <div className="db-growth-branches" key={card.uid}>
             <div className="db-growth-original">
-              <span>進化前</span>
+              <span className="db-growth-original__tag">進化前 (Lv.2)</span>
               <GrowthCard card={before} />
             </div>
-            {def.branches.map((branch) => {
+            <div className="db-growth-branch-arrow db-growth-branch-arrow--left" aria-hidden="true">
+              <span className="db-growth-branch-arrow__label">ROUTE A</span>
+              <svg viewBox="0 0 46 28" className="db-growth-branch-arrow__svg">
+                <path d="M42 14 H10 M19 5 L8 14 L19 23" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className="db-growth-branch-arrow db-growth-branch-arrow--right" aria-hidden="true">
+              <span className="db-growth-branch-arrow__label">ROUTE B</span>
+              <svg viewBox="0 0 46 28" className="db-growth-branch-arrow__svg">
+                <path d="M4 14 H36 M27 5 L38 14 L27 23" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            {def.branches.map((branch, idx) => {
               const after = { ...card, branchId: branch.id };
               return (
                 <button key={branch.id} type="button" className="db-growth-candidate" onClick={(event) => {
@@ -244,8 +295,9 @@ export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
                   playSound('click');
                   setChoice({ before, after, source, branchId: branch.id });
                 }}>
+                  <span className="db-growth-candidate__tag">進化候補 {idx === 0 ? 'A' : 'B'} (Lv.3)</span>
                   <GrowthCard card={after} />
-                  <span>この進化にする</span>
+                  <span className="db-growth-candidate__cta">▶ この進化にする</span>
                 </button>
               );
             })}

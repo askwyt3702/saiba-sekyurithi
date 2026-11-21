@@ -334,6 +334,18 @@
   -webkit-mask: url(#db-mask-blue);
 }
 
+.db-fighter__human-img--mask-balanced-attack {
+  flex-shrink: 0;
+  width: auto;
+  height: 108%;
+  max-width: none;
+  object-fit: contain;
+  object-position: left bottom;
+  transform: translateX(78px) translateY(8px);
+  mask: url(#db-mask-balanced-attack);
+  -webkit-mask: url(#db-mask-balanced-attack);
+}
+
 /* 攻撃時の斬撃・エネルギー波エフェクト（キャラのオーラ色に連動） */
 .db-fighter__avatar--launch::after {
   content: '';
