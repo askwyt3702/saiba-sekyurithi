@@ -1247,3 +1247,13 @@ test('ACT 2のチェックポイントは選択済み権限を復元し、破損
   data = '{bad';
   assert.equal(checkpoint.readRunCheckpoint(storage), null);
 });
+
+test('終わったラン(勝ち・負け)と準備画面では、自動保存を残さない', () => {
+  const checkpoint = load(new URL('../src/game/deckbattle/runCheckpoint.ts', import.meta.url));
+  const playing = run.createRun();
+  assert.equal(checkpoint.shouldKeepRunCheckpoint('map', playing), true);
+  assert.equal(checkpoint.shouldKeepRunCheckpoint('battle', playing), true);
+  assert.equal(checkpoint.shouldKeepRunCheckpoint('setup', playing), false);
+  assert.equal(checkpoint.shouldKeepRunCheckpoint('run_result', { ...playing, status: 'won' }), false);
+  assert.equal(checkpoint.shouldKeepRunCheckpoint('run_result', { ...playing, status: 'lost' }), false);
+});

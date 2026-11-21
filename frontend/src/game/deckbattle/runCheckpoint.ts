@@ -43,6 +43,15 @@ export function readRunCheckpoint<View>(storage?: Pick<Storage, 'getItem'>): Run
   }
 }
 
+/**
+ * 自動保存を残すか。準備画面にいるときと、終わったラン(勝ち・負け)は残さない。
+ * 終わったランを残すと、次に開いたときにタイトルを飛ばして古い結果画面が出たり、
+ * ミッション選択から入り直しても結果画面に戻ったりする(戦績は保存より先に記録している)
+ */
+export function shouldKeepRunCheckpoint(phase: string, run: Pick<RunState, 'status'>): boolean {
+  return phase !== 'setup' && run.status === 'playing';
+}
+
 export function saveRunCheckpoint<View>(data: RunCheckpoint<View> | null, storage?: Pick<Storage, 'setItem' | 'removeItem'>): void {
   try {
     const target = storage ?? localStorage;

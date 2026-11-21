@@ -107,7 +107,7 @@ import { CardArtwork } from './CardArtwork';
 import { RunMapView } from './RunMapView';
 import { OracleEncounter } from './OracleEncounter';
 import { EchoEncounter } from './EchoEncounter';
-import { readRunCheckpoint, saveRunCheckpoint } from '../../game/deckbattle/runCheckpoint';
+import { readRunCheckpoint, saveRunCheckpoint, shouldKeepRunCheckpoint } from '../../game/deckbattle/runCheckpoint';
 import { EnemyArtwork } from './EnemyArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
@@ -128,6 +128,14 @@ const LOADOUT_PORTRAIT: Record<LoadoutId, string> = {
   red_team: operatorRedImg,
   blue_team: operatorBlueImg,
   thermal_ops: operatorVirusImg,
+};
+// 初期ビルド選択の顔写真の縦位置(object-position の Y)。絵ごとに頭の高さが違うので、
+// ブルーチームの見え方(頭の上に少し余白があり、頭から胸まで入る)に合わせて1枚ずつ決めている
+const LOADOUT_PORTRAIT_Y: Record<LoadoutId, string> = {
+  balanced: '24%',
+  red_team: '0%',
+  blue_team: '14%',
+  thermal_ops: '0%',
 };
 
 type BattleSpriteMode = 'lighten' | 'mask-red' | 'mask-blue' | 'mask-balanced-attack';
@@ -808,7 +816,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       updateProfileForRun(run, (profile) => recordRunResult(profile, run));
       resultRecorded.current = true;
     }
-    saveRunCheckpoint(phase === 'setup' ? null : { run, battle, view: {
+    saveRunCheckpoint(!shouldKeepRunCheckpoint(phase, run) ? null : { run, battle, view: {
       phase, postBattle, evolveOrigin, eventView, mysteryView, restSummary, resultRecorded: resultRecorded.current,
     } });
   }, [run, battle, phase, postBattle, evolveOrigin, eventView, mysteryView, restSummary]);
@@ -3138,7 +3146,7 @@ function RunSetupScreen({
                   {selected && <span className="db-setup-op__badge">SELECTED</span>}
                 </span>
                 <span className="db-setup-op__portrait">
-                  <img src={LOADOUT_PORTRAIT[id]} alt={def.name} draggable={false} />
+                  <img src={LOADOUT_PORTRAIT[id]} alt={def.name} draggable={false} style={{ objectPosition: `center ${LOADOUT_PORTRAIT_Y[id]}` }} />
                 </span>
                 <span className="db-setup-op__body">
                   <span className="db-setup-op__name">
