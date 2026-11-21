@@ -91,6 +91,7 @@ import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
 import { EffectText, GlossaryList } from './EffectText';
 import { HowToPlayModal } from './HowToPlayModal';
+import { EvolutionOverlay, LevelUpOverlay, type LevelUpPresentation } from './CardGrowth';
 import { hasSeenHowToPlay, markHowToPlaySeen } from '../../game/deckbattle/howToPlay';
 import idlePose from '../../assets/player-idle.webp';
 import attackPose from '../../assets/player-attack.webp';
@@ -557,6 +558,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   // useState の初期化は開発時(StrictMode)に2回呼ばれるため、ここで開始コインを消費すると2回目が0枚になる。
   // 読むのは初期化で、消費は下の useEffect で1回だけ行う
   const [run, setRun] = useState<RunState>(createInitialRun);
+  const [levelUps, setLevelUps] = useState<LevelUpPresentation[]>([]);
+  const cardPositions = useRef(new Map<string, DOMRect>());
   const [battle, setBattle] = useState<BattleState>(() => createBattleForCurrentNode(run, randomSeed()));
   const [phase, setPhase] = useState<StagePhase>('setup');
   const [postBattle, setPostBattle] = useState<PostBattleSummary | null>(null);
@@ -613,6 +616,17 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const actingUid = activeEnemyAction?.enemyUid;
   const busy = playback !== null || battle.status !== 'playing' || phase !== 'battle';
 
+  const showLevelUps = useCallback((nextRun: RunState) => {
+    const previousCards = new Map(run.deck.map((card) => [card.uid, card]));
+    const upgrades = nextRun.deck.flatMap((card) => {
+      const before = previousCards.get(card.uid);
+      if (before?.level !== 1 || card.level < 2) return [];
+      const source = document.querySelector(`[data-growth-card="${CSS.escape(card.uid)}"]`)?.getBoundingClientRect();
+      return [{ before, after: { ...card, level: 2 as const, branchId: undefined }, source: source ?? cardPositions.current.get(card.uid) }];
+    });
+    if (upgrades.length > 0) setLevelUps(upgrades);
+  }, [run.deck]);
+
   // 最初のランに渡した開始コインを、プロフィールから消費する
   useEffect(() => {
     const profile = loadDeckProfile();
@@ -646,6 +660,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         setPhase('run_result');
         return;
       }
+      showLevelUps(resolved.run);
       setPostBattle({
         xpGains: resolved.xpGains,
         rewardChoices: resolved.rewardChoices,
@@ -654,7 +669,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       });
       setPhase('post_battle');
     },
-    [run],
+    [run, showLevelUps],
   );
 
   useEffect(() => {
@@ -721,6 +736,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   }, []);
 
   const startRun = (loadoutId: LoadoutId = run.loadoutId, securityLevel: number = run.securityLevel, fastGrowth = run.fastGrowth) => {
+    cardPositions.current.clear();
     setEliteNode(null);
     setRunNumber((number) => number + 1);
     playSound('breach');
@@ -760,6 +776,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   };
 
   const enterNode = (nextRun: RunState) => {
+    cardPositions.current.clear();
     const node = nextRun.nodes[nextRun.nodeIndex];
     setSelectedUid(null);
     setNotice(null);
@@ -801,6 +818,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (!mysteryView || mysteryView.summary) return;
     playSound('extract');
     const res = resolveMysteryChoice(run, mysteryView.eventId, choiceId, randomSeed());
+    showLevelUps(res.run);
     if (res.discoveredCardId) {
       const cardId = res.discoveredCardId;
       updateProfile((p) => recordDiscovery(p, [cardId], []));
@@ -825,6 +843,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (restSummary) return;
     playSound('recover');
     const res = applyRestAction(run, action);
+    showLevelUps(res.run);
     setRun(res.run);
     setRestSummary(res.summary);
     if (res.run.pendingEvolutions.length > 0) {
@@ -858,6 +877,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       return;
     }
     const card = battle.cards[uid];
+    const source = document.querySelector(`[data-growth-card="${CSS.escape(uid)}"]`)?.getBoundingClientRect();
+    if (source) cardPositions.current.set(uid, source);
     const def = getCardDefinition(card.defId);
     const stats = getCardStats(card);
     const kind = def.kind;
@@ -1091,6 +1112,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (preview.isMaxed && !allMaxed) return;
     playSound('recover');
     const res = applyQuizXpReward(run, cardUid);
+    showLevelUps(res.run);
     setRun(res.run);
     setEventView({ ...eventView, stepRewardDone: true, xpGain: res.gain });
     if (res.run.pendingEvolutions.length > 0) {
@@ -1532,6 +1554,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                       <button
                         type="button"
                         key={uid}
+                        data-growth-card={uid}
                         className={[
                           'db-card',
                           `db-card--${def.kind}`,
@@ -1581,14 +1604,24 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <PostBattleOverlay run={run} summary={postBattle} onProceed={proceedAfterPostBattle} />
       )}
 
-      {phase === 'evolve' && run.pendingEvolutions.length > 0 && (
+      {levelUps.length > 0 && (
+        <LevelUpOverlay
+          queue={levelUps}
+          onNext={() => setLevelUps(levelUps.slice(1))}
+          onSkip={() => setLevelUps([])}
+        />
+      )}
+
+      {levelUps.length === 0 && phase === 'evolve' && run.pendingEvolutions.length > 0 && (
         <EvolutionOverlay
           cards={run.pendingEvolutions
             .map((uid) => run.deck.find((c) => c.uid === uid))
             .filter((c): c is CardInstance => Boolean(c))}
           onChoose={onChooseBranch}
           onOpenDeck={() => setShowDeckModal(true)}
-        />
+        >
+          {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
+        </EvolutionOverlay>
       )}
 
       {phase === 'reward' && postBattle && (
@@ -1612,7 +1645,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
           }}
         />
       )}
-      {showDeckModal && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
+      {showDeckModal && phase !== 'evolve' && <DeckModal deck={run.deck} onClose={() => setShowDeckModal(false)} />}
       {showHowToPlay && <HowToPlayModal onClose={closeHowToPlay} />}
     </div>
   );
@@ -1693,80 +1726,6 @@ function PostBattleOverlay({ run, summary, onProceed }: { run: RunState; summary
                 ? '最終結果を見る'
                 : '報酬を選ぶ'}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EvolutionOverlay({
-  cards,
-  onChoose,
-  onOpenDeck,
-}: {
-  /** 進化先を選ぶ前のカード(Lv.3 に届いたもの全部) */
-  cards: CardInstance[];
-  onChoose: (cardUid: string, branchId: string) => void;
-  onOpenDeck: () => void;
-}) {
-  // どのカードから選んでもよい。ほかのカードの進化先を見比べてから決められるように、タブで切り替える。
-  // 同じ名前のカードは進化先も同じなので、1つのタブにまとめる(選ぶと、そのうち1枚が進化する)
-  const groups = [...new Set(cards.map((c) => c.defId))].map((defId) => ({
-    defId,
-    cards: cards.filter((c) => c.defId === defId),
-  }));
-  const [selectedDefId, setSelectedDefId] = useState(groups[0]?.defId);
-  const group = groups.find((g) => g.defId === selectedDefId) ?? groups[0];
-  if (!group) return null;
-  const card = group.cards[0];
-  const def = getCardDefinition(card.defId);
-  return (
-    <div className="db-overlay" role="dialog" aria-modal="true">
-      <div className="db-result db-result--wide db-result--won">
-        <div className="db-result__title">EVOLUTION READY</div>
-        <p className="db-result__sub">
-          <GameIcon name={KIND_ICON[def.kind]} /> <strong>{def.name}</strong> ({card.uid}) が <strong>Lv.3</strong> に到達！進化先を選んでください
-          {group.cards.length > 1 && `（同じカードがあと ${group.cards.length - 1} 枚）`}
-          {groups.length > 1 && ` 進化待ちは全部で ${cards.length} 枚。どれから選んでもよい。`}
-        </p>
-        <div className="db-evo-tabs">
-          {groups.length > 1 &&
-            groups.map((g) => {
-              const d = getCardDefinition(g.defId);
-              const active = g.defId === group.defId;
-              return (
-                <button
-                  key={g.defId}
-                  type="button"
-                  className={`db-btn db-btn--ghost db-evo-tab${active ? ' db-evo-tab--active' : ''}`}
-                  aria-pressed={active}
-                  onClick={() => {
-                    playSound('click');
-                    setSelectedDefId(g.defId);
-                  }}
-                >
-                  <GameIcon name={KIND_ICON[d.kind]} /> {d.name}
-                  {g.cards.length > 1 && ` ×${g.cards.length}`}
-                </button>
-              );
-            })}
-          <button type="button" className="db-btn db-btn--ghost db-evo-tab db-evo-tab--deck" onClick={onOpenDeck}>
-            <GameIcon name="layers" /> デッキを見る
-          </button>
-        </div>
-        <div className="db-evo-grid">
-          {def.branches.map((branch) => (
-            <button key={branch.id} type="button" className="db-evo-card" onClick={() => onChoose(card.uid, branch.id)}>
-              <div className="db-evo-card__head">
-                <span className="db-evo-card__icon"><GameIcon name="evolve" /></span>
-                <span className="db-evo-card__cost">{branch.cost} EN</span>
-              </div>
-              <CardArtwork defId={def.id} kind={def.kind} rarity={def.rarity} level={3} branchId={branch.id} />
-              <div className="db-evo-card__name">{branch.name}</div>
-              <div className="db-evo-card__text"><EffectText text={branch.text} /></div>
-              <div className="db-evo-card__cta">この進化にする</div>
-            </button>
-          ))}
         </div>
       </div>
     </div>
@@ -2142,6 +2101,7 @@ function EventScreen({
                 return (
                   <button
                     key={card.uid}
+                    data-growth-card={card.uid}
                     type="button"
                     disabled={disabled}
                     className={[
@@ -2889,6 +2849,7 @@ function RestScreen({
                 return (
                   <button
                     key={card.uid}
+                    data-growth-card={card.uid}
                     type="button"
                     className={`db-deck-pill${mode === 'remove' ? ' db-deck-pill--danger' : ''}`}
                     onClick={() => {
