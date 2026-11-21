@@ -75,7 +75,7 @@ test('攻撃カードで敵のHPが減り、帯域と使用回数が記録され
   let s = setup([{ defId: 'ssh_brute' }, { defId: 'firewall' }], ['scanner_bot'], ['c1', 'c2']);
   s = play(s, 'c1');
   assert.equal(s.enemies[0].hp, hp('scanner_bot') - 6);
-  assert.equal(s.player.energy, 3);
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN - 1);
   assert.equal(s.usesThisBattle.c1, 1);
   assert.equal(s.discard.includes('c1'), true);
 });
@@ -159,7 +159,7 @@ test('次のカード−1EN はどのカードにも効き、0未満にならな
   assert.equal(battle.getPlayCost(s, 'c2'), 0);
   s = play(s, 'c2');
   assert.equal(s.modifiers.nextCardDiscount, 0, '0ENのカードでも割引は消える');
-  assert.equal(s.player.energy, 4);
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN);
 });
 
 test('FWは敵の攻撃を防ぎ、次のプレイヤーのターン開始で消える', () => {
@@ -219,10 +219,10 @@ test('検知されると次のターンの帯域が1減る', () => {
   const s = setup([{ defId: 'ssh_brute' }], ['ids_sensor'], []);
   s.enemies[0].moveIndex = 1;
   const after = battle.endTurn(s);
-  assert.equal(after.player.energy, 3);
+  assert.equal(after.player.energy, battle.ENERGY_PER_TURN - 1);
   assert.equal(after.player.energyPenalty, 0);
   const next = battle.endTurn(after);
-  assert.equal(next.player.energy, 4);
+  assert.equal(next.player.energy, battle.ENERGY_PER_TURN);
 });
 
 test('ノイズは捨て札に入り、使えず、戦闘後のデッキには残らない', () => {
@@ -469,11 +469,11 @@ test('解析コンボ:補助カード後に攻撃カードを使うと1ターン
   let s = setup([{ defId: 'port_scan' }, { defId: 'ssh_brute' }, { defId: 'ssh_brute' }], ['argus'], ['c1', 'c2', 'c3']);
   s = play(s, 'c1'); // 0EN -> reconCombo = 'ready'
   assert.equal(s.modifiers.reconCombo, 'ready');
-  s = play(s, 'c2'); // 1EN消費だがコンボ+1ENで実質4EN維持
+  s = play(s, 'c2'); // 1EN消費だがコンボ+1ENで帯域は減らない
   assert.equal(s.modifiers.reconCombo, 'done');
-  assert.equal(s.player.energy, 4);
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN);
   s = play(s, 'c3'); // 同ターン2回目は発動しない
-  assert.equal(s.player.energy, 3);
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN - 1);
 });
 
 test('適応型フィルターは購入後の戦闘で、解析コンボに1ターン1回だけFWを追加する', () => {
@@ -492,7 +492,7 @@ test('適応型フィルターは購入後の戦闘で、解析コンボに1タ�
   s = play(s, utility);
   assert.equal(s.player.block, 0);
   s = play(s, attacks[0], s.enemies[0].uid);
-  assert.equal(s.player.energy, 4);
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN);
   assert.equal(s.player.block, 3);
   s = play(s, attacks[1], s.enemies[0].uid);
   assert.equal(s.player.block, 3);
@@ -528,7 +528,7 @@ test('パッシブ装備(暗号化VPN・ゼロトラスト鍵・パケットキ�
     relics: ['encrypted_vpn', 'auto_scraper', 'packet_cache', 'zero_trust_key'],
   });
   assert.equal(s.player.block, 3);
-  assert.equal(s.player.energy, 5);
+  assert.equal(s.player.energy, battle.ENERGY_PER_TURN + 1);
   assert.equal(s.hand.length, 5);
   assert.equal(s.modifiers.nextAttackBonus, 3);
 });
