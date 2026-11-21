@@ -255,6 +255,28 @@
   --branch-from: -230px;
 }
 
+.db-growth-branches--3 {
+  grid-template-columns: 220px 246px 220px 220px;
+  gap: 18px;
+}
+
+.db-growth-branches--1 {
+  grid-template-columns: 246px 220px;
+}
+
+.db-growth-branches--1 .db-growth-original { grid-column: 1; }
+.db-growth-branches--1 .db-growth-candidate:last-child { grid-column: 2; }
+
+.db-growth-branches--3 .db-growth-candidate:nth-child(3) {
+  grid-column: 3;
+  --branch-from: -150px;
+}
+
+.db-growth-branches--3 .db-growth-candidate:last-child {
+  grid-column: 4;
+  --branch-from: -230px;
+}
+
 .db-growth-candidate:hover,
 .db-growth-candidate:focus-visible {
   translate: 0 -9px;

@@ -35,7 +35,7 @@ export type CardEffect =
   /** 常駐効果:戦闘中ずっと毎ターン開始時に自動で発動 */
   | { type: 'persistent'; stat: 'turnBlock' | 'turnDraw' | 'turnEnergy' | 'turnAttackBonus'; amount: number }
   /** 現在の自分のFW(ブロック)の値×multiplierのダメージを与える */
-  | { type: 'shieldBash'; multiplier?: number; target: 'single' | 'all' }
+  | { type: 'shieldBash'; multiplier?: number; cap?: number; target: 'single' | 'all' }
   /** 敵のFWをすべて破壊する(steal:trueなら奪って自分のFWに加算) */
   | { type: 'stripBlock'; steal?: boolean; target: 'single' | 'all' }
   /** 敵が状態異常(過熱・脆弱・ジャミング)なら追加ダメージ */
@@ -51,7 +51,11 @@ export type CardEffect =
   /** 敵の攻撃力上昇(attackBonus)を0にリセットする */
   | { type: 'clearEnemyBuff'; target: 'single' | 'all' }
   /** 現在の自分のFWを2倍にする */
-  | { type: 'doubleBlock' };
+  | { type: 'doubleBlock' }
+  | { type: 'recoverDiscard'; amount: number }
+  | { type: 'bonusAfterAttacks'; attacks: number; amount: number; target: 'single' | 'all' }
+  | { type: 'consumeHeat'; amount: number; multiplier: number; result: 'damage' | 'block'; target: 'single' | 'all' }
+  | { type: 'targetJam' | 'targetVulnerable'; amount: number };
 
 /** あるレベル(または進化先)でのカードの性能 */
 export interface CardStats {
@@ -62,9 +66,12 @@ export interface CardStats {
 }
 
 /** Lv.3 の進化先 */
+export type CardAffiliation = 'common' | 'balanced' | 'red' | 'blue' | 'thermal' | 'colorless';
+
 export interface CardBranch extends CardStats {
   id: string;
   name: string;
+  affiliation?: CardAffiliation;
 }
 
 export interface CardDefinition {
@@ -72,6 +79,8 @@ export interface CardDefinition {
   name: string;
   kind: CardKind;
   rarity: CardRarity;
+  affiliation: CardAffiliation;
+  oncePerTurn?: boolean;
   /** 実際の攻撃・防御の仕組みの解説(1行) */
   lore: string;
   /** Lv.1 と Lv.2 の性能 */
@@ -245,6 +254,8 @@ export type EnemyActionEvent = EnemyActionKind & { after: BattleSnapshot };
 export interface BattleState {
   status: 'playing' | 'won' | 'lost';
   turn: number;
+  playedThisTurn?: string[];
+  attacksThisTurn?: number;
   player: PlayerState;
   enemies: EnemyState[];
   /** この戦闘で使うカード(デッキの写し + 戦闘中に入ったノイズ) */
@@ -317,6 +328,7 @@ export interface RunState {
   maxHp: number;
   /** 分岐マップ */
   map: RunMap;
+  mapSeed?: number;
   /** 今いるマス */
   currentNodeId: string;
   /** 通ったマス(起動ノードから順に) */
@@ -329,6 +341,8 @@ export interface RunState {
   tools: ToolId[];
   /** イベントの事前調査に使う解析コイン(敵撃破で確率ドロップ) */
   reconCoins: number;
+  /** 闇市でカードの購入・変換を済ませたノード */
+  shopCardActionNodeIds?: string[];
   /** 今の戦闘が強敵マスか(報酬レア確定＆EXP2倍) */
   currentBattleElite: boolean;
   /** Lv.3 の進化先を選ぶ必要があるカード(M2) */

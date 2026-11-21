@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { getCardDefinition, getCardStats } from '../../game/deckbattle/battle';
-import type { CardInstance } from '../../game/deckbattle/types';
+import { getEvolutionBranches } from '../../game/deckbattle/cards';
+import type { CardInstance, LoadoutId } from '../../game/deckbattle/types';
 import { playSound } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
 import { EffectText } from './EffectText';
@@ -185,8 +186,9 @@ function EvolutionComplete({ choice, onComplete }: { choice: EvolutionChoice; on
   );
 }
 
-export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
+export function EvolutionOverlay({ cards, loadoutId, onChoose, onOpenDeck, children }: {
   cards: CardInstance[];
+  loadoutId: LoadoutId;
   onChoose: (uid: string, branchId: string) => void;
   onOpenDeck: () => void;
   children?: ReactNode;
@@ -205,7 +207,7 @@ export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
   }, [children, choice]);
   const group = groups.find((item) => item.defId === selectedDefId) ?? groups[0];
   const card = group.cards[0];
-  const def = getCardDefinition(card.defId);
+  const branches = getEvolutionBranches(card.defId, loadoutId);
   const before = { ...card, level: 2 as const };
 
   return (
@@ -229,12 +231,12 @@ export function EvolutionOverlay({ cards, onChoose, onOpenDeck, children }: {
             ))}
             <button ref={deckButton} type="button" className="db-btn db-btn--ghost" onClick={onOpenDeck}>デッキを見る</button>
           </div>
-          <div className="db-growth-branches" key={card.uid}>
+          <div className={`db-growth-branches db-growth-branches--${branches.length}`} key={card.uid}>
             <div className="db-growth-original">
               <span>進化前</span>
               <GrowthCard card={before} />
             </div>
-            {def.branches.map((branch) => {
+            {branches.map((branch) => {
               const after = { ...card, branchId: branch.id };
               return (
                 <button key={branch.id} type="button" className="db-growth-candidate" onClick={(event) => {

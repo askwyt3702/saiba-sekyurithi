@@ -1,10 +1,12 @@
 // カード12種類(docs/deckbattle-plan-v0.3.md の6章)と、敵が入れてくるノイズ。
 // 数値は試作用の仮の値。
-import type { CardDefinition } from './types';
+import { OPERATOR_CARDS } from './operatorCards';
+import type { CardAffiliation, CardDefinition, LoadoutId } from './types';
 
 export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   ssh_brute: {
     id: 'ssh_brute',
+    affiliation: 'common',
     name: 'SSH辞書攻撃',
     kind: 'attack',
     rarity: 'common',
@@ -20,6 +22,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   firewall: {
     id: 'firewall',
+    affiliation: 'common',
     name: 'ファイアウォール',
     kind: 'defense',
     rarity: 'common',
@@ -35,6 +38,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   ddos: {
     id: 'ddos',
+    affiliation: 'common',
     name: 'DDoSフラッド',
     kind: 'attack',
     rarity: 'common',
@@ -45,11 +49,12 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     },
     branches: [
       { id: 'ddos_botnet', name: 'ボットネット', cost: 2, effects: [{ type: 'damage', amount: 12, target: 'all' }], text: '敵全体に12ダメージ。' },
-      { id: 'ddos_overload', name: '過負荷', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'burn', amount: 4 }], text: '8ダメージ＋ウイルス4。' },
+      { id: 'ddos_overload', name: '過負荷', affiliation: 'thermal', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single' }, { type: 'burn', amount: 4 }], text: '8ダメージ＋ウイルス4。' },
     ],
   },
   port_scan: {
     id: 'port_scan',
+    affiliation: 'common',
     name: 'ポートスキャン',
     kind: 'utility',
     rarity: 'common',
@@ -65,6 +70,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   session_hijack: {
     id: 'session_hijack',
+    affiliation: 'common',
     name: 'セッションハイジャック',
     kind: 'attack',
     rarity: 'uncommon',
@@ -80,6 +86,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   script_auto: {
     id: 'script_auto',
+    affiliation: 'balanced',
     name: 'スクリプト自動化',
     kind: 'utility',
     rarity: 'uncommon',
@@ -95,6 +102,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   sql_injection: {
     id: 'sql_injection',
+    affiliation: 'common',
     name: 'SQLインジェクション',
     kind: 'attack',
     rarity: 'common',
@@ -105,11 +113,12 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     },
     branches: [
       { id: 'sqli_union', name: 'UNION抽出', cost: 1, effects: [{ type: 'damage', amount: 6, hits: 2, target: 'single', pierce: true }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通6×2＋脆弱2T。' },
-      { id: 'sqli_blind', name: 'ブラインドSQLi', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋ウイルス3＋脆弱2T。' },
+      { id: 'sqli_blind', name: 'ブラインドSQLi', affiliation: 'thermal', cost: 1, effects: [{ type: 'damage', amount: 8, target: 'single', pierce: true }, { type: 'burn', amount: 3 }, { type: 'vulnerable', amount: 2 }], text: 'FW貫通8＋ウイルス3＋脆弱2T。' },
     ],
   },
   waf_rule: {
     id: 'waf_rule',
+    affiliation: 'common',
     name: 'WAFルール適用',
     kind: 'defense',
     rarity: 'common',
@@ -125,6 +134,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   arp_spoof: {
     id: 'arp_spoof',
+    affiliation: 'common',
     name: 'ARPスプーフィング',
     kind: 'attack',
     rarity: 'uncommon',
@@ -140,6 +150,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   honeypot: {
     id: 'honeypot',
+    affiliation: 'blue',
     name: 'ハニーポット展開',
     kind: 'defense',
     rarity: 'uncommon',
@@ -150,11 +161,12 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     },
     branches: [
       { id: 'honey_mirror', name: 'ミラー罠', cost: 1, effects: [{ type: 'block', amount: 9 }, { type: 'retaliate', amount: 9 }], text: 'FW9＋反撃9。' },
-      { id: 'honey_tar', name: 'タールピット', cost: 1, effects: [{ type: 'block', amount: 8 }, { type: 'retaliate', amount: 5 }, { type: 'burn', amount: 4 }], text: 'FW8＋反撃5＋敵1体にウイルス4。' },
+      { id: 'honey_tar', name: 'タールピット', affiliation: 'thermal', cost: 1, effects: [{ type: 'block', amount: 8 }, { type: 'retaliate', amount: 5 }, { type: 'burn', amount: 4 }], text: 'FW8＋反撃5＋敵1体にウイルス4。' },
     ],
   },
   zero_day: {
     id: 'zero_day',
+    affiliation: 'red',
     name: 'ゼロデイ攻撃',
     kind: 'attack',
     rarity: 'rare',
@@ -171,6 +183,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   backdoor: {
     id: 'backdoor',
+    affiliation: 'balanced',
     name: 'バックドア常駐',
     kind: 'utility',
     rarity: 'rare',
@@ -189,6 +202,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   // ---------- 追加コモン 14種(計20種) ----------
   ping_sweep: {
     id: 'ping_sweep',
+    affiliation: 'common',
     name: 'Pingスイープ',
     kind: 'attack',
     rarity: 'common',
@@ -204,6 +218,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   syn_ack_shield: {
     id: 'syn_ack_shield',
+    affiliation: 'blue',
     name: 'SYNクッキー防御',
     kind: 'defense',
     rarity: 'common',
@@ -219,6 +234,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   xss_reflect: {
     id: 'xss_reflect',
+    affiliation: 'blue',
     name: '反射型XSS',
     kind: 'attack',
     rarity: 'common',
@@ -234,6 +250,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   path_traversal: {
     id: 'path_traversal',
+    affiliation: 'common',
     name: 'ディレクトリ遡上',
     kind: 'attack',
     rarity: 'common',
@@ -249,6 +266,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   log_tamper: {
     id: 'log_tamper',
+    affiliation: 'balanced',
     name: 'ログ改ざん消去',
     kind: 'defense',
     rarity: 'common',
@@ -264,6 +282,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   packet_sniff: {
     id: 'packet_sniff',
+    affiliation: 'common',
     name: 'パケット盗聴',
     kind: 'utility',
     rarity: 'common',
@@ -279,6 +298,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   cmd_inject: {
     id: 'cmd_inject',
+    affiliation: 'common',
     name: 'OSコマンド注入',
     kind: 'attack',
     rarity: 'common',
@@ -294,6 +314,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   csrf_forge: {
     id: 'csrf_forge',
+    affiliation: 'blue',
     name: 'CSRF偽装要求',
     kind: 'attack',
     rarity: 'common',
@@ -309,6 +330,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   tls_shield: {
     id: 'tls_shield',
+    affiliation: 'common',
     name: 'TLS1.3暗号防壁',
     kind: 'defense',
     rarity: 'common',
@@ -324,6 +346,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   thermal_spike: {
     id: 'thermal_spike',
+    affiliation: 'thermal',
     name: 'CPU熱暴走',
     kind: 'attack',
     rarity: 'common',
@@ -339,6 +362,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   rate_limit: {
     id: 'rate_limit',
+    affiliation: 'blue',
     name: 'レートリミット制御',
     kind: 'defense',
     rarity: 'common',
@@ -354,6 +378,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   fuzz_probe: {
     id: 'fuzz_probe',
+    affiliation: 'red',
     name: 'ファジング連打',
     kind: 'attack',
     rarity: 'common',
@@ -369,6 +394,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   dns_spoof: {
     id: 'dns_spoof',
+    affiliation: 'common',
     name: 'DNSキャッシュ汚染',
     kind: 'utility',
     rarity: 'common',
@@ -384,6 +410,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   sandbox_guard: {
     id: 'sandbox_guard',
+    affiliation: 'colorless',
     name: 'サンドボックス隔離',
     kind: 'defense',
     rarity: 'common',
@@ -401,6 +428,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   // ---------- 追加アンコモン 8種(計12種) ----------
   shield_slam: {
     id: 'shield_slam',
+    affiliation: 'blue',
     name: 'FWカウンター衝撃波',
     kind: 'attack',
     rarity: 'uncommon',
@@ -416,6 +444,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   burn_detonate: {
     id: 'burn_detonate',
+    affiliation: 'thermal',
     name: 'サーマル起爆剤',
     kind: 'attack',
     rarity: 'uncommon',
@@ -431,6 +460,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   packet_burst: {
     id: 'packet_burst',
+    affiliation: 'balanced',
     name: '手札同期バースト',
     kind: 'attack',
     rarity: 'uncommon',
@@ -446,6 +476,8 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   overvolt: {
     id: 'overvolt',
+    oncePerTurn: true,
+    affiliation: 'balanced',
     name: 'オーバーボルテージ',
     kind: 'utility',
     rarity: 'uncommon',
@@ -461,6 +493,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   ransom_lock: {
     id: 'ransom_lock',
+    affiliation: 'blue',
     name: 'ランサム暗号ロック',
     kind: 'attack',
     rarity: 'uncommon',
@@ -476,6 +509,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   fortress_double: {
     id: 'fortress_double',
+    affiliation: 'blue',
     name: '冗長化クラスター防壁',
     kind: 'defense',
     rarity: 'uncommon',
@@ -491,6 +525,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   privilege_reset: {
     id: 'privilege_reset',
+    affiliation: 'colorless',
     name: '特権トークン失効',
     kind: 'utility',
     rarity: 'uncommon',
@@ -506,6 +541,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   ssrf_tunnel: {
     id: 'ssrf_tunnel',
+    affiliation: 'red',
     name: 'SSRF内部プロキシ侵入',
     kind: 'attack',
     rarity: 'uncommon',
@@ -523,6 +559,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   // ---------- 追加レア 6種(計8種・すべて3分岐) ----------
   kernel_panic: {
     id: 'kernel_panic',
+    affiliation: 'red',
     name: 'カーネルパニック誘発',
     kind: 'attack',
     rarity: 'rare',
@@ -539,6 +576,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   botnet_swarm: {
     id: 'botnet_swarm',
+    affiliation: 'red',
     name: '自律ボットネット斉射',
     kind: 'attack',
     rarity: 'rare',
@@ -550,11 +588,12 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     branches: [
       { id: 'swarm_mirai', name: 'メガストーム斉射', cost: 2, effects: [{ type: 'damage', amount: 6, hits: 4, target: 'all' }], text: '敵全体に6ダメージ×4回。' },
       { id: 'swarm_jam', name: '通信網飽和ジャミング', cost: 2, effects: [{ type: 'damage', amount: 5, hits: 3, target: 'all' }, { type: 'jam', amount: 2 }, { type: 'vulnerable', amount: 2 }], text: '敵全体5×3回＋全体脆弱2T＆ジャム2T。' },
-      { id: 'swarm_overheat', name: '焼夷ボットクラスター', cost: 1, effects: [{ type: 'damage', amount: 4, hits: 3, target: 'all' }, { type: 'triggerBurn', target: 'all' }], text: '1EN・敵全体4×3回＋全体のウイルスを即時発動。' },
+      { id: 'swarm_overheat', name: '焼夷ボットクラスター', affiliation: 'thermal', cost: 1, effects: [{ type: 'damage', amount: 4, hits: 3, target: 'all' }, { type: 'triggerBurn', target: 'all' }], text: '1EN・敵全体4×3回＋全体のウイルスを即時発動。' },
     ],
   },
   quantum_decrypt: {
     id: 'quantum_decrypt',
+    affiliation: 'balanced',
     name: '量子ショア暗号解読',
     kind: 'utility',
     rarity: 'rare',
@@ -571,6 +610,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   supply_chain: {
     id: 'supply_chain',
+    affiliation: 'thermal',
     name: 'サプライチェーン汚染',
     kind: 'attack',
     rarity: 'rare',
@@ -587,6 +627,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   aegis_core: {
     id: 'aegis_core',
+    affiliation: 'blue',
     name: 'イージス防衛マトリクス',
     kind: 'defense',
     rarity: 'rare',
@@ -603,6 +644,8 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   ai_fuzzer: {
     id: 'ai_fuzzer',
+    oncePerTurn: true,
+    affiliation: 'red',
     name: '自律AIエクスプロイト生成',
     kind: 'utility',
     rarity: 'rare',
@@ -619,6 +662,7 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
   },
   noise: {
     id: 'noise',
+    affiliation: 'colorless',
     name: 'ノイズ',
     kind: 'utility',
     rarity: 'common',
@@ -630,17 +674,40 @@ export const CARD_DEFINITIONS: Record<string, CardDefinition> = {
     branches: [],
     unplayable: true,
   },
+  ...OPERATOR_CARDS,
 };
 
-/** 初期デッキ(4章):SSH辞書攻撃4・ファイアウォール4・ポートスキャン1・セッションハイジャック1 */
+/** 標準侵入者の初期デッキ */
 export const STARTER_DECK_IDS: string[] = [
-  'ssh_brute', 'ssh_brute', 'ssh_brute', 'ssh_brute',
+  'ssh_brute', 'ssh_brute', 'ssh_brute', 'route_switch',
   'firewall', 'firewall', 'firewall', 'firewall',
   'port_scan',
   'session_hijack',
 ];
 
-/** 戦闘の報酬に出てくるカード(全40種・ノイズを除く) */
+/** 図鑑・入手候補の全カード(ノイズを除く) */
 export const REWARD_CARD_IDS: string[] = Object.keys(CARD_DEFINITIONS).filter((id) => !CARD_DEFINITIONS[id].unplayable);
 
 export const RARE_CARD_IDS: string[] = REWARD_CARD_IDS.filter((id) => CARD_DEFINITIONS[id].rarity === 'rare');
+
+const LOADOUT_AFFILIATION: Record<LoadoutId, CardAffiliation> = {
+  balanced: 'balanced', red_team: 'red', blue_team: 'blue', thermal_ops: 'thermal',
+};
+
+export const CARD_AFFILIATION_LABEL: Record<CardAffiliation, string> = {
+  common: '共通', balanced: '標準専用', red: 'レッド専用', blue: 'ブルー専用',
+  thermal: 'ウイルス工作員専用', colorless: '無所属',
+};
+
+function affiliationMatches(affiliation: CardAffiliation, loadoutId: LoadoutId): boolean {
+  return affiliation === 'common' || affiliation === 'colorless' || affiliation === LOADOUT_AFFILIATION[loadoutId];
+}
+
+export function canAcquireCard(defId: string, loadoutId: LoadoutId): boolean {
+  const def = CARD_DEFINITIONS[defId];
+  return Boolean(def && !def.unplayable && affiliationMatches(def.affiliation, loadoutId));
+}
+
+export function getEvolutionBranches(defId: string, loadoutId: LoadoutId) {
+  return CARD_DEFINITIONS[defId].branches.filter((branch) => !branch.affiliation || affiliationMatches(branch.affiliation, loadoutId));
+}
