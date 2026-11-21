@@ -16,6 +16,7 @@ interface MissionScreenProps {
   onBack: () => void;
 }
 
+// 図鑑に載るカードの数(ノイズのような状態異常カードは数えない。カード基地の図鑑と同じ数)
 const TOTAL_CARDS = REWARD_CARD_IDS.length;
 
 export function MissionScreen({ onSelectMission, onBack }: MissionScreenProps) {

@@ -17,7 +17,7 @@ export interface AchievementDef {
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'first_clear', icon: 'trophy', title: 'ARGUS 撃破', description: 'ランを最後まで進め、監視AI ARGUSを倒す。' },
+  { id: 'first_clear', icon: 'trophy', title: 'ボス撃破', description: 'ランを最後まで進め、最上階のボスを倒す。' },
   { id: 'elite_slayer', icon: 'zeroTrustGate', title: '強敵突破', description: 'エリート敵「ゼロトラストゲート」を撃破する。' },
   { id: 'quiz_streak_3', icon: 'brain', title: '連続診断パーフェクト', description: 'イベントマスの連続クイズで3問連続正解を達成する。' },
   { id: 'evo_collector', icon: 'evolve', title: '進化の探求者', description: 'Lv.3 進化先を累計5種類以上解放する。' },
@@ -208,6 +208,8 @@ export function recordEliteDefeat(profile: DeckProfile): DeckProfile {
 
 /** ラン終了(勝利/敗北)を戦績に記録する */
 export function recordRunResult(profile: DeckProfile, run: RunState): DeckProfile {
+  // チュートリアルは練習なので、挑戦回数・クリア回数・実績に数えない
+  if (run.tutorial) return profile;
   const cardIds = run.deck.map((c) => c.defId);
   const branches = run.deck.map((c) => c.branchId).filter((b): b is string => Boolean(b));
   return evaluateAchievements({

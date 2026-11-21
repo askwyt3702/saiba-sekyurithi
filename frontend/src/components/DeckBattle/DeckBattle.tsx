@@ -53,6 +53,8 @@ import {
   createRun,
   createTutorialTrialRun,
   getCurrentFloor,
+  getRunBoss,
+  bossShortName,
   getCurrentNode,
   getFilteredOutQuizChoiceId,
   getQuizXpReward,
@@ -101,7 +103,6 @@ import { isSoundEnabled, playSound, setSoundEnabled, type SoundEffectType } from
 import { CardArtwork } from './CardArtwork';
 import { RunMapView } from './RunMapView';
 import { OracleEncounter } from './OracleEncounter';
-import { MAP_TOTAL_FLOORS } from '../../game/deckbattle/map';
 import { EnemyArtwork } from './EnemyArtwork';
 import { GameIcon } from '../GameIcon/GameIcon';
 import { CARD_KIND_ICON as KIND_ICON, type GameIconName } from '../../game/deckbattle/icons';
@@ -572,6 +573,12 @@ function updateProfile(mutator: (p: DeckProfile) => DeckProfile): void {
   saveDeckProfile(next);
 }
 
+/** ラン中の記録(図鑑・実績・戦績・弱点ノート)を保存する。チュートリアルのランは記録しない */
+function updateProfileForRun(current: RunState, mutator: (p: DeckProfile) => DeckProfile): void {
+  if (current.tutorial) return;
+  updateProfile(mutator);
+}
+
 function createRunWithProfileCoins(
   fastGrowth: boolean,
   loadoutId: LoadoutId = 'balanced',
@@ -842,7 +849,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     (finishedBattle: BattleState) => {
       const wasElite = run.currentBattleElite;
       const resolved = applyBattleResult(run, finishedBattle, randomSeed());
-      updateProfile((p) => {
+      updateProfileForRun(run, (p) => {
         let next = recordDiscovery(
           p,
           resolved.run.deck.map((c) => c.defId),
@@ -1102,7 +1109,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     startBonusClaimed.current = true;
     const nextRun = applyStartBonus(run, bonusId, randomSeed());
     const added = nextRun.deck.filter((c) => !run.deck.some((d) => d.uid === c.uid)).map((c) => c.defId);
-    if (added.length > 0) updateProfile((p) => recordDiscovery(p, added, []));
+    if (added.length > 0) updateProfileForRun(run, (p) => recordDiscovery(p, added, []));
     setRun(nextRun);
     setPhase('map');
   };
@@ -1114,7 +1121,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     showLevelUps(res.run);
     if (res.discoveredCardId) {
       const cardId = res.discoveredCardId;
-      updateProfile((p) => recordDiscovery(p, [cardId], []));
+      updateProfileForRun(run, (p) => recordDiscovery(p, [cardId], []));
     }
     setRun(res.run);
     setMysteryView({ ...mysteryView, summary: res.summary });
@@ -1268,7 +1275,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     try {
       const next = spendCoinShop(run, action);
       const added = next.deck.filter((card) => !run.deck.some((previous) => previous.uid === card.uid));
-      if (added.length > 0) updateProfile((p) => recordDiscovery(p, added.map((card) => card.defId), []));
+      if (added.length > 0) updateProfileForRun(run, (p) => recordDiscovery(p, added.map((card) => card.defId), []));
       playSound('extract');
       setNotice(null);
       setRun(next);
@@ -1300,7 +1307,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const onChooseBranch = (cardUid: string, branchId: string) => {
     playSound('extract');
     const updated = chooseEvolution(run, cardUid, branchId);
-    updateProfile((p) => recordEvolutionUnlocked(p, branchId));
+    updateProfileForRun(run, (p) => recordEvolutionUnlocked(p, branchId));
     setRun(updated);
     if (updated.pendingEvolutions.length > 0) return;
     if (evolveOrigin === 'event') {
@@ -1330,7 +1337,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const onPickReward = (defId: string | null) => {
     const withReward = pickRewardCard(run, defId);
     playSound('click');
-    if (defId) updateProfile((p) => recordDiscovery(p, [defId], []));
+    if (defId) updateProfileForRun(run, (p) => recordDiscovery(p, [defId], []));
     setPostBattle(null);
     goToMap(withReward);
   };
@@ -1357,7 +1364,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     if (!choice) return;
     const resolved = resolveEventQuiz(run, eventView.eventId, eventView.question.id, choice.isCorrect);
     playSound(choice.isCorrect ? 'extract' : 'alert');
-    updateProfile((p) => {
+    updateProfileForRun(run, (p) => {
       let next = recordQuizOutcome(p, eventView.question.id, choice.isCorrect, eventView.step);
       if (resolved.run.status === 'lost') next = recordRunResult(next, resolved.run);
       return next;
@@ -1400,7 +1407,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       setRun((prev) => applyPatchBonus(prev, { type: 'heal', amount: 10 }));
     } else if (action.type === 'card') {
       const next = pickRewardCard(run, action.defId);
-      updateProfile((p) => recordDiscovery(p, [action.defId], []));
+      updateProfileForRun(run, (p) => recordDiscovery(p, [action.defId], []));
       setRun(next);
     } else {
       setRun((prev) => removeCardFromDeck(prev, action.cardUid));
@@ -1416,7 +1423,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       setRun((prev) => grantRelic(prev, action.relicId));
     } else {
       const next = pickRewardCard(run, action.defId);
-      updateProfile((p) => recordDiscovery(p, [action.defId], []));
+      updateProfileForRun(run, (p) => recordDiscovery(p, [action.defId], []));
       setRun(next);
     }
     setEventView({ ...eventView, stepRewardDone: true, finished: true });
@@ -1485,8 +1492,8 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         <div className="db-brand">
           <span className="db-brand__tag">SECTOR 06</span>
           <span>DECK BREACH</span>
-          <span className="db-brand__progress" aria-label={`全${MAP_TOTAL_FLOORS}段のうち${getCurrentFloor(run)}段目`}>
-            FLOOR {getCurrentFloor(run)}/{MAP_TOTAL_FLOORS}
+          <span className="db-brand__progress" aria-label={`全${run.map.floorCount}段のうち${getCurrentFloor(run)}段目`}>
+            FLOOR {getCurrentFloor(run)}/{run.map.floorCount}
           </span>
         </div>
 
@@ -2700,15 +2707,22 @@ function EventScreen({
 
 function RunResultOverlay({ run, onRetry, onBack }: { run: RunState; onRetry: () => void; onBack: () => void }) {
   const won = run.status === 'won';
+  const boss = getRunBoss(run);
   const { hoverProps, previewNode } = useCardHoverPreview(run.deck.length);
+  const title = won ? `${run.tutorial ? 'TRAINING COMPLETE' : 'RUN COMPLETE'} // ${bossShortName(boss)} 撃破` : 'CONNECTION LOST';
+  const sub = !won
+    ? '回線耐久が尽きた…。'
+    : run.tutorial
+      ? `チュートリアル完了！${boss.name}を倒した。(練習なので、戦績・実績・図鑑には記録されない)`
+      : `全${run.map.floorCount}段を突破し、${boss.name}を攻略した！`;
   return (
     <div className="db-overlay" role="dialog" aria-modal="true">
       <div className={`db-result db-result--wide ${won ? 'db-result--won' : 'db-result--lost'}`}>
-        <div className="db-result__title">{won ? 'RUN COMPLETE // ARGUS 撃破' : 'CONNECTION LOST'}</div>
-        <p className="db-result__sub">{won ? `全${MAP_TOTAL_FLOORS}段を突破し、監視AI ARGUSを攻略した！` : '回線耐久が尽きた…。'}</p>
+        <div className="db-result__title">{title}</div>
+        <p className="db-result__sub">{sub}</p>
         <div className="db-result__stats">
           <span>
-            到達した段 {getCurrentFloor(run)} / {MAP_TOTAL_FLOORS}
+            到達した段 {getCurrentFloor(run)} / {run.map.floorCount}
           </span>
           <span>
             残りHP {run.hp} / {run.maxHp}

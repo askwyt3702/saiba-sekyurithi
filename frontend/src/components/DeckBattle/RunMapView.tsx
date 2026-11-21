@@ -16,7 +16,7 @@ const NODE_INFO: Record<RunNodeKind, { icon: GameIconName; label: string; detail
   mystery: { icon: 'mystery', label: 'ハプニング', detail: '予期せぬ出来事が起こる。内容を見て行動を選ぶ。', reward: 'カードやコインなど、出来事と選択によって変わる。' },
   shop: { icon: 'shop', label: '闇市', detail: '解析コインを使って補給する。', reward: 'HP回復、ツール、カード削除、常駐ツールなどと交換できる。' },
   rest: { icon: 'rest', label: '休憩', detail: '戦闘を休んで、回線やデッキを整える。', reward: 'HP回復・カード強化・カード削除から1つ選ぶ。' },
-  boss: { icon: 'boss', label: 'ボス', detail: '最上階で監視AI「ARGUS」に挑む。', reward: '撃破するとランをクリア。' },
+  boss: { icon: 'boss', label: 'ボス', detail: '最上階のボスに挑む。ボスはランごとに3体から選ばれ、弱点がそれぞれ違う。', reward: '撃破するとランをクリア。' },
 };
 
 const FLOOR_LABELS: Record<string, string> = {

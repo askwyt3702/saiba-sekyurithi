@@ -4,7 +4,8 @@ import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityL
 import { createBattle, getCardDefinition } from './battle';
 import { canAcquireCard, getEvolutionBranches, RARE_CARD_IDS, REWARD_CARD_IDS } from './cards';
 import { ALL_RELIC_IDS, FORENSICS_LAB_XP, RELIC_DEFINITIONS, SIPHON_MODULE_HEAL } from './relics';
-import { generateRunMap } from './map';
+import { ENEMY_DEFINITIONS } from './enemies';
+import { BOSS_ENEMY_IDS, generateRunMap } from './map';
 import { nextRandom, shuffled } from './rng';
 import {
   ALL_MYSTERY_EVENT_IDS,
@@ -16,6 +17,7 @@ import type {
   BattleState,
   CardInstance,
   CardLevel,
+  EnemyDefinition,
   LoadoutId,
   MysteryEventId,
   RelicId,
@@ -73,6 +75,7 @@ export function createTutorialTrialRun(): RunState {
   const t2: RunNode = { id: 't2', floor: 1, col: 3, kind: 'boss', next: [], enemyIds: ['argus_tutorial'] };
   return {
     status: 'playing',
+    tutorial: true,
     deck,
     hp: PLAYER_MAX_HP,
     maxHp: PLAYER_MAX_HP,
@@ -176,6 +179,17 @@ export function getNextNodes(run: RunState): RunNode[] {
 /** 今いるマスが何段目か(1から数える。ボスは13) */
 export function getCurrentFloor(run: RunState): number {
   return getCurrentNode(run).floor + 1;
+}
+
+/** このランのボス(マップの最上階の敵)。ボスはランごとに選ばれるので、画面の名前はここから出す */
+export function getRunBoss(run: RunState): EnemyDefinition {
+  const id = run.map.nodes[run.map.bossId]?.enemyIds?.[0] ?? BOSS_ENEMY_IDS[0];
+  return ENEMY_DEFINITIONS[id];
+}
+
+/** ボスの短い呼び名(「監視AI ARGUS」→「ARGUS」)。結果画面の見出しに使う */
+export function bossShortName(boss: EnemyDefinition): string {
+  return boss.name.split(' ').pop() ?? boss.name;
 }
 
 /** 次のマスへ進む(線でつながったマスだけ選べる) */

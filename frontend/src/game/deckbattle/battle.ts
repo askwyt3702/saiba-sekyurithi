@@ -3,6 +3,7 @@
 import { CARD_DEFINITIONS } from './cards';
 import { ENEMY_DEFINITIONS } from './enemies';
 import { ADAPTIVE_FILTER_FW, RELIC_DEFINITIONS, THERMAL_CORE_BURN, THORN_DAEMON_RETALIATE } from './relics';
+import { SECURITY_ATTACK_BONUS, SECURITY_BOSS_ATTACK_BONUS } from './roguelike';
 import { shuffled } from './rng';
 import { TOOL_DEFINITIONS } from './tools';
 import type {
@@ -99,10 +100,12 @@ export function getEnemyIntent(enemy: EnemyState): EnemyMove {
   const move = pattern[enemy.moveIndex % pattern.length];
   const factor = enemy.jammed && enemy.jammed > 0 ? 0.7 : 1;
   if (move.type === 'attack') {
-    return { ...move, amount: Math.floor((move.amount + enemy.attackBonus) * factor) };
+    // 高難度の上乗せは1回の攻撃ぶん。連撃では1発あたりに分ける(切り上げ)。1発ごとに足すと連撃の敵だけ極端に強くなるため
+    const security = Math.ceil(enemy.securityBonus / (move.hits ?? 1));
+    return { ...move, amount: Math.floor((move.amount + enemy.attackBonus + security) * factor) };
   }
   if (move.type === 'blockAttack') {
-    return { ...move, amount: Math.floor((move.amount + enemy.attackBonus) * factor) };
+    return { ...move, amount: Math.floor((move.amount + enemy.attackBonus + enemy.securityBonus) * factor) };
   }
   return move;
 }
@@ -143,10 +146,10 @@ export function createBattle({
     const offset = seen[id] ?? 0;
     seen[id] = offset + 1;
     let maxHp = securityLevel >= 1 ? Math.round(def.maxHp * 1.15) : def.maxHp;
-    let attackBonus = securityLevel >= 2 ? 2 : 0;
+    let securityBonus = securityLevel >= 2 ? SECURITY_ATTACK_BONUS : 0;
     if (securityLevel >= 5 && def.phase2) {
       maxHp = Math.round(maxHp * 1.2);
-      attackBonus += 2;
+      securityBonus += SECURITY_BOSS_ATTACK_BONUS;
     }
     return {
       uid: `e${index + 1}`,
@@ -157,7 +160,8 @@ export function createBattle({
       maxHp,
       block: 0,
       weakness: def.weakness,
-      attackBonus,
+      attackBonus: 0,
+      securityBonus,
       moveIndex: offset % def.pattern.length,
       phase: 1,
       vulnerable: relics.includes('weak_scanner') ? 2 : undefined,

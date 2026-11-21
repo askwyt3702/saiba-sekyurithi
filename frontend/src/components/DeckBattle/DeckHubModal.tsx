@@ -339,7 +339,7 @@ export function DeckHubModal({ onClose, initialTab = 'codex' }: DeckHubModalProp
                 <strong>{profile.stats.runsPlayed} 回</strong>
               </div>
               <div className="db-stat-box">
-                <span className="db-muted">クリア回数 (ARGUS撃破)</span>
+                <span className="db-muted">クリア回数 (ボス撃破)</span>
                 <strong>
                   {profile.stats.runsWon} 回 ({winRate}%)
                 </strong>

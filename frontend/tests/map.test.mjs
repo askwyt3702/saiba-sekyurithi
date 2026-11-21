@@ -194,3 +194,16 @@ test('ボスは3種のバリエーション(ARGUS / AEGIS-OMEGA / HYDRA-NET)か�
   }
   assert.equal(seen.size, 3, `expected 3 boss variants, got ${[...seen].join(', ')}`);
 });
+
+test('画面に出すボスの名前は、そのランで選ばれたボスのもの', () => {
+  for (const seed of SEEDS.slice(0, 30)) {
+    const r = run.createRun({ mapSeed: seed });
+    const bossId = r.map.nodes[r.map.bossId].enemyIds[0];
+    const boss = run.getRunBoss(r);
+    assert.equal(boss.id, bossId);
+    const short = run.bossShortName(boss);
+    assert.ok(short.length > 0 && boss.name.endsWith(short), `${boss.name} → ${short}`);
+  }
+  // チュートリアルは訓練機
+  assert.equal(run.getRunBoss(run.createTutorialTrialRun()).id, 'argus_tutorial');
+});

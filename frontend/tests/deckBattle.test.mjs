@@ -31,6 +31,7 @@ function load(url) {
 const battle = load(new URL('../src/game/deckbattle/battle.ts', import.meta.url));
 const run = load(new URL('../src/game/deckbattle/run.ts', import.meta.url));
 const { ENEMY_DEFINITIONS } = load(new URL('../src/game/deckbattle/enemies.ts', import.meta.url));
+const rogue = load(new URL('../src/game/deckbattle/roguelike.ts', import.meta.url));
 
 // 敵の数値は調整で変わるので、テストでは定義から読む
 const hp = (id) => ENEMY_DEFINITIONS[id].maxHp;
@@ -785,7 +786,8 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
   assert.ok(r.relics.includes('auto_scraper'));
   const b = run.createBattleForCurrentNode(atNode(r, isScannerBattle), 1);
   assert.ok(b.enemies[0].maxHp > hp('scanner_bot'), 'Lv.1以上で敵HP増加');
-  assert.equal(b.enemies[0].attackBonus, 2, 'Lv.2以上で敵攻撃力+2');
+  assert.equal(b.enemies[0].securityBonus, rogue.SECURITY_ATTACK_BONUS, 'Lv.2以上で敵攻撃力が上がる');
+  assert.equal(b.enemies[0].attackBonus, 0, '戦闘中の強化(buff)の分とは別に持つ');
   assert.equal(b.discard.length, 1, 'Lv.4以上でノイズ1枚が捨て札に混入');
 
   // 2. 新規常駐装備(thermal_core / thorn_daemon / overclock_bus / weak_scanner)
@@ -820,6 +822,53 @@ test('ローグライク拡張: 初期ビルド・高難度・休憩マス・ハ
   const m2 = run.resolveMysteryChoice(run.createRun(), 'overclock_terminal', 'extract_relic', 7);
   assert.equal(m2.run.hp, 57);
   assert.equal(m2.run.relics.length, 1);
+});
+
+test('高難度の攻撃力の上乗せは1回の攻撃ぶんで、連撃では1発あたりに分けられ、強化解除では消えない', () => {
+  const create = (enemyIds, securityLevel) =>
+    battle.createBattle({ deck: [{ uid: 'c1', defId: 'privilege_reset', level: 1, xp: 0 }], playerHp: 65, playerMaxHp: 65, enemyIds, seed: 1, securityLevel });
+  const bonus = rogue.SECURITY_ATTACK_BONUS;
+
+  // 1発の攻撃:上乗せがそのまま乗る
+  const single = move('scanner_bot', 0);
+  assert.equal((single.hits ?? 1), 1);
+  assert.equal(battle.getEnemyIntent(create(['scanner_bot'], 2).enemies[0]).amount, single.amount + bonus);
+
+  // 連撃:1発あたりは 上乗せ÷発数(切り上げ)
+  const multi = move('hydra_net', 0);
+  assert.ok(multi.hits >= 2);
+  const hydra = create(['hydra_net'], 2).enemies[0];
+  assert.equal(battle.getEnemyIntent(hydra).amount, multi.amount + Math.ceil(bonus / multi.hits));
+  assert.equal(battle.getEnemyIntent(create(['hydra_net'], 0).enemies[0]).amount, multi.amount, 'Lv.0 では上乗せなし');
+
+  // Lv.5 のボスはさらに上乗せ(連撃なら1発あたりに分ける)
+  const boss5 = create(['hydra_net'], 5).enemies[0];
+  const bossBonus = bonus + rogue.SECURITY_BOSS_ATTACK_BONUS;
+  assert.equal(boss5.securityBonus, bossBonus);
+  assert.equal(battle.getEnemyIntent(boss5).amount, multi.amount + Math.ceil(bossBonus / multi.hits));
+
+  // 強化解除(privilege_reset)は戦闘中の強化だけを消し、高難度の上乗せは残る
+  let s = JSON.parse(JSON.stringify(create(['scanner_bot'], 2)));
+  s.hand = ['c1'];
+  s.drawPile = [];
+  s.enemies[0].attackBonus = 3;
+  s = play(s, 'c1', s.enemies[0].uid);
+  assert.equal(s.enemies[0].attackBonus, 0);
+  assert.equal(s.enemies[0].securityBonus, bonus);
+});
+
+test('チュートリアルのランは、戦績・実績に記録されない', () => {
+  const profileMod = load(new URL('../src/game/deckbattle/profile.ts', import.meta.url));
+  const tutorial = run.createTutorialTrialRun();
+  assert.equal(tutorial.tutorial, true);
+  assert.notEqual(run.createRun().tutorial, true);
+  const empty = profileMod.loadDeckProfile({ getItem: () => null, setItem: () => {} });
+  const afterTutorial = profileMod.recordRunResult(empty, { ...tutorial, status: 'won' });
+  assert.equal(afterTutorial.stats.runsPlayed, 0);
+  assert.equal(afterTutorial.stats.runsWon, 0);
+  assert.equal(afterTutorial.achievements.includes('first_clear'), false);
+  const afterRun = profileMod.recordRunResult(empty, { ...run.createRun(), status: 'won' });
+  assert.equal(afterRun.stats.runsWon, 1);
 });
 
 test('戦闘ログはHPダメージとFW減少を区別し、実際の回復量を表示する', () => {

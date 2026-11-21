@@ -143,8 +143,10 @@ export interface EnemyState {
   maxHp: number;
   block: number;
   weakness: EnemyWeakness;
-  /** 戦闘中ずっと乗る攻撃力の上乗せ */
+  /** 戦闘中に強化(buff)で増えた攻撃力の上乗せ。1発ごとに乗る。「強化解除」で0に戻る */
   attackBonus: number;
+  /** 高難度モードの攻撃力の上乗せ。1回の攻撃ぶんで、連撃では1発あたりに分ける。「強化解除」では消えない */
+  securityBonus: number;
   /** pattern の何番目を次に行うか */
   moveIndex: number;
   phase: 1 | 2;
@@ -323,6 +325,8 @@ export interface XpGainEntry {
 
 export interface RunState {
   status: 'playing' | 'won' | 'lost';
+  /** チュートリアルのラン。図鑑・実績・戦績には記録しない */
+  tutorial?: boolean;
   deck: CardInstance[];
   hp: number;
   maxHp: number;
