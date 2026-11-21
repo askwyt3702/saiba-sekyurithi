@@ -15,6 +15,7 @@ import {
   playCard,
   activateBattleTool,
 } from '../../game/deckbattle/battle';
+import { getCardTelemetry } from '../../game/deckbattle/attackTelemetry';
 import { ENEMY_DEFINITIONS, WEAKNESS_LABEL } from '../../game/deckbattle/enemies';
 import {
   type DeckProfile,
@@ -141,6 +142,9 @@ interface ActionBanner {
   icon: GameIconName;
   title: string;
   detail?: string;
+  tag?: string;
+  command?: string;
+  lore?: string;
   isAoe?: boolean;
   power?: FxPower;
 }
@@ -873,7 +877,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
         playSound(action.kind === 'attack' ? 'breach' : action.kind === 'defense' ? 'recover' : 'scan');
         const title = frame.damageKind === 'burn' ? '過熱ダメージ'
           : events.length > 1 ? `${action.title} · ${next + 1}/${events.length}` : action.title;
-        showBanner({ ...action, title, power }, events.length > 1 ? HIT_STEP_MS : FX_MS);
+        showBanner({ ...action, title, power }, finalFrame && action.command ? 1850 : events.length > 1 ? HIT_STEP_MS : FX_MS);
         setPlayback({ ...playback, index: next });
       }, next === 0 ? (playback.playedCard ? CARD_TRAVEL_MS : 0) : HIT_STEP_MS);
     }
@@ -1106,12 +1110,16 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     const stats = getCardStats(card);
     const kind = def.kind;
     const isAoe = stats.effects.some((e) => 'target' in e && e.target === 'all');
+    const telemetry = getCardTelemetry(card.defId);
     const banner: Omit<ActionBanner, 'id'> = {
       actor: 'player',
       kind,
       icon: KIND_ICON[kind],
       title: stats.name,
       detail: stats.text,
+      tag: telemetry.tag,
+      command: telemetry.command,
+      lore: def.lore,
       isAoe,
     };
     const enemy = targetUid ?? livingEnemies(battle)[0]?.uid;
@@ -1588,6 +1596,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     className={[
                       'db-action-banner',
                       `db-action-banner--${banner.kind}`,
+                      banner.command ? 'db-action-banner--terminal' : '',
                       banner.power && banner.power !== 'normal' ? `db-action-banner--power-${banner.power}` : '',
                     ]
                       .filter(Boolean)
@@ -1595,9 +1604,20 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                     role="status"
                     aria-live="polite"
                   >
-                    <span className="db-action-banner__icon"><GameIcon name={banner.icon} /></span>
-                    <span className="db-action-banner__title">{banner.title}</span>
-                    {banner.detail && <span className="db-action-banner__detail">{banner.detail}</span>}
+                    <div className="db-action-banner__head">
+                      <span className="db-action-banner__icon"><GameIcon name={banner.icon} /></span>
+                      {banner.tag && <span className="db-action-banner__tag">{banner.tag}</span>}
+                      <span className="db-action-banner__title">{banner.title}</span>
+                      {banner.detail && <span className="db-action-banner__detail">{banner.detail}</span>}
+                    </div>
+                    {banner.command && (
+                      <div className="db-action-banner__cmd">
+                        <span className="db-action-banner__prompt">$</span> {banner.command}
+                      </div>
+                    )}
+                    {banner.lore && (
+                      <div className="db-action-banner__lore">{banner.lore}</div>
+                    )}
                   </div>
                 </>
               )}
@@ -2040,10 +2060,13 @@ function CardPreviewPanel({
   const def = getCardDefinition(card.defId);
   const stats = getCardStats(card);
   const xpProg = getXpProgress(card);
+  const telemetry = getCardTelemetry(card.defId);
 
   return (
     <aside className={`db-card-preview-panel ${className}`.trim()} aria-label="カードプレビュー">
-      <div className="db-card-preview-float__tag">CARD PREVIEW // {card.uid}</div>
+      <div className="db-card-preview-float__tag">
+        {telemetry.tag} // {card.uid}
+      </div>
       <div className={`db-card db-card--${def.kind} db-card--${def.rarity} db-card--preview-large`}>
         <span className={`db-card__cost ${cost !== undefined && cost < stats.cost ? 'db-card__cost--discounted' : ''}`}>
           {def.unplayable ? '×' : cost ?? stats.cost}
@@ -2054,6 +2077,9 @@ function CardPreviewPanel({
         <span className="db-card__desc"><EffectText text={stats.text} /></span>
         <span className="db-card__lore">{def.lore}</span>
         <span className="db-card__level">{xpProg.label}</span>
+      </div>
+      <div className="db-card-preview-float__cmd" title="実行される攻撃・防御コマンドの例">
+        <span>$</span> {telemetry.command}
       </div>
       <div className="db-card-preview-float__next">
         {card.level === 1 && (
