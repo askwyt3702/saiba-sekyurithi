@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isBgmEnabled, setBgmEnabled } from '../../game/sound/bgm';
 import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
 import { GameIcon } from '../GameIcon/GameIcon';
 import './TitleScreen.css';
@@ -11,6 +12,7 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
   const [isSettingOpen, setIsSettingOpen] = useState(false);
   const [bgMotion, setBgMotion] = useState(true);
   const [seEnabled, setSeEnabled] = useState(() => isSoundEnabled());
+  const [bgmEnabled, setBgmEnabledState] = useState(() => isBgmEnabled());
 
   const handleToggleSe = () => {
     const next = !seEnabled;
@@ -109,6 +111,28 @@ export function TitleScreen({ onStart }: TitleScreenProps) {
                   onClick={handleToggleSe}
                 >
                   {seEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              {/* 設定項目：BGM */}
+              <div className="ts-setting-row">
+                <div>
+                  <div className="ts-setting-name">BGM</div>
+                  <div className="ts-setting-desc">
+                    プレイ中に流れる音楽。戦況・ボス戦に応じて緊張感が増します
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`ts-toggle-btn ${bgmEnabled ? 'is-on' : 'is-off'}`}
+                  onClick={() => {
+                    const next = !bgmEnabled;
+                    playSound('click');
+                    setBgmEnabledState(next);
+                    setBgmEnabled(next);
+                  }}
+                >
+                  {bgmEnabled ? 'ON' : 'OFF'}
                 </button>
               </div>
 

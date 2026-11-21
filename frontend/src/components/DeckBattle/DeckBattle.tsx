@@ -89,7 +89,8 @@ import type {
   ToolId,
   XpGainEntry,
 } from '../../game/deckbattle/types';
-import { playSound } from '../../game/sound/soundEffects';
+import { bgm, isBgmEnabled, setBgmEnabled } from '../../game/sound/bgm';
+import { isSoundEnabled, playSound, setSoundEnabled } from '../../game/sound/soundEffects';
 import { CardArtwork } from './CardArtwork';
 import { RunMapView } from './RunMapView';
 import { OracleEncounter } from './OracleEncounter';
@@ -706,6 +707,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   }, []);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
+  const [audioOn, setAudioOn] = useState(() => isSoundEnabled() || isBgmEnabled());
   const [notice, setNotice] = useState<string | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [fx, setFx] = useState<Fx[]>([]);
@@ -964,6 +966,19 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
     setRun((prev) => ({ ...prev, fastGrowth: !prev.fastGrowth }));
   };
 
+  const toggleAudio = () => {
+    const next = !audioOn;
+    setAudioOn(next);
+    setSoundEnabled(next);
+    setBgmEnabled(next);
+    if (next) {
+      playSound('scan');
+      bgm.start();
+    } else {
+      bgm.stop();
+    }
+  };
+
   const enterNode = (nextRun: RunState) => {
     actionLocked.current = false;
     clearMotion();
@@ -1083,6 +1098,7 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
       playSound('alert');
       return;
     }
+    playSound('click');
     const card = battle.cards[uid];
     const source = document.querySelector(`[data-growth-card="${CSS.escape(uid)}"]`)?.getBoundingClientRect();
     if (source) cardPositions.current.set(uid, source);
@@ -1359,6 +1375,25 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
   const { player, modifiers } = shown;
   const hpRatio = Math.max(0, player.hp / player.maxHp);
   const isBoss = getCurrentNode(run).kind === 'boss';
+
+  useEffect(() => {
+    if (!audioOn || !isBgmEnabled()) {
+      bgm.stop();
+      return;
+    }
+    bgm.start();
+    return () => bgm.stop();
+  }, [audioOn]);
+
+  useEffect(() => {
+    const intensity =
+      phase === 'battle' && (isBoss || hpRatio <= 0.25)
+        ? 2
+        : phase === 'battle' && (run.currentBattleElite || hpRatio <= 0.5)
+          ? 1
+          : 0;
+    bgm.setIntensity(intensity);
+  }, [phase, isBoss, run.currentBattleElite, hpRatio]);
   const playsThisBattle = Object.values(shown.usesThisBattle).reduce((sum, n) => sum + n, 0);
   const turn1Coach =
     turn1CoachActive &&
@@ -1398,6 +1433,9 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
             <GameIcon name="hp" /> HP {phase === 'battle' ? shown.player.hp : run.hp}/{phase === 'battle' ? shown.player.maxHp : run.maxHp}
           </span>
           <span className="db-chip db-chip--buff"><GameIcon name="coin" /> 解析コイン {run.reconCoins}枚</span>
+          <button type="button" className="db-btn db-btn--ghost" onClick={toggleAudio} title="BGM・効果音のON/OFF切替">
+            {audioOn ? '🔊 音:ON' : '🔇 音:OFF'}
+          </button>
           <button type="button" className="db-btn db-btn--ghost" onClick={() => setShowDeckModal(true)}>
             デッキ ({run.deck.length})
           </button>
