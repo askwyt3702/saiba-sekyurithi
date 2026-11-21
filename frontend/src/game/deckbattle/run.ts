@@ -4,6 +4,7 @@ import { getQuizQuestionsByType, type DeckQuizQuestion } from '../data/securityL
 import { createBattle, getCardDefinition } from './battle';
 import { RARE_CARD_IDS, REWARD_CARD_IDS } from './cards';
 import { ALL_RELIC_IDS, FORENSICS_LAB_XP, RELIC_DEFINITIONS, SIPHON_MODULE_HEAL } from './relics';
+import { generateRunMap } from './map';
 import { nextRandom, shuffled } from './rng';
 import {
   ALL_MYSTERY_EVENT_IDS,
@@ -21,6 +22,7 @@ import type {
   RunEventId,
   RunNode,
   RunState,
+  StartBonusId,
   ToolId,
   XpGainEntry,
 } from './types';
@@ -38,45 +40,44 @@ export const RECON_COIN_DROP_RATE = 0.2;
 export const STARTING_RECON_COINS = 2;
 export const REST_HEAL_RATIO = 0.35;
 
-/** 序盤でカードを育て、中盤の闇市と3回の休憩を経てボスに向かう16マス。 */
-export const DEFAULT_RUN_NODES: RunNode[] = [
-  { kind: 'battle', enemyIds: ['scanner_bot'] },
-  { kind: 'event', eventId: 'vuln_check' },
-  { kind: 'battle', enemyIds: ['ids_sensor', 'ids_sensor'] },
-  { kind: 'rest' },
-  { kind: 'battle', enemyIds: ['scanner_bot', 'ids_sensor'] },
-  { kind: 'mystery' },
-  { kind: 'battle', enemyIds: ['firewall_ai'], eliteEnemyIds: ['zero_trust_gate'] },
-  { kind: 'shop' },
-  { kind: 'event', eventId: 'patch' },
-  { kind: 'rest' },
-  { kind: 'battle', enemyIds: ['firewall_ai', 'scanner_bot'] },
-  { kind: 'mystery' },
-  { kind: 'battle', enemyIds: ['firewall_ai', 'ids_sensor'] },
-  { kind: 'battle', enemyIds: ['zero_trust_gate', 'scanner_bot'] },
-  { kind: 'rest' },
-  { kind: 'boss', enemyIds: ['argus'] },
-];
+/** マップの種を指定しないときに使う種(テストで同じマップにするため。画面では毎回ランダムな種を渡す) */
+export const DEFAULT_MAP_SEED = 20261121;
+
+/** 起動ノードで選べる強化の中身(画面に出す名前と説明) */
+export const START_BONUS_DEFINITIONS: Record<StartBonusId, { name: string; description: string }> = {
+  relic: { name: '常駐ツールを1つ', description: 'ランダムな常駐ツールを1つ持って出発する。' },
+  tools: { name: '使い捨てツールを補充', description: `使い捨てツールを上限(${MAX_TOOLS}個)まで補充して出発する。` },
+  max_hp: { name: '最大HP +8', description: '最大HPが8増え、HPも8回復する(このランの間)。' },
+  coins: { name: '解析コイン +3', description: '闇市やクイズの事前調査で使える解析コインが3枚増える。' },
+  rare_card: { name: 'レアカードを1枚', description: 'ランダムなレアカードを1枚デッキに入れる。' },
+};
+export const ALL_START_BONUS_IDS = Object.keys(START_BONUS_DEFINITIONS) as StartBonusId[];
+/** 起動ノードで出す強化の数 */
+export const START_BONUS_CHOICES = 3;
 
 export function createCardInstance(defId: string, uid: string): CardInstance {
   return { uid, defId, level: 1, xp: 0 };
 }
 
 export function createRun(
-  options: { fastGrowth?: boolean; loadoutId?: LoadoutId; securityLevel?: number } = {},
+  options: { fastGrowth?: boolean; loadoutId?: LoadoutId; securityLevel?: number; mapSeed?: number } = {},
 ): RunState {
   const loadoutId: LoadoutId = options.loadoutId ?? 'balanced';
   const loadout = LOADOUT_DEFINITIONS[loadoutId] ?? LOADOUT_DEFINITIONS.balanced;
   const securityLevel = Math.max(0, Math.min(MAX_SECURITY_LEVEL, Math.floor(options.securityLevel ?? 0)));
   const maxHp = Math.max(25, loadout.maxHp - (securityLevel >= 3 ? 10 : 0));
   const deck = loadout.deckIds.map((defId, i) => createCardInstance(defId, `c${i + 1}`));
+  const mapSeed = options.mapSeed ?? DEFAULT_MAP_SEED;
+  const map = generateRunMap(mapSeed);
   return {
     status: 'playing',
     deck,
     hp: maxHp,
     maxHp,
-    nodes: DEFAULT_RUN_NODES.map((n) => ({ ...n })),
-    nodeIndex: 0,
+    map,
+    currentNodeId: map.startId,
+    visitedNodeIds: [map.startId],
+    startBonusChoices: shuffled(ALL_START_BONUS_IDS, mapSeed + 7).items.slice(0, START_BONUS_CHOICES),
     relics: [...loadout.relics],
     tools: [...loadout.tools],
     reconCoins: STARTING_RECON_COINS,
@@ -114,11 +115,75 @@ export function getXpProgress(card: CardInstance): { label: string; remainingToN
   return { label: 'Lv.3 MAX', remainingToNext: 0 };
 }
 
-/** 今のマスが戦闘(またはボス)なら、その戦闘を作る */
-export function createBattleForCurrentNode(run: RunState, seed: number, useElite = false): BattleState {
-  const node = run.nodes[run.nodeIndex];
-  if (node?.kind !== 'battle' && node?.kind !== 'boss') throw new Error('current node is not a battle');
-  const enemyIds = useElite && node.kind === 'battle' && node.eliteEnemyIds ? node.eliteEnemyIds : node.enemyIds;
+/** 今いるマス */
+export function getCurrentNode(run: RunState): RunNode {
+  return run.map.nodes[run.currentNodeId];
+}
+
+/** 今いるマスから次に進めるマス */
+export function getNextNodes(run: RunState): RunNode[] {
+  return getCurrentNode(run).next.map((id) => run.map.nodes[id]);
+}
+
+/** 今いるマスが何段目か(1から数える。ボスは13) */
+export function getCurrentFloor(run: RunState): number {
+  return getCurrentNode(run).floor + 1;
+}
+
+/** 次のマスへ進む(線でつながったマスだけ選べる) */
+export function moveToNode(run: RunState, nodeId: string): RunState {
+  if (run.pendingEvolutions.length > 0) {
+    throw new Error('進化先の選択が終わるまで次のマスに進めません');
+  }
+  if (run.startBonusChoices.length > 0) {
+    throw new Error('起動ノードの強化を選んでから出発してください');
+  }
+  if (run.status !== 'playing') return run;
+  if (!getCurrentNode(run).next.includes(nodeId)) {
+    throw new Error(`そのマスには進めません: ${nodeId}`);
+  }
+  const node = run.map.nodes[nodeId];
+  return {
+    ...run,
+    currentNodeId: nodeId,
+    visitedNodeIds: [...run.visitedNodeIds, nodeId],
+    currentBattleElite: node.kind === 'elite',
+  };
+}
+
+/** 起動ノードの強化を受け取る(選べる候補の中からだけ) */
+export function applyStartBonus(run: RunState, bonusId: StartBonusId, seed: number): RunState {
+  if (!run.startBonusChoices.includes(bonusId)) {
+    throw new Error(`その強化は選べません: ${bonusId}`);
+  }
+  const next: RunState = { ...run, startBonusChoices: [] };
+  switch (bonusId) {
+    case 'relic': {
+      const relic = pickAvailableRelic(next, seed);
+      return relic ? grantRelic(next, relic) : next;
+    }
+    case 'tools': {
+      const tools = [...next.tools];
+      const pool = shuffled(ALL_TOOL_IDS, seed).items;
+      for (let i = 0; tools.length < MAX_TOOLS; i++) tools.push(pool[i % pool.length]);
+      return { ...next, tools };
+    }
+    case 'max_hp':
+      return { ...next, maxHp: next.maxHp + 8, hp: next.hp + 8 };
+    case 'coins':
+      return { ...next, reconCoins: next.reconCoins + 3 };
+    case 'rare_card':
+      return pickRewardCard(next, shuffled(RARE_CARD_IDS, seed).items[0]);
+  }
+}
+
+/** 今のマスが戦闘・強敵・ボスなら、その戦闘を作る */
+export function createBattleForCurrentNode(run: RunState, seed: number): BattleState {
+  const node = getCurrentNode(run);
+  if ((node.kind !== 'battle' && node.kind !== 'elite' && node.kind !== 'boss') || !node.enemyIds) {
+    throw new Error('current node is not a battle');
+  }
+  const enemyIds = node.enemyIds;
   return createBattle({
     deck: run.deck,
     playerHp: run.hp,
@@ -191,8 +256,7 @@ export function applyBattleResult(run: RunState, battle: BattleState, rewardSeed
     throw new Error('battle is not finished');
   }
 
-  const node = run.nodes[run.nodeIndex];
-  const isBoss = node?.kind === 'boss';
+  const isBoss = getCurrentNode(run).kind === 'boss';
   const baseHp = Math.max(1, Math.min(run.maxHp, battle.player.hp));
   const siphonBonus = run.relics.includes('siphon_module') ? SIPHON_MODULE_HEAL : 0;
   const healAmount = isBoss ? 0 : Math.floor(run.maxHp * BATTLE_WIN_HEAL_RATIO) + siphonBonus;
@@ -284,7 +348,7 @@ export type CoinShopAction =
 
 /** 解析コインの闇市ショップで交換する */
 export function spendCoinShop(run: RunState, action: CoinShopAction): RunState {
-  if (run.status !== 'playing' || run.nodes[run.nodeIndex]?.kind !== 'shop') {
+  if (run.status !== 'playing' || getCurrentNode(run).kind !== 'shop') {
     throw new Error('闇市マスでのみ交換できます');
   }
   switch (action.type) {
@@ -350,16 +414,6 @@ export function pickRewardCard(run: RunState, defId: string | null): RunState {
     deck: [...run.deck, newCard],
     nextUid: run.nextUid + 1,
   };
-}
-
-/** 進化待ちが残っていないことを確認して次のマスへ進む */
-export function advanceToNextNode(run: RunState): RunState {
-  if (run.pendingEvolutions.length > 0) {
-    throw new Error('進化先の選択が終わるまで次のマスに進めません');
-  }
-  if (run.status !== 'playing') return run;
-  const nextIndex = Math.min(run.nodes.length - 1, run.nodeIndex + 1);
-  return { ...run, nodeIndex: nextIndex };
 }
 
 /** イベントマスの問題を1問選ぶ(同じランで同じ問題は出さない) */

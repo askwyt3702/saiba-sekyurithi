@@ -51,6 +51,8 @@ export const GAME_ICON_NAMES = [
   'sprout',
   'target',
   'unknown',
+  'start',
+  'map',
   'brain',
   'scannerBot',
   'idsSensor',

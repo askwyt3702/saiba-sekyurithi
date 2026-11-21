@@ -3,11 +3,12 @@
 import { GLOSSARY } from './glossary';
 import type { GameIconName } from './icons';
 import { DRAW_PER_TURN, ENERGY_PER_TURN, MAX_HAND_SIZE } from './battle';
-import { describeEnemyGroup } from './enemies';
+import { FLOOR_PLAN, MAP_TOTAL_FLOORS } from './map';
 import type { StorageLike } from './profile';
 import {
   BATTLE_WIN_HEAL_RATIO,
-  DEFAULT_RUN_NODES,
+  START_BONUS_CHOICES,
+  START_BONUS_DEFINITIONS,
   MAX_BATTLE_XP,
   MAX_EVENT_STREAK,
   QUIZ_XP_REWARD,
@@ -20,7 +21,6 @@ import {
 } from './run';
 import { LOADOUT_DEFINITIONS, MAX_SECURITY_LEVEL } from './roguelike';
 import { MAX_TOOLS } from './tools';
-import type { RunNode } from './types';
 
 export interface HowToPlayItem {
   /** 用語やアイコン(太字で出す) */
@@ -37,18 +37,31 @@ export interface HowToPlayPage {
 
 export const HOW_TO_PLAY_SEEN_KEY = 'cyber_mystery_deck_how_to_play_seen_v1';
 
-function describeNode(node: RunNode): string {
-  if (node.kind === 'event') return node.eventId === 'vuln_check' ? 'クイズ(脆弱性診断)' : 'クイズ(パッチ適用)';
-  if (node.kind === 'mystery') return 'ハプニング';
-  if (node.kind === 'rest') return '休憩・保守';
-  if (node.kind === 'shop') return '闇市';
-  const label = describeEnemyGroup(node.enemyIds);
-  if (node.kind === 'boss') return `ボス:${label}`;
-  return node.eliteEnemyIds ? `戦闘:${label}(強敵ルートも選べる)` : `戦闘:${label}`;
+const KIND_LABEL: Record<string, string> = {
+  start: '起動ノード',
+  shop: '全部が闇市',
+  rest: '全部が休憩',
+};
+
+/** 段の役割の説明(map.ts の FLOOR_PLAN から作る) */
+function describeFloorPlan(): string {
+  const parts: string[] = [];
+  let from = 0;
+  for (let i = 1; i <= FLOOR_PLAN.length; i++) {
+    const prev = FLOOR_PLAN[from];
+    const cur = FLOOR_PLAN[i];
+    if (cur && cur.name === prev.name) continue;
+    const range = from + 1 === i ? `${from + 1}段目` : `${from + 1}〜${i}段目`;
+    const what = prev.fixed ? KIND_LABEL[prev.fixed] ?? prev.fixed : prev.name === 'EARLY' ? '序盤(戦闘・クイズ・ハプニング)' : prev.name === 'MID' ? '中盤(強敵・休憩が出始める)' : '終盤(強敵が増える)';
+    parts.push(`${range}:${what}`);
+    from = i;
+  }
+  parts.push(`${MAP_TOTAL_FLOORS}段目:ボス`);
+  return parts.join(' → ');
 }
 
 export function buildHowToPlayPages(): HowToPlayPage[] {
-  const route = DEFAULT_RUN_NODES.map((n, i) => `${i + 1}. ${describeNode(n)}`).join(' → ');
+  const bonusNames = Object.values(START_BONUS_DEFINITIONS).map((b) => b.name).join('・');
   const loadouts = Object.values(LOADOUT_DEFINITIONS);
   const hps = loadouts.map((l) => l.maxHp);
   const healPercent = Math.round(BATTLE_WIN_HEAL_RATIO * 100);
@@ -56,9 +69,11 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
     {
       title: 'このゲームの目的',
       icon: 'target',
-      lead: `侵入者(ハッカー)として${DEFAULT_RUN_NODES.length}つのマスを順番に進み、最後の監視AIを倒せばクリア。途中でHPが0になるとやり直し。`,
+      lead: `侵入者(ハッカー)として、分岐したマップを下から上へ進み、${MAP_TOTAL_FLOORS}段目の監視AIを倒せばクリア。途中でHPが0になるとやり直し。`,
       items: [
-        { term: 'マスの順番', text: route },
+        { term: 'マップ', text: `マスを終えるたびにマップが出て、線でつながった次のマスから行き先を選ぶ。マップは毎回ランダムに作られるが、段ごとの役割は決まっている(${describeFloorPlan()})。全部の道が最後は1体のボスに集まる。` },
+        { term: '起動ノード', text: `スタート地点。出発前の強化を${START_BONUS_CHOICES}つから1つ選ぶ(${bonusNames}のどれかが出る)。` },
+        { term: '道の選び方', text: 'HPが少なければ休憩のある道、デッキが強ければ強敵のある道、など状況で選ぶ。上のバーの「マップを見る」でいつでも確認できる。' },
         { term: '初期ビルド', text: `ランを始める前に${loadouts.length}種類から選ぶ(${loadouts.map((l) => l.name).join('・')})。HP・デッキ・最初の常駐ツールが変わる。` },
         { term: 'HP(回線耐久)', text: `最大HPは初期ビルドで${Math.min(...hps)}〜${Math.max(...hps)}。次のマスにも引き継ぐ。通常の戦闘に勝つと最大HPの${healPercent}%回復する。` },
         { term: '高難度モード', text: `セキュリティLv.0〜${MAX_SECURITY_LEVEL}を選べる。Lvが上がるほど敵が強くなる(Lv.3以上は最大HP−10)。まずはLv.0から。` },
@@ -110,7 +125,7 @@ export function buildHowToPlayPages(): HowToPlayPage[] {
         { term: '解析コイン', text: `${STARTING_RECON_COINS}枚で始まり、倒した敵から${Math.round(RECON_COIN_DROP_RATE * 100)}%で出る。クイズの「事前調査」(はずれの選択肢を1つ消す)と闇市で使う。` },
         { term: '闇市', text: 'コインで回復・使い捨てツール・カードの削除・常駐ツールと交換できるマス。' },
         { term: 'ハプニング', text: 'ランダムな出来事。HPを払って大きな見返りを狙うか、安全な方を選ぶ。' },
-        { term: '休憩・保守', text: `道中とボスの直前にある整備マス。HPを最大の${Math.round(REST_HEAL_RATIO * 100)}%回復する・カードを1つ上のレベルにする・カードを1枚消す、から1つ選ぶ。` },
+        { term: '休憩・保守', text: `道中とボスの直前の段にある整備マス。HPを最大の${Math.round(REST_HEAL_RATIO * 100)}%回復する・カードを1つ上のレベルにする・カードを1枚消す、から1つ選ぶ。` },
         { term: '使い捨てツール', text: `戦闘中に帯域0で使える道具(最大${MAX_TOOLS}個)。最初に「緊急パッチ」(HP回復)を1個持っている。` },
         { term: '常駐ツール', text: '手に入れると、その後の戦闘でずっと効く(毎ターンFW+3など)。' },
       ],
