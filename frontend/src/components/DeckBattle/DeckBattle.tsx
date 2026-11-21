@@ -1406,7 +1406,20 @@ export function DeckBattle({ onBackToMissions }: DeckBattleProps) {
                 </div>
               )}
               <div className="db-player-side">
-                <div className={`db-fighter${player.hp === 0 ? ' db-fighter--defeated' : ''}`} data-battle-anchor="player" aria-hidden="true">
+                <div
+                  className={[
+                    'db-fighter',
+                    player.hp === 0 ? 'db-fighter--defeated' : '',
+                    player.block > 0 ? 'db-fighter--shielded' : '',
+                    modifiers.nextAttackBonus > 0 || modifiers.repeatNextAttack || modifiers.reconCombo === 'ready'
+                      ? 'db-fighter--charged'
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  data-battle-anchor="player"
+                  aria-hidden="true"
+                >
                   <span
                     key={playerMotion?.id ?? 'idle'}
                     className={[
